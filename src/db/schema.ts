@@ -16,7 +16,7 @@ export const llmConfig = pgTable(
     arkApiKey: text("ark_api_key").notNull().default(""),
     baseUrl: text("base_url")
       .notNull()
-      .default("https://windhub.cc/v1"),
+      .default(""),
     textModel: text("text_model")
       .notNull()
       .default("doubao-seed-2-0-pro-260215"),

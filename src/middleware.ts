@@ -7,8 +7,13 @@ export const config = {
 };
 
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || "doubao-dev-secret-change-me";
-  return new TextEncoder().encode(secret);
+  const fromEnv = process.env.JWT_SECRET?.trim();
+  if (fromEnv) return new TextEncoder().encode(fromEnv);
+  if (process.env.NODE_ENV === "production") {
+    // 与 src/lib/auth.ts 一致：生产禁止静默弱密钥
+    throw new Error("JWT_SECRET is required in production");
+  }
+  return new TextEncoder().encode("doubao-dev-secret-change-me");
 }
 
 export async function middleware(req: NextRequest) {

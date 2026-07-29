@@ -1,0 +1,190 @@
+import { db } from "@/db";
+import { llmConfig } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import {
+  defaultImageModelIds,
+  defaultTextModelIds,
+  getConfig,
+  hasAnyApiCredential,
+  parseEnabledModels,
+  serializeModelIds,
+} from "@/lib/config";
+import { normalizeBaseUrl } from "@/server/providers/llm";
+import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
+
+function mask(key: string) {
+  if (!key || key.length < 8) return key ? "****" : "";
+  return key.slice(0, 4) + "****" + key.slice(-4);
+}
+
+function isMaskedKey(key: string | undefined): boolean {
+  return !!key && key.includes("****");
+}
+
+function publicConfig(
+  config: NonNullable<Awaited<ReturnType<typeof getConfig>>>,
+) {
+  const enabledTextModels = parseEnabledModels(
+    config.enabledTextModels,
+    defaultTextModelIds(),
+    config.textModel,
+  );
+  const enabledImageModels = parseEnabledModels(
+    config.enabledImageModels,
+    defaultImageModelIds(),
+    config.imageModel,
+  );
+
+  return {
+    id: config.id,
+    baseUrl: config.baseUrl,
+    textModel: config.textModel,
+    imageModel: config.imageModel,
+    imageSystemPrompt: config.imageSystemPrompt,
+    updatedAt: config.updatedAt,
+    arkApiKey: "",
+    hasApiKey: hasAnyApiCredential(config),
+    apiKeyHint: config.arkApiKey
+      ? mask(config.arkApiKey)
+      : hasAnyApiCredential(config)
+        ? "env"
+        : "",
+    enabledTextModels,
+    enabledImageModels,
+  };
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    throw new ApiError("enabled*Models 必须是字符串数组", 400);
+  }
+  return value
+    .filter((x): x is string => typeof x === "string")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// GET /api/config
+export const GET = handleRoute(async () => {
+  const config = await getConfig();
+  if (!config) throw new ApiError("未找到配置", 404);
+  return jsonOk(publicConfig(config));
+});
+
+// PUT /api/config
+export const PUT = handleRoute(async (req) => {
+  const body = await readJson<Record<string, unknown>>(req);
+  const updates: Record<string, unknown> = {};
+
+  if (body.arkApiKey !== undefined) {
+    const key = String(body.arkApiKey ?? "").trim();
+    if (key && !isMaskedKey(key)) {
+      updates.arkApiKey = key;
+    }
+  }
+  if (body.baseUrl !== undefined) {
+    const normalized = normalizeBaseUrl(String(body.baseUrl ?? ""));
+    if (!normalized) throw new ApiError("API Base URL 不能为空", 400);
+    updates.baseUrl = normalized;
+  }
+  if (body.textModel !== undefined) {
+    const m = String(body.textModel ?? "").trim();
+    if (!m) throw new ApiError("文生文模型不能为空", 400);
+    updates.textModel = m;
+  }
+  if (body.imageModel !== undefined) {
+    const m = String(body.imageModel ?? "").trim();
+    if (!m) throw new ApiError("文生图模型不能为空", 400);
+    updates.imageModel = m;
+  }
+  if (body.imageSystemPrompt !== undefined) {
+    updates.imageSystemPrompt = String(body.imageSystemPrompt ?? "");
+  }
+
+  const enabledText = asStringArray(body.enabledTextModels);
+  if (enabledText !== undefined) {
+    if (enabledText.length === 0) {
+      throw new ApiError("至少保留一个文生文模型", 400);
+    }
+    updates.enabledTextModels = serializeModelIds(enabledText);
+  }
+  const enabledImage = asStringArray(body.enabledImageModels);
+  if (enabledImage !== undefined) {
+    if (enabledImage.length === 0) {
+      throw new ApiError("至少保留一个文生图模型", 400);
+    }
+    updates.enabledImageModels = serializeModelIds(enabledImage);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(
+      "没有需要更新的字段（若只改 API Key，请重新完整输入）",
+      400,
+    );
+  }
+
+  updates.updatedAt = new Date();
+
+  const [row] = await db
+    .update(llmConfig)
+    .set(updates)
+    .where(eq(llmConfig.id, 1))
+    .returning({ id: llmConfig.id });
+
+  if (!row) {
+    await db.insert(llmConfig).values({
+      id: 1,
+      arkApiKey: (updates.arkApiKey as string) || "",
+      baseUrl: (updates.baseUrl as string) || "",
+      textModel:
+        (updates.textModel as string) || "doubao-seed-2-0-pro-260215",
+      imageModel:
+        (updates.imageModel as string) || "doubao-seedream-4-5-251128",
+      imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
+      enabledTextModels:
+        (updates.enabledTextModels as string) ||
+        serializeModelIds(defaultTextModelIds()),
+      enabledImageModels:
+        (updates.enabledImageModels as string) ||
+        serializeModelIds(defaultImageModelIds()),
+      updatedAt: new Date(),
+    });
+  }
+
+  // 若更新了默认模型但不在启用列表，自动加入
+  const latest = await getConfig();
+  if (latest) {
+    const pinUpdates: Record<string, unknown> = {};
+    const textEnabled = parseEnabledModels(
+      latest.enabledTextModels,
+      defaultTextModelIds(),
+    );
+    const imageEnabled = parseEnabledModels(
+      latest.enabledImageModels,
+      defaultImageModelIds(),
+    );
+    if (latest.textModel && !textEnabled.includes(latest.textModel)) {
+      pinUpdates.enabledTextModels = serializeModelIds([
+        latest.textModel,
+        ...textEnabled,
+      ]);
+    }
+    if (latest.imageModel && !imageEnabled.includes(latest.imageModel)) {
+      pinUpdates.enabledImageModels = serializeModelIds([
+        latest.imageModel,
+        ...imageEnabled,
+      ]);
+    }
+    if (Object.keys(pinUpdates).length) {
+      await db
+        .update(llmConfig)
+        .set({ ...pinUpdates, updatedAt: new Date() })
+        .where(eq(llmConfig.id, 1));
+    }
+  }
+
+  const config = await getConfig();
+  if (!config) throw new ApiError("未找到配置", 404);
+  return jsonOk(publicConfig(config));
+});

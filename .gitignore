@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+Thumbs.db
 
 # debug
 npm-debug.log*
@@ -30,8 +31,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — keep example
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated user content (keep directory via .gitkeep)
+/public/images/*
+!/public/images/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# local notes / agent scratch
+doubaome.md
+.superpowers/
+.claude/
+
+# OS / editor
+.idea/
+.vscode/
+*.swp

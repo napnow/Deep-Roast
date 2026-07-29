@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 深焙 Deep Roast
 
-## Getting Started
+自托管的 **文生文 · 文生图** 工作台：深度思考、慢焙出好答案。
 
-First, run the development server:
+- Next.js App Router + React 19  
+- PostgreSQL + Drizzle ORM  
+- Cookie JWT 登录、积分、管理后台  
+- OpenAI 兼容上游（自配 Base URL / API Key）
+
+> 适合个人或小团队自托管。默认偏单租户：全局 LLM 配置在库中，公网开放注册前请自行评估风险。
+
+## 功能一览
+
+- 文生文流式对话、会话历史  
+- 文生图、风格预设、反推提示词、图生图  
+- 用户积分与充值流水（可按需接支付）  
+- 管理员：用户、积分、内容、站点联系方式  
+
+## 环境要求
+
+| 依赖 | 版本 |
+|------|------|
+| Node.js | ≥ 18（推荐 20 LTS） |
+| PostgreSQL | ≥ 14 |
+| npm | ≥ 9 |
+
+## 快速开始
+
+### 1. 克隆与安装
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url> deep-roast
+cd deep-roast
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. 环境变量
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+编辑 `.env.local`，至少设置：
 
-## Learn More
+- `DATABASE_URL` — Postgres 连接串  
+- `JWT_SECRET` — 长随机串（**生产必填**）  
+- `ADMIN_PASSWORD` — 首次 seed 的管理员密码（推荐）  
 
-To learn more about Next.js, take a look at the following resources:
+### 3. 数据库
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+准备好空库后：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run db:migrate
+npm run db:seed
+```
 
-## Deploy on Vercel
+默认管理员用户名：`admin`（密码来自 `ADMIN_PASSWORD`，未设置时仅本地弱默认并警告）。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4. 开发 / 生产
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev      # http://localhost:3000
+npm run build && npm start
+```
+
+登录后在 **设置** 中填写 API Base URL 与 Key，并启用模型。
+
+## 常用脚本
+
+| 脚本 | 说明 |
+|------|------|
+| `npm run dev` | 开发服务器 |
+| `npm run build` / `start` | 生产构建与启动 |
+| `npm run lint` | ESLint |
+| `npm run db:generate` | 根据 schema 生成迁移 |
+| `npm run db:migrate` | 执行迁移 |
+| `npm run db:seed` | 写入默认配置与管理员 |
+| `npm run db:studio` | Drizzle Studio（可选） |
+
+## 安全提示
+
+- **不要**把 `.env.local`、真实 Key、用户生成图提交进仓库  
+- 生产必须设置强 `JWT_SECRET`；未设置时生产环境会拒绝签发 token  
+- 公开部署时：考虑关闭注册、轮换默认 admin 密码、限制上传与积分刷量  
+- `public/images`、`public/uploads` 为运行时内容，已在 `.gitignore` 中忽略  
+
+## 文档
+
+- [环境与运行](docs/setup.md)  
+- 更多设计稿见 `docs/superpowers/`（过程文档，可选读）  
+
+## License
+
+[MIT](./LICENSE)
