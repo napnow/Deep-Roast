@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ChangePasswordModal from "@/components/Auth/ChangePasswordModal";
+import { softNavigate } from "@/lib/nav-transition";
 
 interface UserMenuProps {
   username: string;
@@ -80,7 +81,7 @@ export default function UserMenu({
             <button
               onClick={() => {
                 setOpen(false);
-                router.push("/admin");
+                softNavigate(router, "/admin");
               }}
               className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 hover:opacity-80"
               style={{ color: "var(--accent)" }}

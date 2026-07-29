@@ -127,37 +127,39 @@ export default function Home() {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0">
-        {activeMode === "text" ? (
-          <TextModePanel
-            conversations={conversations}
-            activeConvId={activeConvId}
-            chatMessages={chatMessages}
-            streaming={streaming}
-            streamingText={streamingText}
-            onSelect={actions.handleSelectConversation}
-            onNew={actions.handleNewConversation}
-            onDelete={actions.handleDeleteConversation}
-            onRename={actions.handleRenameConversation}
-            onSend={actions.handleSendMessage}
-            onStop={actions.handleStopChat}
-          />
-        ) : (
-          <ImageGenView
-            model={config.imageModel}
-            onGenerate={actions.handleGenerateImage}
-            onStopGenerate={actions.handleStopGenerateImage}
-            generating={generating}
-            history={imageHistory}
-            onDeleteImage={actions.handleDeleteImage}
-            credits={credits}
-            isAdmin={role === "admin"}
-            checkinEligible={checkinEligible}
-            todayChecked={todayChecked}
-            onCheckinClick={handleCheckin}
-            onWalletClick={() => setWalletOpen(true)}
-          />
-        )}
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
+        <div key={activeMode} className="flex-1 flex min-h-0 mode-panel-enter">
+          {activeMode === "text" ? (
+            <TextModePanel
+              conversations={conversations}
+              activeConvId={activeConvId}
+              chatMessages={chatMessages}
+              streaming={streaming}
+              streamingText={streamingText}
+              onSelect={actions.handleSelectConversation}
+              onNew={actions.handleNewConversation}
+              onDelete={actions.handleDeleteConversation}
+              onRename={actions.handleRenameConversation}
+              onSend={actions.handleSendMessage}
+              onStop={actions.handleStopChat}
+            />
+          ) : (
+            <ImageGenView
+              model={config.imageModel}
+              onGenerate={actions.handleGenerateImage}
+              onStopGenerate={actions.handleStopGenerateImage}
+              generating={generating}
+              history={imageHistory}
+              onDeleteImage={actions.handleDeleteImage}
+              credits={credits}
+              isAdmin={role === "admin"}
+              checkinEligible={checkinEligible}
+              todayChecked={todayChecked}
+              onCheckinClick={handleCheckin}
+              onWalletClick={() => setWalletOpen(true)}
+            />
+          )}
+        </div>
       </div>
 
       <AppModals

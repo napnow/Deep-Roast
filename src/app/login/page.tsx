@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { login, register } from "@/lib/auth-client";
+import { useAuth } from "@/components/AuthProvider";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
 import type { Announcement } from "@/types";
 
@@ -12,6 +13,7 @@ const STAGE_BULLETS = [
 ];
 
 export default function LoginPage() {
+  const { refresh } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +62,8 @@ export default function LoginPage() {
           ? await login(username.trim(), password)
           : await register(username.trim(), password);
       if (result.success) {
-        window.location.href = "/";
+        // 刷新登录态；AuthProvider 会带过渡跳到首页
+        await refresh();
       } else {
         setError(result.error || "操作失败");
       }

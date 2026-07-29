@@ -17,6 +17,7 @@ import AdminImagesTab from "@/components/Admin/AdminImagesTab";
 import AdminCreditsTab from "@/components/Admin/AdminCreditsTab";
 import AdminImageDetailModal from "@/components/Admin/AdminImageDetailModal";
 import ResetPasswordModal from "@/components/Admin/ResetPasswordModal";
+import { softNavigate } from "@/lib/nav-transition";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
-      router.replace("/");
+      softNavigate(router, "/", "replace");
     }
   }, [user, loading, router]);
 
@@ -262,7 +263,7 @@ export default function AdminPage() {
           setSelectedUser(u);
           setMainView("detail");
         }}
-        onBack={() => router.push("/")}
+        onBack={() => softNavigate(router, "/")}
       />
 
       <div className="admin-main">
