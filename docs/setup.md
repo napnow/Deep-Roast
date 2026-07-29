@@ -86,7 +86,8 @@ npm run dev
 浏览器打开 [http://localhost:3000](http://localhost:3000)，使用 admin 登录后：
 
 1. 修改密码（用户菜单）  
-2. 设置 → 填写 API Base URL 与 Key，拉取并启用模型  
+2. 设置 → 填写 API Base URL 与 Key，「获取模型」后启用文/图模型；可选配置 **图推模型**（反推 / 图生图分析）  
+3. 管理后台 → 站点设置：注册开关、联系方式、公告  
 
 ## 4. 生产构建
 
@@ -144,13 +145,25 @@ npm start          # 默认 3000；可用 PORT=3000
 
 ### 5.4 多用户时建议立刻做的
 
-1. **改掉** seed 出来的 admin 默认密码  
-2. 评估是否 **关闭公开注册**（当前默认开放；公网请改代码或反代限制）  
+1. **改掉** seed 出来的 admin 默认密码（或 seed 前设置 `ADMIN_PASSWORD`）  
+2. 评估是否 **关闭公开注册**：管理后台 → 站点设置即可开关（默认开放）  
 3. 定期备份 Postgres +（可选）`public/images`、`public/uploads`  
 4. 监控磁盘：生图按张落盘，无自动清理  
 5. 上游 Key 配额与费用：用量主要在第三方 API，不在你这台机的 GPU  
+6. 普通用户靠 **每日签到 +50**（Asia/Shanghai）与管理员调积分；生图 **5 积分/张**，管理员免费  
 
 单机「应用 + Postgres」可以起步；用户与数据重要后再把数据库拆到托管 RDS。
+
+### 5.5 数据库迁移说明
+
+仓库 `drizzle/` 含增量 SQL（含签到/封禁/公告、`reverse_prompt_model` 等）。新环境执行：
+
+```bash
+npm run db:migrate
+npm run db:seed   # 仅首次
+```
+
+已有库升级时同样 `db:migrate`；若历史环境曾手写 SQL，请对照 `drizzle/meta/_journal.json` 避免重复执行。
 
 ## 6. 常见问题
 
@@ -159,6 +172,9 @@ npm start          # 默认 3000；可用 PORT=3000
 
 **迁移失败**  
 检查 `DATABASE_URL` 与 Postgres 是否可达；确认 `drizzle/` 目录已随仓库提供。
+
+**图推 / 反推失败**  
+确认设置里已配置支持图文的模型（「图推模型」或至少文生文模型可用），且上游接受 `image_url` 多模态消息。
 
 **生成图磁盘占用**  
 图片落在 `public/images/`，已 gitignore；部署时请自行备份或改对象存储（未内置）。

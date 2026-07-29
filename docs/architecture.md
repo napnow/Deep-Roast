@@ -41,12 +41,15 @@
 │  │                                                   │   │
 │  │  /api/chat        → SSE 流式 → OpenAI 兼容上游    │   │
 │  │  /api/image       → 原生 fetch → 按模型解析端点    │   │
+│  │  /api/reverse-prompt → vision 模型反推/图析        │   │
 │  │  /api/config      → GET/PUT → PostgreSQL          │   │
-│  │  /api/models      → GET → 上游 /models 分类        │   │
+│  │  /api/models      → GET|POST → 上游 /models 分类   │   │
+│  │  /api/credits/*   → 签到 / 流水（充值已 410）      │   │
 │  │  /api/conversations → CRUD → PostgreSQL           │   │
 │  │  /api/image-history → CRUD → PostgreSQL + fs      │   │
 │  │  /api/auth/*      → 登录 / 注册 / 改密             │   │
 │  │  /api/admin/*     → 管理后台（需 admin 角色）       │   │
+│  │  /api/public/*    → 登录页联系方式 / 公告          │   │
 │  └──────────────────────────────────────────────────┘   │
 │                                                         │
 │  ┌──────────────────────────────────────────────────┐   │
@@ -102,9 +105,9 @@ const apiKey = config.arkApiKey || process.env.ARK_API_KEY || "";
 
 ### 4. 模型列表：上游全量 + 本地分类
 
-**决策**: `GET /api/models` 请求上游 `/models`，再按 id 模式分为文生文 / 文生图（如 seedream / imagine / dall / flux / `gpt-image-2` 等）。
+**决策**: `GET|POST /api/models` 请求上游 `/models`，再按 id 模式分为文生文 / 文生图（如 seedream / imagine / dall / flux / `gpt-image-2` 等）。设置页可对文/图勾选启用列表；**图推模型**为单选，从文本/多模态目录点选，写入 `llm_config.reverse_prompt_model`（空则运行时回落 `textModel`）。
 
-**原因**: 不同网关返回的模型集合差异大；产品侧用规则归类，并允许设置页启用子集。
+**原因**: 不同网关返回的模型集合差异大；产品侧用规则归类，并允许设置页启用子集；图推不写死某一 vision 模型 id。
 
 ### 5. config 表 `updatedAt` 必须是 Date 对象
 

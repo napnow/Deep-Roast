@@ -19,7 +19,7 @@
 
 ### POST /api/auth/register
 
-**公开**（若部署关闭注册请自行改代码或反代）。创建用户并登录。
+**公开**（若站点设置 `registrationEnabled=false` 则拒绝注册）。创建用户并登录。
 
 ### POST /api/auth/logout
 
@@ -95,7 +95,14 @@
 
 ### POST /api/reverse-prompt
 
-图生文 / 反推提示词（需上游 vision 能力）。
+图生文 / 反推提示词、图生图分析（需上游 **vision / 多模态** 能力）。
+
+- 模型来自 `llm_config.reverse_prompt_model`（设置页「图推模型」）
+- 若为空，回落当前 `textModel`
+- 端点解析：`resolveVisionEndpoint`（与设置页 Base URL + Key / 可选 `GEMINI_*` env）
+
+请求体：`{ "imageBase64": "data:image/...;base64,...", "editDescription"?: string }`  
+（有 `editDescription` 时走图生图分析文案。）
 
 ---
 
@@ -115,6 +122,7 @@
   "textModel": "doubao-seed-2-0-pro-260215",
   "imageModel": "doubao-seedream-4-5-251128",
   "imageSystemPrompt": "",
+  "reversePromptModel": "",
   "hasApiKey": true,
   "apiKeyHint": "sk-a****wxyz",
   "enabledTextModels": ["doubao-seed-2-0-pro-260215"],
@@ -122,6 +130,8 @@
   "updatedAt": "2026-07-29T00:00:00.000Z"
 }
 ```
+
+`reversePromptModel` 为空字符串表示未单独配置图推模型（运行时用 `textModel`）。
 
 ### PUT /api/config
 
@@ -131,13 +141,21 @@
 {
   "baseUrl": "https://api.example.com/v1",
   "textModel": "doubao-seed-2-0-pro-260215",
+  "reversePromptModel": "your-vision-model-id",
   "enabledImageModels": ["doubao-seedream-4-5-251128", "gpt-image-2"]
 }
 ```
 
-### GET /api/models
+### GET|POST /api/models
 
-拉取上游模型列表并分类为 text / image（依赖已配置的 Base URL + Key）。
+拉取上游模型列表并分类为 text / image。
+
+| 方法 | 用途 |
+|------|------|
+| `GET` | 使用**已保存**配置 / env 拉取（兼容旧调用） |
+| `POST` | body `{ "baseUrl"?, "apiKey"? }`：用设置页**当前输入**（可未保存）拉取 |
+
+设置页的文/图「启用列表」与「图推模型」单选都走此目录。
 
 ---
 

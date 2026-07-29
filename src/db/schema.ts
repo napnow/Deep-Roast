@@ -133,7 +133,7 @@ export const creditTransactions = pgTable("credit_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus'
+  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus'
   amount: integer("amount").notNull(), // 正=增加, 负=扣除
   balanceAfter: integer("balance_after").notNull(),
   planId: text("plan_id"), // 充值档位, 仅 type=recharge 时
