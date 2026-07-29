@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { login, register } from "@/lib/auth-client";
+import AdminContactModal from "@/components/Auth/AdminContactModal";
 
 export default function LoginPage() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   // 已登录跳转由 AuthProvider 统一处理，这里直接渲染表单，避免 checking 卡死导致白屏
 
@@ -167,12 +169,26 @@ export default function LoginPage() {
           </button>
         </form>
         {tab === "login" && (
-          <p
-            className="mt-4 text-center text-[11px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            忘记密码？请联系管理员重置
-          </p>
+          <>
+            <p
+              className="mt-4 text-center text-[11px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              忘记密码？{" "}
+              <button
+                type="button"
+                onClick={() => setContactOpen(true)}
+                className="underline font-medium"
+                style={{ color: "var(--accent)" }}
+              >
+                联系管理员
+              </button>
+            </p>
+            <AdminContactModal
+              open={contactOpen}
+              onClose={() => setContactOpen(false)}
+            />
+          </>
         )}
       </div>
     </div>
