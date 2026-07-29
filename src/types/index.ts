@@ -1,0 +1,137 @@
+// ── Shared types for doubao-app ──
+
+export interface Message {
+  id?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  reasoning?: string; // 豆包模型的思考过程
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface ImageRecord {
+  id: string;
+  prompt: string;
+  model: string;
+  imageUrl: string;
+  size: string;
+  createdAt: string;
+}
+
+// ── Credits types ──
+export interface CreditTransaction {
+  id: string;
+  userId: string;
+  username?: string;
+  type: "recharge" | "admin_grant" | "admin_deduct" | "consume" | "signup_bonus";
+  amount: number;
+  balanceAfter: number;
+  planId?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+
+export const RECHARGE_PLANS = [
+  { planId: "plan_10", amount: 10, credits: 200, label: "¥10", desc: "200 积分 (10 张)" },
+  { planId: "plan_30", amount: 30, credits: 600, label: "¥30", desc: "600 积分 (30 张)" },
+  { planId: "plan_50", amount: 50, credits: 1200, label: "¥50", desc: "1200 积分 (50 张)", badge: "最划算" },
+  { planId: "plan_100", amount: 100, credits: 3000, label: "¥100", desc: "3000 积分 (100 张)", badge: "送 1000" },
+];
+
+export const CREDIT_PER_IMAGE = 20;
+
+export const CREDIT_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  recharge: { label: "充值", color: "#10b981" },
+  admin_grant: { label: "管理加积分", color: "#3b82f6" },
+  admin_deduct: { label: "管理扣积分", color: "#f97316" },
+  consume: { label: "生成消耗", color: "#ef4444" },
+  signup_bonus: { label: "注册赠送", color: "#6b7280" },
+};
+
+export interface Config {
+  arkApiKey: string;
+  baseUrl: string;
+  textModel: string;
+  imageModel: string;
+  imageSystemPrompt: string;
+  hasApiKey?: boolean;
+  /** 已配置 key 的脱敏提示，如 g2a_****xxxx；不用于回传保存 */
+  apiKeyHint?: string;
+  /** 用户启用的模型（顶栏选择器只显示这些） */
+  enabledTextModels?: string[];
+  enabledImageModels?: string[];
+}
+
+export interface ModelInfo {
+  id: string;
+}
+
+// ── Admin types ──
+export interface AdminUser {
+  id: string;
+  username: string;
+  role: string;
+  credits: number;
+  conversationCount: number;
+  imageCount: number;
+  createdAt: string;
+  lastActive: string | null;
+}
+
+// ── Default models ──
+export const DEFAULT_TEXT_MODELS: ModelInfo[] = [
+  { id: "doubao-seed-2-0-pro-260215" },
+  { id: "doubao-seed-2-0-lite-260428" },
+  { id: "doubao-seed-1-8-251228" },
+  { id: "doubao-seed-1-6-251015" },
+  { id: "doubao-1-5-pro-32k-250115" },
+  { id: "grok-4.20-fast" },
+];
+
+export const DEFAULT_IMAGE_MODELS: ModelInfo[] = [
+  { id: "doubao-seedream-4-5-251128" },
+  { id: "grok-imagine-image-lite" },
+  { id: "gpt-image-2" },
+];
+
+// ── Image generation style presets ──
+export const IMAGE_STYLE_PRESETS = [
+  { label: "无预设", prompt: "" },
+  { label: "写实摄影", prompt: "超写实摄影风格，自然光，高细节，8K超清，专业构图" },
+  { label: "日系动漫", prompt: "日系动漫风格，新海诚画风，柔和光影，治愈系，高精细度" },
+  { label: "油画艺术", prompt: "古典油画风格，厚涂笔触，丰富色彩层次，大师级光影" },
+  { label: "电影级", prompt: "电影级画质，cinematic lighting，景深效果，16:9宽银幕质感" },
+];
+
+// ── Example prompts for empty state ──
+export const EXAMPLE_PROMPTS = [
+  { icon: "💡", text: "用 Rust 写一个简单的 HTTP 服务器" },
+  { icon: "🎨", text: "解释量子纠缠，用通俗易懂的比喻" },
+  { icon: "📝", text: "帮我润色这段话，让它更专业" },
+  { icon: "🔍", text: "分析这段代码的时间复杂度" },
+];
+
+// ── Relative time formatter ──
+export function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = now - then;
+  const sec = Math.floor(diff / 1000);
+  const min = Math.floor(sec / 60);
+  const hr = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+
+  if (sec < 60) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  if (hr < 24) return `${hr} 小时前`;
+  if (day < 7) return `${day} 天前`;
+  if (day < 30) return `${Math.floor(day / 7)} 周前`;
+  return new Date(dateStr).toLocaleDateString("zh-CN");
+}
