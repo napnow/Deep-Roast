@@ -106,7 +106,7 @@ export default function ReversePromptPanel({
           className="text-[11px] font-semibold tracking-widest uppercase"
           style={{ color: "var(--text-muted)" }}
         >
-          📷 图片反推提示词
+          图片反推提示词
         </span>
         <span
           className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
