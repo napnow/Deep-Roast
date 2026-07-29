@@ -74,6 +74,7 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
       data.data || (Array.isArray(data) ? data : []);
     upstreamCount = models.filter((m) => m?.id).length;
 
+    // 文本 / 多模态（图推也从这批选：gemini、gpt-4o、claude 等）
     const isText = (id: string) =>
       (id.startsWith("doubao-") ||
         id.startsWith("grok-") ||
@@ -83,7 +84,9 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
         id.includes("claude") ||
         id.includes("gemini") ||
         id.includes("deepseek") ||
-        id.includes("qwen")) &&
+        id.includes("qwen") ||
+        id.includes("vision") ||
+        id.includes("vl")) &&
       !id.includes("seedream") &&
       !id.includes("imagine") &&
       id !== "gpt-image-2" &&

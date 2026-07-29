@@ -8,6 +8,7 @@ import {
   DEFAULT_TEXT_MODELS,
 } from "@/types";
 import ModelManager from "@/components/Settings/ModelManager";
+import ReversePromptModelPicker from "@/components/Settings/ReversePromptModelPicker";
 
 interface SettingsModalProps {
   open: boolean;
@@ -192,19 +193,13 @@ export default function SettingsModal({
             hasSavedApiKey={!!config.hasApiKey}
           />
 
-          <Field
-            label="图推模型"
-            hint="图片反推提示词 / 图生图分析所用的视觉模型（需支持图文输入）"
-          >
-            <input
-              type="text"
-              value={reversePromptModel}
-              onChange={(e) => setReversePromptModel(e.target.value)}
-              placeholder={DEFAULT_REVERSE_PROMPT_MODEL}
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm transition-colors duration-200 font-mono"
-              style={inputStyle}
-            />
-          </Field>
+          <ReversePromptModelPicker
+            value={reversePromptModel}
+            onChange={setReversePromptModel}
+            baseUrl={baseUrl}
+            apiKey={apiKey}
+            hasSavedApiKey={!!config.hasApiKey}
+          />
 
           <Field
             label="图片生成系统提示词"
