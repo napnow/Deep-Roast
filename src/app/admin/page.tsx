@@ -47,6 +47,8 @@ export default function AdminPage() {
     bannedUsers: number;
   } | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
+  /** 右侧主面板：总览 或 用户详情（选用户时自动切到 detail） */
+  const [mainView, setMainView] = useState<"overview" | "detail">("overview");
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -139,6 +141,7 @@ export default function AdminPage() {
         alert(data.error || "删除失败");
       } else {
         setSelectedUser(null);
+        setMainView("overview");
         await refreshUsers();
       }
     } catch {
@@ -241,18 +244,35 @@ export default function AdminPage() {
       <AdminUserList
         users={users}
         selectedUser={selectedUser}
+        overviewActive={mainView === "overview"}
         loadingUsers={loadingUsers}
-        onSelect={setSelectedUser}
+        onShowOverview={() => setMainView("overview")}
+        onSelect={(u) => {
+          setSelectedUser(u);
+          setMainView("detail");
+        }}
         onBack={() => router.push("/")}
       />
 
       <div className="flex-1 h-screen overflow-y-auto p-6">
-        {!selectedUser ? (
+        {mainView === "overview" || !selectedUser ? (
           <AdminDashboard globalStats={globalStats} />
         ) : (
           <div className="max-w-4xl mx-auto space-y-6">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setMainView("overview")}
+                  className="text-xs px-2.5 py-1 rounded-md font-medium"
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  ← 运营总览
+                </button>
                 <h1 className="text-xl font-bold">{selectedUser.username}</h1>
                 {selectedUser.status === "banned" && (
                   <span
