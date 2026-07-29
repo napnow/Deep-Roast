@@ -54,9 +54,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* 左 · 品牌舞台：桌面固定深焙深色；窄屏隐藏 */}
       <aside
-        className="relative hidden md:flex md:w-[46%] lg:w-[48%] flex-col justify-between p-10 lg:p-14 overflow-hidden"
+        className="relative hidden md:flex md:w-[46%] lg:w-[48%] flex-col overflow-hidden"
         style={{
-          /* 焙棕中调：比近黑亮一截，仍与右栏表单有层次 */
           background:
             "linear-gradient(165deg, #2a211c 0%, #3d2e24 42%, #4a3428 100%)",
           color: "#f3ebe3",
@@ -66,7 +65,7 @@ export default function LoginPage() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(820px 400px at 16% -8%, rgba(232, 165, 106, 0.28), transparent 52%), radial-gradient(560px 300px at 88% 88%, rgba(255, 200, 140, 0.08), transparent 48%)",
+              "radial-gradient(820px 400px at 20% 10%, rgba(232, 165, 106, 0.26), transparent 52%), radial-gradient(560px 300px at 90% 92%, rgba(255, 200, 140, 0.07), transparent 48%)",
           }}
           aria-hidden
         />
@@ -81,59 +80,57 @@ export default function LoginPage() {
           aria-hidden
         />
 
-        <div className="relative z-10">
-          <div
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl font-display text-lg font-semibold"
-            style={{
-              background: "linear-gradient(145deg, #f0b57a, #d4894a)",
-              color: "#2a1810",
-              boxShadow: "0 6px 20px rgba(40, 24, 12, 0.25)",
-            }}
-          >
-            焙
-          </div>
-        </div>
-
-        <div className="relative z-10 space-y-5 max-w-md animate-fade-up">
-          <div>
-            <h1 className="font-display text-4xl lg:text-5xl font-semibold tracking-tight">
-              深焙
-            </h1>
-            <p
-              className="mt-2 text-[11px] font-medium tracking-[0.2em] uppercase"
-              style={{ color: "rgba(243, 235, 227, 0.45)" }}
-            >
-              Deep Roast
-            </p>
-          </div>
-          <p
-            className="text-base leading-relaxed"
-            style={{ color: "rgba(243, 235, 227, 0.78)" }}
-          >
-            深度思考，慢焙出好答案。
-            <br />
-            把对话与出图放进同一炉火候里。
-          </p>
-          <ul className="space-y-2.5 pt-2">
-            {STAGE_BULLETS.map((line) => (
-              <li
-                key={line}
-                className="flex items-center gap-2.5 text-sm"
-                style={{ color: "rgba(243, 235, 227, 0.72)" }}
+        {/* 主文案垂直居中，底部脚注贴底 */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center px-10 lg:px-14 py-12">
+          <div className="max-w-md animate-fade-up space-y-8">
+            <div>
+              <p
+                className="text-[11px] font-semibold tracking-[0.22em] uppercase mb-4"
+                style={{ color: "rgba(232, 165, 106, 0.9)" }}
               >
-                <span
-                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{ background: "#e8a56a" }}
-                />
-                {line}
-              </li>
-            ))}
-          </ul>
+                Deep Roast
+              </p>
+              <h1 className="font-display text-5xl lg:text-[3.5rem] font-semibold tracking-tight leading-none">
+                深焙
+              </h1>
+              <div
+                className="mt-5 h-px w-12"
+                style={{ background: "rgba(232, 165, 106, 0.55)" }}
+                aria-hidden
+              />
+            </div>
+
+            <p
+              className="text-[15px] lg:text-base leading-[1.7] max-w-sm"
+              style={{ color: "rgba(243, 235, 227, 0.82)" }}
+            >
+              深度思考，慢焙出好答案。
+              <br />
+              把对话与出图放进同一炉火候里。
+            </p>
+
+            <ul className="space-y-3 pt-1">
+              {STAGE_BULLETS.map((line) => (
+                <li
+                  key={line}
+                  className="flex items-baseline gap-3 text-[13px] lg:text-sm"
+                  style={{ color: "rgba(243, 235, 227, 0.7)" }}
+                >
+                  <span
+                    className="mt-[0.55em] h-px w-4 shrink-0"
+                    style={{ background: "rgba(232, 165, 106, 0.7)" }}
+                    aria-hidden
+                  />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <p
-          className="relative z-10 text-[11px]"
-          style={{ color: "rgba(243, 235, 227, 0.4)" }}
+          className="relative z-10 px-10 lg:px-14 pb-8 text-[11px] tracking-wide"
+          style={{ color: "rgba(243, 235, 227, 0.38)" }}
         >
           自托管 · 积分可控 · 慢即是快
         </p>
