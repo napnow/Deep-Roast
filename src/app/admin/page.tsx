@@ -236,11 +236,22 @@ export default function AdminPage() {
     setAdjustLoading(false);
   }
 
+  if (loading || !user) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "var(--bg-canvas)", color: "var(--text-muted)" }}
+      >
+        <p className="text-sm tracking-wide">加载管理台…</p>
+      </div>
+    );
+  }
+
+  const initial =
+    selectedUser?.username?.slice(0, 1)?.toUpperCase() || "·";
+
   return (
-    <div
-      className="min-h-screen flex"
-      style={{ background: "var(--bg-root)", color: "var(--text-primary)" }}
-    >
+    <div className="admin-shell">
       <AdminUserList
         users={users}
         selectedUser={selectedUser}
@@ -254,144 +265,210 @@ export default function AdminPage() {
         onBack={() => router.push("/")}
       />
 
-      <div className="flex-1 h-screen overflow-y-auto p-6">
+      <div className="admin-main">
         {mainView === "overview" || !selectedUser ? (
           <AdminDashboard globalStats={globalStats} />
         ) : (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setMainView("overview")}
-                  className="text-xs px-2.5 py-1 rounded-md font-medium"
-                  style={{
-                    background: "var(--bg-surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  ← 运营总览
-                </button>
-                <h1 className="text-xl font-bold">{selectedUser.username}</h1>
-                {selectedUser.status === "banned" && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
-                    style={{
-                      background: "var(--danger-surface)",
-                      color: "var(--danger)",
-                    }}
-                  >
-                    已封禁
-                  </span>
-                )}
-              </div>
-              <p
-                className="text-xs mt-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                注册时间:{" "}
-                {selectedUser.createdAt
-                  ? new Date(selectedUser.createdAt).toLocaleString("zh-CN")
-                  : "-"}
-                {" · "}
-                角色:{" "}
-                {selectedUser.role === "admin" ? "管理员" : "普通用户"}
-                {" · "}
-                积分: 💰 {selectedUser.credits ?? 0}
-                {" · "}
-                对话 {selectedUser.conversationCount} · 图片{" "}
-                {selectedUser.imageCount}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResetOpen(true)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{
-                    background: "var(--bg-surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  重置密码
-                </button>
-                {selectedUser.role !== "admin" && (
-                  <>
-                    <button
-                      type="button"
-                      disabled={userActionLoading}
-                      onClick={handleToggleBan}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+          <div className="max-w-5xl mx-auto space-y-5 animate-fade-up">
+            {/* User dossier header */}
+            <section className="admin-card overflow-hidden">
+              <div
+                className="h-1.5 w-full"
+                style={{
+                  background:
+                    selectedUser.status === "banned"
+                      ? "linear-gradient(90deg, var(--danger), transparent)"
+                      : "linear-gradient(90deg, var(--accent-soft), var(--accent), transparent)",
+                }}
+              />
+              <div className="admin-card-body !pt-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <span
+                      className="h-12 w-12 rounded-[var(--radius)] flex items-center justify-center font-display text-xl font-semibold shrink-0"
                       style={{
                         background:
                           selectedUser.status === "banned"
-                            ? "var(--accent-surface)"
-                            : "var(--danger-surface)",
-                        border: `1px solid ${
-                          selectedUser.status === "banned"
-                            ? "var(--accent)"
-                            : "var(--danger)"
-                        }`,
+                            ? "var(--danger-surface)"
+                            : "var(--accent-surface)",
                         color:
                           selectedUser.status === "banned"
-                            ? "var(--accent)"
-                            : "var(--danger)",
+                            ? "var(--danger)"
+                            : "var(--accent)",
+                        border: `1px solid ${
+                          selectedUser.status === "banned"
+                            ? "color-mix(in srgb, var(--danger) 35%, transparent)"
+                            : "color-mix(in srgb, var(--accent) 35%, transparent)"
+                        }`,
                       }}
+                      aria-hidden
                     >
-                      {selectedUser.status === "banned" ? "解封" : "封禁"}
-                    </button>
+                      {initial}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setMainView("overview")}
+                          className="admin-btn admin-btn--ghost !px-2 !py-0.5 text-[11px]"
+                        >
+                          ← 运营总览
+                        </button>
+                        {selectedUser.status === "banned" && (
+                          <span
+                            className="text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide"
+                            style={{
+                              background: "var(--danger-surface)",
+                              color: "var(--danger)",
+                            }}
+                          >
+                            已封禁
+                          </span>
+                        )}
+                        {selectedUser.role === "admin" && (
+                          <span
+                            className="text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide"
+                            style={{
+                              background: "var(--accent-surface)",
+                              color: "var(--accent)",
+                            }}
+                          >
+                            ADMIN
+                          </span>
+                        )}
+                      </div>
+                      <h1 className="admin-title text-[1.55rem] mt-1.5 truncate">
+                        {selectedUser.username}
+                      </h1>
+                      <p
+                        className="text-[11.5px] mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 tabular-nums"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <span>
+                          注册{" "}
+                          {selectedUser.createdAt
+                            ? new Date(selectedUser.createdAt).toLocaleString(
+                                "zh-CN",
+                              )
+                            : "-"}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {selectedUser.role === "admin"
+                            ? "管理员"
+                            : "普通用户"}
+                        </span>
+                        <span>·</span>
+                        <span className="font-semibold" style={{ color: "var(--accent)" }}>
+                          {selectedUser.credits ?? 0} 积分
+                        </span>
+                        <span>·</span>
+                        <span>{selectedUser.conversationCount} 对话</span>
+                        <span>·</span>
+                        <span>{selectedUser.imageCount} 图</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       type="button"
-                      disabled={userActionLoading}
-                      onClick={handleDeleteUser}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                      style={{
-                        background: "var(--bg-surface)",
-                        border: "1px solid var(--danger)",
-                        color: "var(--danger)",
-                      }}
+                      onClick={() => setResetOpen(true)}
+                      className="admin-btn admin-btn--ghost"
                     >
-                      删除用户
+                      重置密码
                     </button>
-                  </>
-                )}
+                    {selectedUser.role !== "admin" && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={userActionLoading}
+                          onClick={handleToggleBan}
+                          className={`admin-btn ${
+                            selectedUser.status === "banned"
+                              ? "admin-btn--accent"
+                              : "admin-btn--danger"
+                          }`}
+                        >
+                          {selectedUser.status === "banned" ? "解封" : "封禁"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={userActionLoading}
+                          onClick={handleDeleteUser}
+                          className="admin-btn admin-btn--danger"
+                        >
+                          删除用户
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
 
+            {/* Segmented tabs */}
             <div
-              className="flex gap-0.5 rounded-lg p-0.5"
-              style={{ background: "var(--bg-root)" }}
+              className="inline-flex gap-0.5 rounded-[var(--radius)] p-1"
+              style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+              role="tablist"
             >
-              {(["conversations", "images", "credits"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                    activeTab === tab ? "shadow-sm" : ""
-                  }`}
-                  style={
-                    activeTab === tab
-                      ? {
-                          background: "var(--bg-surface)",
-                          color: "var(--accent)",
-                          boxShadow: "var(--shadow-sm)",
-                        }
-                      : { color: "var(--text-muted)" }
-                  }
-                >
-                  {tab === "conversations"
-                    ? "对话"
-                    : tab === "images"
-                      ? "图片"
-                      : "积分"}
-                </button>
-              ))}
+              {(
+                [
+                  {
+                    key: "conversations" as const,
+                    label: "对话",
+                    count: conversations.length,
+                  },
+                  {
+                    key: "images" as const,
+                    label: "图片",
+                    count: images.length,
+                  },
+                  {
+                    key: "credits" as const,
+                    label: "积分",
+                    count: creditTx.length,
+                  },
+                ] as const
+              ).map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(tab.key)}
+                    className="px-3.5 py-1.5 rounded-[var(--radius-sm)] text-xs font-semibold transition-all duration-150"
+                    style={
+                      active
+                        ? {
+                            background: "var(--accent-surface)",
+                            color: "var(--accent)",
+                            boxShadow: "var(--shadow-sm)",
+                          }
+                        : { color: "var(--text-muted)" }
+                    }
+                  >
+                    {tab.label}
+                    <span
+                      className="ml-1.5 tabular-nums text-[10px] opacity-70"
+                    >
+                      {loadingDetail ? "…" : tab.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {loadingDetail ? (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                加载中...
+              <p className="text-sm py-8" style={{ color: "var(--text-muted)" }}>
+                加载用户档案…
               </p>
             ) : (
               <>
@@ -404,10 +481,7 @@ export default function AdminPage() {
                   />
                 )}
                 {activeTab === "images" && (
-                  <AdminImagesTab
-                    images={images}
-                    onSelect={setImageDetail}
-                  />
+                  <AdminImagesTab images={images} onSelect={setImageDetail} />
                 )}
                 {activeTab === "credits" && (
                   <AdminCreditsTab

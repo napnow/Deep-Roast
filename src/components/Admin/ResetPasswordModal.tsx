@@ -35,12 +35,6 @@ export default function ResetPasswordModal({
 
   if (!open || !user) return null;
 
-  const inputStyle = {
-    background: "var(--bg-root)",
-    border: "1px solid var(--border)",
-    color: "var(--text-primary)",
-  } as const;
-
   async function handSet(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -101,42 +95,58 @@ export default function ResetPasswordModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0"
+        style={{
+          background: "rgba(18, 14, 10, 0.45)",
+          backdropFilter: "blur(6px)",
+        }}
         onClick={() => {
           if (!tempShown) onClose();
         }}
       />
       <div
-        className="relative z-10 w-[24rem] max-w-[calc(100vw-2rem)] rounded-2xl border p-5 space-y-3"
+        className="relative z-10 w-[24rem] max-w-[calc(100vw-2rem)] rounded-[var(--radius-xl)] border p-5 space-y-3.5 animate-fade-up"
         style={{
           background: "var(--bg-surface)",
-          borderColor: "var(--border)",
+          borderColor: "var(--border-strong)",
           boxShadow: "var(--shadow-lg)",
         }}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            重置密码 · {user.username}
-          </h2>
-          <button type="button" onClick={onClose} style={{ color: "var(--text-muted)" }}>
-            ✕
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="admin-kicker">Security</p>
+            <h2 className="admin-title text-lg mt-1">
+              重置密码 · {user.username}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="admin-btn admin-btn--ghost !px-2 !py-1 text-xs"
+            aria-label="关闭"
+          >
+            关闭
           </button>
         </div>
 
-        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
           请妥善告知用户新密码；生成的临时密码仅显示一次。
         </p>
 
         {tempShown ? (
-          <div className="space-y-2">
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              临时密码（仅此一次）:
+          <div className="space-y-2.5">
+            <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+              临时密码（仅此一次）
             </p>
             <code
-              className="block w-full rounded-lg px-3 py-2 text-sm font-mono select-all"
-              style={{ background: "var(--bg-root)", border: "1px solid var(--border)" }}
+              className="block w-full rounded-[var(--radius-sm)] px-3 py-2.5 text-sm font-mono select-all"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border-strong)",
+                color: "var(--text-primary)",
+              }}
             >
               {tempShown}
             </code>
@@ -144,72 +154,59 @@ export default function ResetPasswordModal({
               <button
                 type="button"
                 onClick={copyTemp}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{
-                  background: "var(--accent-surface)",
-                  border: "1px solid var(--accent)",
-                  color: "var(--accent)",
-                }}
+                className="admin-btn admin-btn--accent"
               >
                 复制
               </button>
-              <button type="button" onClick={onClose} className="px-3 py-1.5 text-xs">
+              <button
+                type="button"
+                onClick={onClose}
+                className="admin-btn admin-btn--ghost"
+              >
                 关闭
               </button>
             </div>
           </div>
         ) : (
-          <>
-            <form onSubmit={handSet} className="space-y-2">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="新密码（≥8）"
-                className="w-full rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-              <input
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="确认新密码"
-                className="w-full rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-              <div className="flex flex-wrap gap-2 justify-between pt-1">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={generate}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-40"
-                  style={{
-                    background: "var(--bg-root)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  生成随机密码
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-40"
-                  style={{
-                    background: "var(--accent-surface)",
-                    border: "1px solid var(--accent)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  {saving ? "处理中…" : "确认手填重置"}
-                </button>
-              </div>
-            </form>
-          </>
+          <form onSubmit={handSet} className="space-y-2.5">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="新密码（≥8）"
+              className="admin-input"
+              autoComplete="new-password"
+            />
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="确认新密码"
+              className="admin-input"
+              autoComplete="new-password"
+            />
+            <div className="flex flex-wrap gap-2 justify-between pt-1">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={generate}
+                className="admin-btn admin-btn--ghost"
+              >
+                生成随机密码
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="admin-btn admin-btn--solid"
+              >
+                {saving ? "处理中…" : "确认手填重置"}
+              </button>
+            </div>
+          </form>
         )}
 
         {error && (
-          <p className="text-xs" style={{ color: "var(--danger)" }}>
+          <p className="text-xs font-medium" style={{ color: "var(--danger)" }}>
             {error}
           </p>
         )}

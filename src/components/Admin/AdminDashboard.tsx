@@ -18,92 +18,67 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ globalStats }: AdminDashboardProps) {
   return (
-    <div className="flex items-start justify-center h-full py-8">
-      <div className="text-center max-w-lg w-full space-y-4 animate-fade-up px-4">
+    <div className="max-w-5xl mx-auto">
+      <header className="mb-7 animate-fade-up">
+        <p className="admin-kicker">Operations</p>
+        <h1 className="admin-title text-[1.85rem] mt-1.5">运营总览</h1>
         <p
-          className="text-sm font-bold"
-          style={{ color: "var(--text-primary)" }}
+          className="text-sm mt-2 max-w-xl leading-relaxed"
+          style={{ color: "var(--text-secondary)" }}
         >
-          运营概览
+          签到与消耗、站点开关与公告。左侧选择用户可审计对话、图片与积分流水。
         </p>
-        {!globalStats ? (
-          <p style={{ color: "var(--text-muted)" }} className="text-sm">
-            加载统计数据...
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard
-              label="累计签到积分"
-              value={globalStats.totalCheckinAmount.toLocaleString()}
-              hint="checkin 流水合计"
-              accent
-            />
-            <StatCard
-              label="累计消耗积分"
-              value={globalStats.totalConsumeAmount.toLocaleString()}
-              hint={`≈ ${Math.floor(globalStats.totalConsumeAmount / CREDIT_PER_IMAGE)} 张图`}
-            />
-            <StatCard
-              label="总用户数"
-              value={String(globalStats.totalUsers)}
-              hint={
-                globalStats.bannedUsers > 0
-                  ? `其中封禁 ${globalStats.bannedUsers}`
-                  : "人"
-              }
-            />
-            <StatCard
-              label="总生成图片"
-              value={globalStats.totalImages.toLocaleString()}
-              hint="张"
-            />
-          </div>
-        )}
-        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          👈 选择左侧用户查看详细记录
-        </p>
+      </header>
 
+      {!globalStats ? (
+        <p className="text-sm animate-fade-in" style={{ color: "var(--text-muted)" }}>
+          正在汇总运营数据…
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 admin-stagger mb-8">
+          <div className="admin-stat admin-stat--accent">
+            <p className="admin-stat-label">累计签到</p>
+            <p className="admin-stat-value">
+              {globalStats.totalCheckinAmount.toLocaleString()}
+            </p>
+            <p className="admin-stat-hint">积分 · checkin 合计</p>
+          </div>
+          <div className="admin-stat">
+            <p className="admin-stat-label">累计消耗</p>
+            <p className="admin-stat-value">
+              {globalStats.totalConsumeAmount.toLocaleString()}
+            </p>
+            <p className="admin-stat-hint">
+              ≈{" "}
+              {Math.floor(
+                globalStats.totalConsumeAmount / CREDIT_PER_IMAGE,
+              ).toLocaleString()}{" "}
+              张图
+            </p>
+          </div>
+          <div className="admin-stat">
+            <p className="admin-stat-label">用户</p>
+            <p className="admin-stat-value">{globalStats.totalUsers}</p>
+            <p className="admin-stat-hint">
+              {globalStats.bannedUsers > 0
+                ? `封禁 ${globalStats.bannedUsers} 人`
+                : "全部正常"}
+            </p>
+          </div>
+          <div className="admin-stat">
+            <p className="admin-stat-label">生成图片</p>
+            <p className="admin-stat-value">
+              {globalStats.totalImages.toLocaleString()}
+            </p>
+            <p className="admin-stat-hint">历史落盘合计</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-2 gap-4 items-start admin-stagger">
         <AdminSiteSettingsCard />
         <AdminAnnouncementsCard />
       </div>
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-xl border p-4 text-left"
-      style={{
-        background: "var(--bg-surface)",
-        borderColor: "var(--border)",
-      }}
-    >
-      <p
-        className="text-[10px] font-semibold uppercase tracking-wider"
-        style={{ color: "var(--text-muted)" }}
-      >
-        {label}
-      </p>
-      <p
-        className="text-2xl font-bold mt-1"
-        style={{ color: accent ? "var(--accent)" : "var(--text-primary)" }}
-      >
-        {value}
-      </p>
-      <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-        {hint}
-      </p>
     </div>
   );
 }

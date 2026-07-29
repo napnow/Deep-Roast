@@ -39,7 +39,7 @@ export default function AdminAnnouncementsCard() {
         ...jsonBody({ body: text }),
       });
       setBody("");
-      setMsg("✓ 公告已发布");
+      setMsg("公告已发布");
       await load();
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "发布失败");
@@ -53,7 +53,7 @@ export default function AdminAnnouncementsCard() {
     setMsg("");
     try {
       await apiJson(`/api/admin/announcements/${id}`, { method: "DELETE" });
-      setMsg("✓ 已删除");
+      setMsg("已删除");
       await load();
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "删除失败");
@@ -61,108 +61,117 @@ export default function AdminAnnouncementsCard() {
     setSaving(false);
   }
 
-  const inputStyle = {
-    background: "var(--bg-root)",
-    border: "1px solid var(--border)",
-    color: "var(--text-primary)",
-  } as const;
-
   return (
-    <div
-      className="rounded-xl border p-4 text-left space-y-3"
-      style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
-    >
-      <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
-        站点公告
-      </p>
-      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-        纯文本，展示在登录页与站内；按发布时间倒序。
-      </p>
-
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={3}
-        maxLength={2000}
-        placeholder="输入公告内容…"
-        className="w-full rounded-lg px-3 py-2 text-xs resize-y"
-        style={inputStyle}
-      />
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={saving || !body.trim()}
-          onClick={create}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+    <section className="admin-card">
+      <div className="admin-card-head">
+        <div>
+          <p className="admin-kicker">Broadcast</p>
+          <h2 className="admin-title text-lg mt-1">站点公告</h2>
+          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+            登录页与站内横幅 · 按时间倒序
+          </p>
+        </div>
+        <span
+          className="text-[11px] tabular-nums px-2 py-0.5 rounded-full"
           style={{
-            background: "var(--accent-surface)",
-            border: "1px solid var(--accent)",
-            color: "var(--accent)",
+            background: "var(--bg-root)",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border)",
           }}
         >
-          {saving ? "处理中…" : "发布公告"}
-        </button>
-        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          {body.length}/2000
+          {list.length}
         </span>
       </div>
+      <div className="admin-card-body space-y-4">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="输入公告内容…"
+          className="admin-input resize-y min-h-[4.5rem]"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={saving || !body.trim()}
+            onClick={create}
+            className="admin-btn admin-btn--solid"
+          >
+            {saving ? "处理中…" : "发布公告"}
+          </button>
+          <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+            {body.length}/2000
+          </span>
+        </div>
 
-      {loading ? (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          加载中…
-        </p>
-      ) : list.length === 0 ? (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          暂无公告
-        </p>
-      ) : (
-        <ul className="space-y-2 max-h-48 overflow-y-auto">
-          {list.map((a) => (
-            <li
-              key={a.id}
-              className="rounded-lg px-3 py-2 text-xs"
-              style={{ background: "var(--bg-root)" }}
-            >
-              <div className="flex justify-between gap-2 items-start">
-                <p
-                  className="whitespace-pre-wrap flex-1"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {a.body}
-                </p>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => remove(a.id)}
-                  className="text-[10px] shrink-0"
-                  style={{ color: "var(--danger)" }}
-                >
-                  删除
-                </button>
-              </div>
-              <p
-                className="text-[10px] mt-1"
-                style={{ color: "var(--text-muted)" }}
+        {loading ? (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            加载中…
+          </p>
+        ) : list.length === 0 ? (
+          <div
+            className="rounded-[var(--radius)] px-3 py-6 text-center text-xs"
+            style={{
+              background: "var(--bg-root)",
+              color: "var(--text-muted)",
+              border: "1px dashed var(--border-strong)",
+            }}
+          >
+            暂无公告
+          </div>
+        ) : (
+          <ul className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+            {list.map((a) => (
+              <li
+                key={a.id}
+                className="rounded-[var(--radius)] px-3 py-2.5"
+                style={{
+                  background: "var(--bg-root)",
+                  border: "1px solid var(--border)",
+                }}
               >
-                {a.createdAt
-                  ? new Date(a.createdAt).toLocaleString("zh-CN")
-                  : "-"}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="flex justify-between gap-3 items-start">
+                  <p
+                    className="text-[12.5px] whitespace-pre-wrap flex-1 leading-relaxed"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {a.body}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => remove(a.id)}
+                    className="text-[10px] font-semibold shrink-0 pt-0.5"
+                    style={{ color: "var(--danger)" }}
+                  >
+                    删除
+                  </button>
+                </div>
+                <p
+                  className="text-[10px] mt-1.5 tabular-nums"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {a.createdAt
+                    ? new Date(a.createdAt).toLocaleString("zh-CN")
+                    : "-"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {msg && (
-        <p
-          className="text-[11px]"
-          style={{
-            color: msg.startsWith("✓") ? "var(--success)" : "var(--danger)",
-          }}
-        >
-          {msg}
-        </p>
-      )}
-    </div>
+        {msg && (
+          <p
+            className="text-[11px] font-medium"
+            style={{
+              color: /失败|错误/.test(msg) ? "var(--danger)" : "var(--success)",
+            }}
+          >
+            {msg}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

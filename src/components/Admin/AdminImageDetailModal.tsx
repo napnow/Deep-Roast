@@ -13,16 +13,16 @@ export default function AdminImageDetailModal({
 }: AdminImageDetailModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ background: "rgba(0,0,0,0.5)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 animate-fade-in"
+      style={{ background: "rgba(18, 14, 10, 0.55)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl border max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
+        className="rounded-[var(--radius-xl)] border max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
         style={{
           background: "var(--bg-surface)",
-          borderColor: "var(--border)",
-          boxShadow: "var(--shadow-xl)",
+          borderColor: "var(--border-strong)",
+          boxShadow: "var(--shadow-lg)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -33,14 +33,9 @@ export default function AdminImageDetailModal({
           className="w-full max-h-[60vh] object-contain"
           style={{ background: "var(--bg-root)" }}
         />
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-4">
           <div>
-            <p
-              className="text-[10px] font-semibold uppercase tracking-wider mb-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              📝 提示词
-            </p>
+            <p className="admin-kicker mb-1.5">Prompt</p>
             <p
               className="text-sm leading-relaxed"
               style={{ color: "var(--text-primary)" }}
@@ -49,36 +44,21 @@ export default function AdminImageDetailModal({
             </p>
           </div>
           <div
-            className="grid grid-cols-2 gap-2 text-xs"
+            className="grid grid-cols-2 gap-3 text-xs"
             style={{ color: "var(--text-secondary)" }}
           >
             <div>
-              <span
-                className="text-[10px] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--text-muted)" }}
-              >
-                模型
-              </span>
-              <p>{image.model}</p>
+              <span className="admin-kicker">模型</span>
+              <p className="mt-1 font-medium">{image.model}</p>
             </div>
             <div>
-              <span
-                className="text-[10px] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--text-muted)" }}
-              >
-                尺寸
-              </span>
-              <p>{image.size}</p>
+              <span className="admin-kicker">尺寸</span>
+              <p className="mt-1 font-medium tabular-nums">{image.size}</p>
             </div>
             {image.createdAt && (
               <div className="col-span-2">
-                <span
-                  className="text-[10px] font-semibold uppercase tracking-wider"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  生成时间
-                </span>
-                <p>
+                <span className="admin-kicker">生成时间</span>
+                <p className="mt-1 tabular-nums">
                   {new Date(image.createdAt).toLocaleString("zh-CN", {
                     year: "numeric",
                     month: "2-digit",
@@ -91,28 +71,20 @@ export default function AdminImageDetailModal({
               </div>
             )}
           </div>
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-1">
             <button
+              type="button"
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-150"
-              style={{
-                background: "var(--bg-root)",
-                border: "1px solid var(--border)",
-                color: "var(--text-secondary)",
-              }}
+              className="admin-btn admin-btn--ghost flex-1"
             >
               关闭
             </button>
             <button
+              type="button"
               onClick={() => navigator.clipboard.writeText(image.prompt)}
-              className="flex-1 py-2 rounded-lg text-xs font-medium transition-all duration-150"
-              style={{
-                background: "var(--accent-surface)",
-                border: "1px solid var(--accent)",
-                color: "var(--accent)",
-              }}
+              className="admin-btn admin-btn--accent flex-1"
             >
-              📋 复制提示词
+              复制提示词
             </button>
           </div>
         </div>

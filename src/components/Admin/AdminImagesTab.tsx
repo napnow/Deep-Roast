@@ -13,29 +13,44 @@ export default function AdminImagesTab({
 }: AdminImagesTabProps) {
   return (
     <section>
-      <h2
-        className="text-sm font-semibold mb-3"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        图片生成记录 ({images.length})
-      </h2>
+      <div className="flex items-baseline justify-between mb-3">
+        <div>
+          <p className="admin-kicker">Gallery</p>
+          <h2 className="admin-title text-base mt-1">图片生成记录</h2>
+        </div>
+        <span
+          className="text-[11px] tabular-nums"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {images.length}
+        </span>
+      </div>
+
       {images.length === 0 ? (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <div
+          className="rounded-[var(--radius-lg)] px-4 py-10 text-center text-xs"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px dashed var(--border-strong)",
+            color: "var(--text-muted)",
+          }}
+        >
           暂无图片
-        </p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {images.map((img) => (
             <button
               key={img.id}
+              type="button"
               onClick={() => onSelect(img)}
-              className="rounded-xl border overflow-hidden transition-all duration-150 hover:scale-[1.02] active:scale-95"
-              style={{
-                background: "var(--bg-surface)",
-                borderColor: "var(--border)",
-              }}
+              className="admin-card overflow-hidden text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]"
+              style={{ borderColor: "var(--border)" }}
             >
-              <div className="aspect-square overflow-hidden">
+              <div
+                className="aspect-square overflow-hidden"
+                style={{ background: "var(--bg-root)" }}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.imageUrl}
@@ -44,9 +59,9 @@ export default function AdminImagesTab({
                   loading="lazy"
                 />
               </div>
-              <div className="p-2">
+              <div className="px-2.5 py-2">
                 <p
-                  className="text-[10px] truncate"
+                  className="text-[10px] tabular-nums"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {img.createdAt
@@ -58,6 +73,14 @@ export default function AdminImagesTab({
                       })
                     : "-"}
                 </p>
+                {img.prompt && (
+                  <p
+                    className="text-[10.5px] mt-0.5 line-clamp-2 leading-snug"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {img.prompt}
+                  </p>
+                )}
               </div>
             </button>
           ))}
