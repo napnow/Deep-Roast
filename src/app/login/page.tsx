@@ -55,23 +55,28 @@ export default function LoginPage() {
       {/* 左 · 品牌舞台：桌面固定深焙深色；窄屏隐藏 */}
       <aside
         className="relative hidden md:flex md:w-[46%] lg:w-[48%] flex-col justify-between p-10 lg:p-14 overflow-hidden"
-        style={{ background: "#0a0806", color: "#ede6dc" }}
+        style={{
+          /* 焙棕中调：比近黑亮一截，仍与右栏表单有层次 */
+          background:
+            "linear-gradient(165deg, #2a211c 0%, #3d2e24 42%, #4a3428 100%)",
+          color: "#f3ebe3",
+        }}
       >
         <div
-          className="pointer-events-none absolute inset-0 opacity-90"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(900px 420px at 18% -10%, rgba(212, 137, 74, 0.16), transparent 55%), radial-gradient(600px 320px at 90% 80%, rgba(90, 50, 20, 0.2), transparent 50%)",
+              "radial-gradient(820px 400px at 16% -8%, rgba(232, 165, 106, 0.28), transparent 52%), radial-gradient(560px 300px at 88% 88%, rgba(255, 200, 140, 0.08), transparent 48%)",
           }}
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
           style={{
             backgroundImage:
               "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
             backgroundSize: "180px 180px",
-            mixBlendMode: "overlay",
+            mixBlendMode: "soft-light",
           }}
           aria-hidden
         />
@@ -80,9 +85,9 @@ export default function LoginPage() {
           <div
             className="inline-flex h-11 w-11 items-center justify-center rounded-xl font-display text-lg font-semibold"
             style={{
-              background: "linear-gradient(145deg, #e8a56a, #d4894a)",
-              color: "#1a1008",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+              background: "linear-gradient(145deg, #f0b57a, #d4894a)",
+              color: "#2a1810",
+              boxShadow: "0 6px 20px rgba(40, 24, 12, 0.25)",
             }}
           >
             焙
@@ -96,12 +101,15 @@ export default function LoginPage() {
             </h1>
             <p
               className="mt-2 text-[11px] font-medium tracking-[0.2em] uppercase"
-              style={{ color: "#6e6358" }}
+              style={{ color: "rgba(243, 235, 227, 0.45)" }}
             >
               Deep Roast
             </p>
           </div>
-          <p className="text-base leading-relaxed" style={{ color: "#a89a8a" }}>
+          <p
+            className="text-base leading-relaxed"
+            style={{ color: "rgba(243, 235, 227, 0.78)" }}
+          >
             深度思考，慢焙出好答案。
             <br />
             把对话与出图放进同一炉火候里。
@@ -111,11 +119,11 @@ export default function LoginPage() {
               <li
                 key={line}
                 className="flex items-center gap-2.5 text-sm"
-                style={{ color: "#9b8c7c" }}
+                style={{ color: "rgba(243, 235, 227, 0.72)" }}
               >
                 <span
-                  className="h-1 w-1 rounded-full shrink-0"
-                  style={{ background: "#d4894a" }}
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ background: "#e8a56a" }}
                 />
                 {line}
               </li>
@@ -125,7 +133,7 @@ export default function LoginPage() {
 
         <p
           className="relative z-10 text-[11px]"
-          style={{ color: "#6e6358" }}
+          style={{ color: "rgba(243, 235, 227, 0.4)" }}
         >
           自托管 · 积分可控 · 慢即是快
         </p>
