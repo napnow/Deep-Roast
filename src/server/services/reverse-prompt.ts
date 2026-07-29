@@ -1,10 +1,12 @@
+import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
-import { resolveGeminiEndpoint } from "@/server/providers/llm";
+import { resolveVisionEndpoint } from "@/server/providers/llm";
+import { DEFAULT_REVERSE_PROMPT_MODEL } from "@/types";
 
 export async function reversePromptFromImage(opts: {
   imageBase64: string;
   editDescription?: string;
-}): Promise<{ prompt: string }> {
+}): Promise<{ prompt: string; model: string }> {
   const { imageBase64, editDescription } = opts;
 
   if (!imageBase64) throw new ApiError("imageBase64 为必填项", 400);
@@ -15,9 +17,26 @@ export async function reversePromptFromImage(opts: {
     );
   }
 
-  const { apiKey, baseUrl } = resolveGeminiEndpoint();
+  const config = await getConfig();
+  const model =
+    config?.reversePromptModel?.trim() || DEFAULT_REVERSE_PROMPT_MODEL;
+
+  const { apiKey, baseUrl } = resolveVisionEndpoint(model, {
+    arkApiKey: config?.arkApiKey,
+    baseUrl: config?.baseUrl,
+  });
+
   if (!apiKey) {
-    throw new ApiError("请先在 .env.local 中设置 GEMINI_API_KEY", 400);
+    throw new ApiError(
+      "请先在设置中配置 API Key，或在 .env 中设置 GEMINI_API_KEY / ARK_API_KEY",
+      400,
+    );
+  }
+  if (!baseUrl) {
+    throw new ApiError(
+      "请先在设置中配置 API Base URL，或在 .env 中设置 GEMINI_BASE_URL",
+      400,
+    );
   }
 
   const isImg2Img = !!editDescription?.trim();
@@ -32,7 +51,7 @@ export async function reversePromptFromImage(opts: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gemini-3.5-flash",
+      model,
       messages: [
         {
           role: "user",
@@ -56,6 +75,6 @@ export async function reversePromptFromImage(opts: {
   const prompt = result.choices?.[0]?.message?.content?.trim();
   if (!prompt) throw new ApiError("未能从图片中提取提示词", 500);
 
-  console.log("Reverse prompt success, length:", prompt.length);
-  return { prompt };
+  console.log("Reverse prompt success, model:", model, "length:", prompt.length);
+  return { prompt, model };
 }

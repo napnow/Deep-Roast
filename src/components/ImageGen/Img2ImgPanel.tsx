@@ -215,7 +215,7 @@ export default function Img2ImgPanel({
                 </span>
                 <span className="text-[11px]" style={{ color: "var(--accent)" }}>
                   {analyzing
-                    ? `Gemini 正在分析图片… ${formatTime(elapsed)}`
+                    ? `正在分析图片… ${formatTime(elapsed)}`
                     : `正在生成图片… ${formatTime(elapsed)}`}
                 </span>
                 <button

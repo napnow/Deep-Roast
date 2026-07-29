@@ -26,6 +26,10 @@ export const llmConfig = pgTable(
     imageSystemPrompt: text("image_system_prompt")
       .notNull()
       .default(""),
+    /** 图推 / 反推提示词所用的视觉模型（可在设置页修改） */
+    reversePromptModel: text("reverse_prompt_model")
+      .notNull()
+      .default("gemini-3.5-flash"),
     // JSON 数组字符串：用户启用的模型 id 列表（设置页勾选，顶栏只显示这些）
     enabledTextModels: text("enabled_text_models")
       .notNull()

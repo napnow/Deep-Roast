@@ -79,6 +79,8 @@ export interface Config {
   textModel: string;
   imageModel: string;
   imageSystemPrompt: string;
+  /** 图推 / 反推提示词使用的视觉模型 */
+  reversePromptModel: string;
   hasApiKey?: boolean;
   /** 已配置 key 的脱敏提示，如 g2a_****xxxx；不用于回传保存 */
   apiKeyHint?: string;
@@ -86,6 +88,9 @@ export interface Config {
   enabledTextModels?: string[];
   enabledImageModels?: string[];
 }
+
+/** 图推默认模型（设置未配时回落） */
+export const DEFAULT_REVERSE_PROMPT_MODEL = "gemini-3.5-flash";
 
 export interface ModelInfo {
   id: string;

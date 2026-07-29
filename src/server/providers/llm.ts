@@ -103,12 +103,33 @@ export function resolveImageEndpoint(
   };
 }
 
-export function resolveGeminiEndpoint(): UpstreamEndpoint {
+export function resolveGeminiEndpoint(config?: ConfigLike): UpstreamEndpoint {
+  const configBase = normalizeBaseUrl(config?.baseUrl);
+  const configKey = config?.arkApiKey?.trim() || "";
   return {
-    apiKey: process.env.GEMINI_API_KEY || "",
-    baseUrl: process.env.GEMINI_BASE_URL || "",
+    apiKey: firstNonEmpty(
+      configKey,
+      process.env.GEMINI_API_KEY,
+      process.env.ARK_API_KEY,
+    ),
+    baseUrl: firstNonEmpty(
+      configBase,
+      process.env.GEMINI_BASE_URL,
+    ),
     maxRetries: 1,
   };
+}
+
+/** 图推 / 视觉反推：Gemini 模型优先走 Gemini 端点，其余走对话端点 */
+export function resolveVisionEndpoint(
+  model: string,
+  config: ConfigLike,
+): UpstreamEndpoint {
+  const id = model.trim().toLowerCase();
+  if (id.includes("gemini")) {
+    return resolveGeminiEndpoint(config);
+  }
+  return resolveChatEndpoint(model, config);
 }
 
 export function systemPromptForModel(model: string): string {

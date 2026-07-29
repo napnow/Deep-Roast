@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useDeepRoastStore } from "@/lib/store";
+import { DEFAULT_REVERSE_PROMPT_MODEL } from "@/types";
 import { formatTime } from "./imageUtils";
 
 interface ReversePromptPanelProps {
@@ -12,6 +14,9 @@ export default function ReversePromptPanel({
   disabled,
   onPrompt,
 }: ReversePromptPanelProps) {
+  const reverseModel =
+    useDeepRoastStore((s) => s.config.reversePromptModel) ||
+    DEFAULT_REVERSE_PROMPT_MODEL;
   const [preview, setPreview] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
   const [prompting, setPrompting] = useState(false);
@@ -109,14 +114,15 @@ export default function ReversePromptPanel({
           图片反推提示词
         </span>
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
+          className="text-[10px] px-1.5 py-0.5 rounded-md font-medium font-mono max-w-[14rem] truncate"
           style={{
             background: "var(--bg-root)",
             color: "var(--text-muted)",
             border: "1px solid var(--border)",
           }}
+          title={reverseModel}
         >
-          gemini-3.5-flash
+          {reverseModel}
         </span>
       </div>
 
@@ -199,7 +205,7 @@ export default function ReversePromptPanel({
             ))}
           </span>
           <span className="text-[11px]" style={{ color: "var(--accent)" }}>
-            Gemini 正在分析图片… {formatTime(elapsed)}
+            正在分析图片… {formatTime(elapsed)}
           </span>
           <button
             onClick={handleStop}

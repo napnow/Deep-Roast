@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Config } from "@/types";
-import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
+import {
+  DEFAULT_IMAGE_MODELS,
+  DEFAULT_REVERSE_PROMPT_MODEL,
+  DEFAULT_TEXT_MODELS,
+} from "@/types";
 import ModelManager from "@/components/Settings/ModelManager";
 
 interface SettingsModalProps {
@@ -25,6 +29,9 @@ export default function SettingsModal({
   const [imageSystemPrompt, setImageSystemPrompt] = useState(
     config.imageSystemPrompt || "",
   );
+  const [reversePromptModel, setReversePromptModel] = useState(
+    config.reversePromptModel || DEFAULT_REVERSE_PROMPT_MODEL,
+  );
   const [enabledText, setEnabledText] = useState<string[]>(
     config.enabledTextModels || DEFAULT_TEXT_MODELS.map((m) => m.id),
   );
@@ -42,6 +49,9 @@ export default function SettingsModal({
       setTextModel(config.textModel);
       setImageModel(config.imageModel);
       setImageSystemPrompt(config.imageSystemPrompt || "");
+      setReversePromptModel(
+        config.reversePromptModel || DEFAULT_REVERSE_PROMPT_MODEL,
+      );
       setEnabledText(
         config.enabledTextModels?.length
           ? config.enabledTextModels
@@ -66,6 +76,7 @@ export default function SettingsModal({
         textModel,
         imageModel,
         imageSystemPrompt,
+        reversePromptModel: reversePromptModel.trim() || DEFAULT_REVERSE_PROMPT_MODEL,
         enabledTextModels: enabledText,
         enabledImageModels: enabledImage,
       };
@@ -180,6 +191,20 @@ export default function SettingsModal({
             apiKey={apiKey}
             hasSavedApiKey={!!config.hasApiKey}
           />
+
+          <Field
+            label="图推模型"
+            hint="图片反推提示词 / 图生图分析所用的视觉模型（需支持图文输入）"
+          >
+            <input
+              type="text"
+              value={reversePromptModel}
+              onChange={(e) => setReversePromptModel(e.target.value)}
+              placeholder={DEFAULT_REVERSE_PROMPT_MODEL}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm transition-colors duration-200 font-mono"
+              style={inputStyle}
+            />
+          </Field>
 
           <Field
             label="图片生成系统提示词"

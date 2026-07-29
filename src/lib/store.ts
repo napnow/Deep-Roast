@@ -74,6 +74,7 @@ const initialConfig: Config = {
   textModel: "doubao-seed-2-0-pro-260215",
   imageModel: "doubao-seedream-4-5-251128",
   imageSystemPrompt: "",
+  reversePromptModel: "gemini-3.5-flash",
   hasApiKey: false,
   apiKeyHint: "",
   enabledTextModels: DEFAULT_TEXT_MODELS.map((m) => m.id),
