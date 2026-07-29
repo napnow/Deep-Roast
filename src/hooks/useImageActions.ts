@@ -8,8 +8,7 @@ import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 export function useImageActions(loadCredits: () => Promise<void>) {
   const { toast } = useToast();
   const imageAbortRef = useRef<AbortController | null>(null);
-  const { setImageHistory, setGenerating, setRechargeOpen } =
-    useDeepRoastStore();
+  const { setImageHistory, setGenerating, setWalletOpen } = useDeepRoastStore();
 
   const handleGenerateImage = useCallback(
     async (prompt: string, size: string) => {
@@ -47,8 +46,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           // stopped
         } else if (err instanceof ApiError) {
           if (err.code === "INSUFFICIENT_CREDITS") {
-            toast("积分不足，请先充值", "error");
-            setRechargeOpen(true);
+            toast("积分不足，请先签到或联系管理员", "error");
+            setWalletOpen(true);
           } else {
             toast(err.message || "图片生成失败", "error");
           }
@@ -58,7 +57,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
       }
       setGenerating(false);
     },
-    [setGenerating, setImageHistory, toast, loadCredits, setRechargeOpen],
+    [setGenerating, setImageHistory, toast, loadCredits, setWalletOpen],
   );
 
   const handleStopGenerateImage = useCallback(() => {

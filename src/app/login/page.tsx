@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { login, register } from "@/lib/auth-client";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
+import type { Announcement } from "@/types";
 
 const STAGE_BULLETS = [
   "文生文 · 深度推理",
   "文生图 · 慢火出图",
-  "积分可控 · 自托管友好",
+  "每日签到 · 自托管友好",
 ];
 
 export default function LoginPage() {
@@ -17,6 +18,26 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    fetch("/api/public/admin-contact")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.registrationEnabled === "boolean") {
+          setRegistrationEnabled(d.registrationEnabled);
+          if (!d.registrationEnabled) setTab("login");
+        }
+      })
+      .catch(() => {});
+    fetch("/api/public/announcements")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,6 +45,11 @@ export default function LoginPage() {
 
     if (!username.trim() || !password) {
       setError("用户名和密码不能为空");
+      return;
+    }
+
+    if (tab === "register" && !registrationEnabled) {
+      setError("当前未开放注册，请联系管理员");
       return;
     }
 
@@ -194,40 +220,84 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div
-              className="flex rounded-lg p-0.5 mb-6"
-              style={{
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              {(["login", "register"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    setTab(t);
-                    setError(null);
-                  }}
-                  className="flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-200"
-                  style={
-                    tab === t
-                      ? {
-                          background: "var(--bg-elevated)",
-                          color: "var(--text-primary)",
-                          boxShadow: "var(--shadow-sm)",
-                          border: "1px solid var(--border-strong)",
-                        }
-                      : {
-                          color: "var(--text-muted)",
-                          border: "1px solid transparent",
-                        }
-                  }
+            {registrationEnabled ? (
+              <div
+                className="flex rounded-lg p-0.5 mb-6"
+                style={{
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {(["login", "register"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setTab(t);
+                      setError(null);
+                    }}
+                    className="flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-200"
+                    style={
+                      tab === t
+                        ? {
+                            background: "var(--bg-elevated)",
+                            color: "var(--text-primary)",
+                            boxShadow: "var(--shadow-sm)",
+                            border: "1px solid var(--border-strong)",
+                          }
+                        : {
+                            color: "var(--text-muted)",
+                            border: "1px solid transparent",
+                          }
+                    }
+                  >
+                    {t === "login" ? "登录" : "注册"}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p
+                className="mb-6 text-center text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                当前仅开放登录（注册已关闭）
+              </p>
+            )}
+
+            {announcements.length > 0 && (
+              <div
+                className="mb-5 rounded-lg px-3 py-2.5 space-y-2 max-h-36 overflow-y-auto"
+                style={{
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <p
+                  className="text-[10px] font-semibold tracking-widest uppercase"
+                  style={{ color: "var(--text-muted)" }}
                 >
-                  {t === "login" ? "登录" : "注册"}
-                </button>
-              ))}
-            </div>
+                  公告
+                </p>
+                {announcements.slice(0, 5).map((a) => (
+                  <div key={a.id}>
+                    <p
+                      className="text-xs whitespace-pre-wrap"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {a.body}
+                    </p>
+                    <p
+                      className="text-[10px] mt-0.5"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {a.createdAt
+                        ? new Date(a.createdAt).toLocaleString("zh-CN")
+                        : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {error && (
               <div

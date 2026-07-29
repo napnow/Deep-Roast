@@ -143,11 +143,11 @@
 
 ## 5. 积分
 
-### GET /api/credits …
-
-余额与流水（以实现为准）。
-
-管理端：`/api/admin/credits/*` 发放 / 扣减。
+- `GET /api/auth/me`：余额 + `checkin` 状态（`eligible` / `todayChecked`）
+- `GET|POST /api/credits/checkin`：查询 / 执行每日签到（仅 `role=user`，Asia/Shanghai 自然日）
+- `GET /api/credits/transactions`：当前用户流水
+- `POST /api/credits/recharge`：已下线，返回 410
+- 管理端：`/api/admin/credits` 流水与统计、发放 / 扣减
 
 ---
 
@@ -156,14 +156,25 @@
 前缀 `/api/admin/*`，中间件校验 `role === "admin"`。
 
 - 用户列表、会话/图片/消息审计
+- `PATCH /api/admin/users/[id]`：`{ status: "active" | "banned" }`（不可操作管理员）
+- `DELETE /api/admin/users/[id]`：硬删除并级联历史（不可操作管理员）
 - 重置用户密码：`POST /api/admin/users/[id]/reset-password`
-- 站点设置：登录页管理员联系方式文字与二维码  
+- 站点设置：联系方式 + `registrationEnabled`  
   - `GET|PUT /api/admin/site-settings`  
   - `POST /api/admin/site-settings/contact-image`
+- 公告：`GET|POST /api/admin/announcements`，`DELETE /api/admin/announcements/[id]`
 
 ### GET /api/public/admin-contact
 
-**公开**。登录页展示用的联系文案与图片路径（无敏感字段）。
+**公开**。登录页联系文案、图片路径、`registrationEnabled`。
+
+### GET /api/public/announcements
+
+**公开**。登录页公告列表。
+
+### GET /api/announcements
+
+登录用户站内公告列表。
 
 ---
 

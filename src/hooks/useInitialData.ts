@@ -11,7 +11,7 @@ function idsToModels(ids: string[] | undefined, fallback: { id: string }[]) {
   return fallback;
 }
 
-/** 挂载时加载配置 / 会话 / 图片历史 / 积分；模型列表来自配置的启用列表 */
+/** 挂载时加载配置 / 会话 / 图片历史 / 积分与签到状态 */
 export function useInitialData() {
   const {
     replaceConfig,
@@ -20,6 +20,7 @@ export function useInitialData() {
     setConversations,
     setImageHistory,
     setCredits,
+    setCheckinStatus,
   } = useDeepRoastStore();
 
   const applyEnabledModels = useCallback(
@@ -62,12 +63,21 @@ export function useInitialData() {
 
   const loadCredits = useCallback(async () => {
     try {
-      const data = await apiJson<{ credits?: number }>("/api/auth/me");
+      const data = await apiJson<{
+        credits?: number;
+        checkin?: { eligible?: boolean; todayChecked?: boolean };
+      }>("/api/auth/me");
       setCredits(data.credits ?? 0);
+      if (data.checkin) {
+        setCheckinStatus({
+          eligible: !!data.checkin.eligible,
+          todayChecked: !!data.checkin.todayChecked,
+        });
+      }
     } catch {
       // 未登录时 401，忽略
     }
-  }, [setCredits]);
+  }, [setCredits, setCheckinStatus]);
 
   useEffect(() => {
     loadConfig();

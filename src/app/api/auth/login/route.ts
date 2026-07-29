@@ -26,6 +26,13 @@ export async function POST(req: Request) {
       return Response.json({ error: "用户名或密码错误" }, { status: 401 });
     }
 
+    if (user.status === "banned") {
+      return Response.json(
+        { error: "账号已被封禁，请联系管理员" },
+        { status: 403 },
+      );
+    }
+
     const token = await signToken({
       userId: user.id,
       username: user.username,
@@ -33,7 +40,11 @@ export async function POST(req: Request) {
     });
     await setAuthCookie(token);
 
-    return Response.json({ success: true, username: user.username, role: user.role });
+    return Response.json({
+      success: true,
+      username: user.username,
+      role: user.role,
+    });
   } catch {
     return Response.json({ error: "登录失败，请重试" }, { status: 500 });
   }

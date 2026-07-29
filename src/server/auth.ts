@@ -2,6 +2,9 @@
  * 从 middleware 注入的 header 读取当前用户。
  */
 
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import { ApiError } from "@/server/http";
 
 export interface RequestUser {
@@ -26,8 +29,29 @@ export function requireUser(req: Request): RequestUser {
   return user;
 }
 
+/** 校验未封禁；业务 API 优先使用 */
+export async function requireActiveUser(req: Request): Promise<RequestUser> {
+  const user = requireUser(req);
+  const [row] = await db
+    .select({ status: users.status, role: users.role })
+    .from(users)
+    .where(eq(users.id, user.userId))
+    .limit(1);
+  if (!row) throw new ApiError("未登录", 401);
+  if (row.status === "banned") {
+    throw new ApiError("账号已被封禁，请联系管理员", 403);
+  }
+  return { ...user, role: row.role || user.role };
+}
+
 export function requireAdmin(req: Request): RequestUser {
   const user = requireUser(req);
+  if (user.role !== "admin") throw new ApiError("无权限", 403);
+  return user;
+}
+
+export async function requireActiveAdmin(req: Request): Promise<RequestUser> {
+  const user = await requireActiveUser(req);
   if (user.role !== "admin") throw new ApiError("无权限", 403);
   return user;
 }

@@ -16,7 +16,10 @@ interface HeaderProps {
   role: string;
   onLogout: () => void;
   credits: number;
-  onRechargeClick: () => void;
+  checkinEligible: boolean;
+  todayChecked: boolean;
+  checkinLoading?: boolean;
+  onCheckinClick: () => void;
   onWalletClick: () => void;
 }
 
@@ -32,9 +35,14 @@ export default function Header({
   role,
   onLogout,
   credits,
-  onRechargeClick,
+  checkinEligible,
+  todayChecked,
+  checkinLoading,
+  onCheckinClick,
   onWalletClick,
 }: HeaderProps) {
+  const lowCredits = credits <= 40 && role !== "admin";
+
   return (
     <header
       className="dr-header-bar relative z-20 flex items-center justify-between px-5 py-2"
@@ -51,7 +59,8 @@ export default function Header({
               background:
                 "linear-gradient(145deg, var(--accent-soft), var(--accent))",
               color: "var(--accent-on)",
-              boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-sm)",
+              boxShadow:
+                "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-sm)",
             }}
             aria-hidden
           >
@@ -135,34 +144,58 @@ export default function Header({
           </svg>
         </button>
 
+        {checkinEligible && (
+          <button
+            onClick={onCheckinClick}
+            disabled={todayChecked || checkinLoading}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
+            style={{
+              background: todayChecked
+                ? "var(--bg-root)"
+                : "var(--accent-surface)",
+              border: `1px solid ${
+                todayChecked ? "var(--border)" : "var(--accent)"
+              }`,
+              color: todayChecked ? "var(--text-muted)" : "var(--accent)",
+            }}
+            title={todayChecked ? "今日已签到" : "每日签到 +50 积分"}
+          >
+            {checkinLoading
+              ? "签到中…"
+              : todayChecked
+                ? "已签到"
+                : "签到 +50"}
+          </button>
+        )}
+
         <button
-          onClick={onRechargeClick}
+          onClick={onWalletClick}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-[0.98] relative"
           style={{
-            background:
-              credits <= 40 ? "var(--danger-surface)" : "var(--bg-elevated)",
+            background: lowCredits
+              ? "var(--danger-surface)"
+              : "var(--bg-elevated)",
             border: `1px solid ${
-              credits <= 40 ? "var(--danger)" : "var(--border-strong)"
+              lowCredits ? "var(--danger)" : "var(--border-strong)"
             }`,
-            color: credits <= 40 ? "var(--danger)" : "var(--text-secondary)",
+            color: lowCredits ? "var(--danger)" : "var(--text-secondary)",
           }}
-          title="充值"
+          title="我的钱包"
         >
           <span
             className="inline-block w-1.5 h-1.5 rounded-full"
             style={{
-              background: credits <= 40 ? "var(--danger)" : "var(--accent)",
-              boxShadow:
-                credits <= 40
-                  ? "0 0 6px var(--danger)"
-                  : "0 0 6px var(--accent-glow)",
+              background: lowCredits ? "var(--danger)" : "var(--accent)",
+              boxShadow: lowCredits
+                ? "0 0 6px var(--danger)"
+                : "0 0 6px var(--accent-glow)",
             }}
           />
           <span className="tabular-nums">{credits}</span>
           <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>
             积分
           </span>
-          {credits <= 40 && (
+          {lowCredits && (
             <span
               className="absolute -top-1 -right-1 text-[9px] px-1 rounded-full font-bold animate-pulse-soft"
               style={{ background: "var(--danger)", color: "#fff" }}

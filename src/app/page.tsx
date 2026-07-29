@@ -1,12 +1,17 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import Header from "@/components/Header";
 import TextModePanel from "@/components/Chat/TextModePanel";
 import ImageGenView from "@/components/ImageGen/ImageGenView";
 import AppModals from "@/components/AppModals";
+import AnnouncementsBanner from "@/components/AnnouncementsBanner";
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { useAppActions } from "@/hooks/useAppActions";
+import { ApiError, apiJson } from "@/lib/client-api";
+import { CHECKIN_REWARD } from "@/types";
 
 /**
  * 首页只负责布局拼装；状态在 store，业务在 useAppActions。
@@ -14,6 +19,8 @@ import { useAppActions } from "@/hooks/useAppActions";
 export default function Home() {
   const { user, logout } = useAuth();
   const actions = useAppActions();
+  const { toast } = useToast();
+  const [checkinLoading, setCheckinLoading] = useState(false);
 
   const {
     activeMode,
@@ -29,10 +36,45 @@ export default function Home() {
     imageHistory,
     generating,
     credits,
+    checkinEligible,
+    todayChecked,
+    setCredits,
+    setCheckinStatus,
     setSettingsOpen,
-    setRechargeOpen,
     setWalletOpen,
   } = useDeepRoastStore();
+
+  const handleCheckin = useCallback(async () => {
+    if (!checkinEligible || todayChecked || checkinLoading) return;
+    setCheckinLoading(true);
+    try {
+      const data = await apiJson<{
+        credits: number;
+        reward?: number;
+        todayChecked?: boolean;
+      }>("/api/credits/checkin", { method: "POST" });
+      setCredits(data.credits);
+      setCheckinStatus({ todayChecked: true, eligible: true });
+      toast(`签到成功，+${data.reward ?? CHECKIN_REWARD} 积分`, "success");
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        toast(err.message || "签到失败", "error");
+        if (err.message.includes("已签到")) {
+          setCheckinStatus({ todayChecked: true });
+        }
+      } else {
+        toast("网络错误", "error");
+      }
+    }
+    setCheckinLoading(false);
+  }, [
+    checkinEligible,
+    todayChecked,
+    checkinLoading,
+    setCredits,
+    setCheckinStatus,
+    toast,
+  ]);
 
   // 文生文：有当前会话时显示会话绑定的模型（实际对话用的就是它）
   const activeConv =
@@ -50,6 +92,7 @@ export default function Home() {
       ? [{ id: currentModel }, ...baseModels]
       : baseModels;
   const hasApiKey = !!config.hasApiKey;
+  const role = user?.role || "user";
 
   return (
     <div className="h-screen flex flex-col" style={{ background: "var(--bg-root)" }}>
@@ -62,12 +105,17 @@ export default function Home() {
         onModelRemove={actions.handleModelRemove}
         onSettingsClick={() => setSettingsOpen(true)}
         username={user?.username || ""}
-        role={user?.role || "user"}
+        role={role}
         onLogout={logout}
         credits={credits}
-        onRechargeClick={() => setRechargeOpen(true)}
+        checkinEligible={checkinEligible}
+        todayChecked={todayChecked}
+        checkinLoading={checkinLoading}
+        onCheckinClick={handleCheckin}
         onWalletClick={() => setWalletOpen(true)}
       />
+
+      <AnnouncementsBanner />
 
       {!hasApiKey && (
         <div
@@ -107,12 +155,21 @@ export default function Home() {
             history={imageHistory}
             onDeleteImage={actions.handleDeleteImage}
             credits={credits}
-            onRechargeClick={() => setRechargeOpen(true)}
+            isAdmin={role === "admin"}
+            checkinEligible={checkinEligible}
+            todayChecked={todayChecked}
+            onCheckinClick={handleCheckin}
+            onWalletClick={() => setWalletOpen(true)}
           />
         )}
       </div>
 
-      <AppModals onSaveConfig={actions.handleSaveConfig} />
+      <AppModals
+        onSaveConfig={actions.handleSaveConfig}
+        role={role}
+        checkinLoading={checkinLoading}
+        onCheckinClick={handleCheckin}
+      />
     </div>
   );
 }

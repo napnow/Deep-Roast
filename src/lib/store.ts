@@ -36,12 +36,13 @@ export interface DeepRoastState {
   imageHistory: ImageRecord[];
   generating: boolean;
 
-  // credits
+  // credits / check-in
   credits: number;
+  checkinEligible: boolean;
+  todayChecked: boolean;
 
   // ui modals
   settingsOpen: boolean;
-  rechargeOpen: boolean;
   walletOpen: boolean;
 
   // setters
@@ -58,8 +59,11 @@ export interface DeepRoastState {
   setImageHistory: (history: Updater<ImageRecord[]>) => void;
   setGenerating: (generating: boolean) => void;
   setCredits: (credits: number) => void;
+  setCheckinStatus: (status: {
+    eligible?: boolean;
+    todayChecked?: boolean;
+  }) => void;
   setSettingsOpen: (open: boolean) => void;
-  setRechargeOpen: (open: boolean) => void;
   setWalletOpen: (open: boolean) => void;
   resetChatSession: () => void;
 }
@@ -89,8 +93,9 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   imageHistory: [],
   generating: false,
   credits: 0,
+  checkinEligible: false,
+  todayChecked: false,
   settingsOpen: false,
-  rechargeOpen: false,
   walletOpen: false,
 
   setActiveMode: (mode) => set({ activeMode: mode }),
@@ -119,8 +124,16 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
     set((s) => ({ imageHistory: applyUpdater(s.imageHistory, history) })),
   setGenerating: (generating) => set({ generating }),
   setCredits: (credits) => set({ credits }),
+  setCheckinStatus: (status) =>
+    set((s) => ({
+      checkinEligible:
+        status.eligible !== undefined ? status.eligible : s.checkinEligible,
+      todayChecked:
+        status.todayChecked !== undefined
+          ? status.todayChecked
+          : s.todayChecked,
+    })),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
-  setRechargeOpen: (open) => set({ rechargeOpen: open }),
   setWalletOpen: (open) => set({ walletOpen: open }),
   resetChatSession: () =>
     set({ chatMessages: [], streaming: false, streamingText: "" }),

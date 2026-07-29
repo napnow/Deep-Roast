@@ -1,12 +1,15 @@
 "use client";
 
 import AdminSiteSettingsCard from "@/components/Admin/AdminSiteSettingsCard";
+import AdminAnnouncementsCard from "@/components/Admin/AdminAnnouncementsCard";
+import { CREDIT_PER_IMAGE } from "@/types";
 
 interface GlobalStats {
-  totalRechargeAmount: number;
-  totalRechargeCredits: number;
+  totalCheckinAmount: number;
+  totalConsumeAmount: number;
   totalUsers: number;
   totalImages: number;
+  bannedUsers: number;
 }
 
 interface AdminDashboardProps {
@@ -21,7 +24,7 @@ export default function AdminDashboard({ globalStats }: AdminDashboardProps) {
           className="text-sm font-bold"
           style={{ color: "var(--text-primary)" }}
         >
-          📊 收入概览
+          运营概览
         </p>
         {!globalStats ? (
           <p style={{ color: "var(--text-muted)" }} className="text-sm">
@@ -30,31 +33,29 @@ export default function AdminDashboard({ globalStats }: AdminDashboardProps) {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             <StatCard
-              label="总充值积分"
-              value={globalStats.totalRechargeCredits.toLocaleString()}
-              hint={`≈ ${Math.floor(globalStats.totalRechargeCredits / 20)} 张图`}
+              label="累计签到积分"
+              value={globalStats.totalCheckinAmount.toLocaleString()}
+              hint="checkin 流水合计"
               accent
+            />
+            <StatCard
+              label="累计消耗积分"
+              value={globalStats.totalConsumeAmount.toLocaleString()}
+              hint={`≈ ${Math.floor(globalStats.totalConsumeAmount / CREDIT_PER_IMAGE)} 张图`}
             />
             <StatCard
               label="总用户数"
               value={String(globalStats.totalUsers)}
-              hint="人"
+              hint={
+                globalStats.bannedUsers > 0
+                  ? `其中封禁 ${globalStats.bannedUsers}`
+                  : "人"
+              }
             />
             <StatCard
               label="总生成图片"
               value={globalStats.totalImages.toLocaleString()}
               hint="张"
-            />
-            <StatCard
-              label="人均充值积分"
-              value={
-                globalStats.totalUsers > 0
-                  ? Math.floor(
-                      globalStats.totalRechargeCredits / globalStats.totalUsers,
-                    ).toLocaleString()
-                  : "0"
-              }
-              hint="积分/人"
             />
           </div>
         )}
@@ -63,6 +64,7 @@ export default function AdminDashboard({ globalStats }: AdminDashboardProps) {
         </p>
 
         <AdminSiteSettingsCard />
+        <AdminAnnouncementsCard />
       </div>
     </div>
   );

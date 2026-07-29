@@ -15,7 +15,11 @@ interface ImageGenViewProps {
   history: ImageRecord[];
   onDeleteImage: (id: string) => void;
   credits: number;
-  onRechargeClick: () => void;
+  isAdmin?: boolean;
+  checkinEligible?: boolean;
+  todayChecked?: boolean;
+  onCheckinClick?: () => void;
+  onWalletClick?: () => void;
 }
 
 export default function ImageGenView({
@@ -26,7 +30,11 @@ export default function ImageGenView({
   history,
   onDeleteImage,
   credits,
-  onRechargeClick,
+  isAdmin,
+  checkinEligible,
+  todayChecked,
+  onCheckinClick,
+  onWalletClick,
 }: ImageGenViewProps) {
   const sizeOptions = getSizeOptions(model);
   const [prompt, setPrompt] = useState("");
@@ -90,9 +98,13 @@ export default function ImageGenView({
           sizeOptions={sizeOptions}
           generating={generating}
           credits={credits}
+          isAdmin={isAdmin}
+          checkinEligible={checkinEligible}
+          todayChecked={todayChecked}
           onGenerate={handleGenerate}
           onStopGenerate={onStopGenerate}
-          onRechargeClick={onRechargeClick}
+          onCheckinClick={onCheckinClick}
+          onWalletClick={onWalletClick}
         />
 
         <ImageResultPanel

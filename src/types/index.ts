@@ -30,7 +30,13 @@ export interface CreditTransaction {
   id: string;
   userId: string;
   username?: string;
-  type: "recharge" | "admin_grant" | "admin_deduct" | "consume" | "signup_bonus";
+  type:
+    | "recharge"
+    | "checkin"
+    | "admin_grant"
+    | "admin_deduct"
+    | "consume"
+    | "signup_bonus";
   amount: number;
   balanceAfter: number;
   planId?: string | null;
@@ -38,22 +44,34 @@ export interface CreditTransaction {
   createdAt: string;
 }
 
-export const RECHARGE_PLANS = [
-  { planId: "plan_10", amount: 10, credits: 200, label: "¥10", desc: "200 积分 (10 张)" },
-  { planId: "plan_30", amount: 30, credits: 600, label: "¥30", desc: "600 积分 (30 张)" },
-  { planId: "plan_50", amount: 50, credits: 1200, label: "¥50", desc: "1200 积分 (50 张)", badge: "最划算" },
-  { planId: "plan_100", amount: 100, credits: 3000, label: "¥100", desc: "3000 积分 (100 张)", badge: "送 1000" },
-];
+/** @deprecated 模拟充值已下线，保留类型仅兼容历史流水展示 */
+export const RECHARGE_PLANS: Array<{
+  planId: string;
+  amount: number;
+  credits: number;
+  label: string;
+  desc: string;
+  badge?: string;
+}> = [];
 
-export const CREDIT_PER_IMAGE = 20;
+export const CREDIT_PER_IMAGE = 5;
+export const CHECKIN_REWARD = 50;
 
 export const CREDIT_TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  recharge: { label: "充值", color: "#10b981" },
+  recharge: { label: "历史充值", color: "#10b981" },
+  checkin: { label: "每日签到", color: "#10b981" },
   admin_grant: { label: "管理加积分", color: "#3b82f6" },
   admin_deduct: { label: "管理扣积分", color: "#f97316" },
   consume: { label: "生成消耗", color: "#ef4444" },
   signup_bonus: { label: "注册赠送", color: "#6b7280" },
 };
+
+export interface Announcement {
+  id: string;
+  body: string;
+  createdAt: string;
+  createdBy?: string | null;
+}
 
 export interface Config {
   arkApiKey: string;
@@ -79,6 +97,7 @@ export interface AdminUser {
   username: string;
   role: string;
   credits: number;
+  status: string;
   conversationCount: number;
   imageCount: number;
   createdAt: string;

@@ -40,11 +40,13 @@ export default function AdminPage() {
     "conversations" | "images" | "credits"
   >("conversations");
   const [globalStats, setGlobalStats] = useState<{
-    totalRechargeAmount: number;
-    totalRechargeCredits: number;
+    totalCheckinAmount: number;
+    totalConsumeAmount: number;
     totalUsers: number;
     totalImages: number;
+    bannedUsers: number;
   } | null>(null);
+  const [userActionLoading, setUserActionLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -69,18 +71,81 @@ export default function AdminPage() {
       .then((data) => {
         if (data?.stats) {
           setGlobalStats({
-            totalRechargeAmount: data.stats.totalRechargeAmount || 0,
-            totalRechargeCredits: data.stats.totalRechargeAmount || 0,
+            totalCheckinAmount: data.stats.totalCheckinAmount || 0,
+            totalConsumeAmount: data.stats.totalConsumeAmount || 0,
             totalUsers: users.length,
             totalImages: users.reduce(
               (sum, u) => sum + (u.imageCount || 0),
               0,
             ),
+            bannedUsers: users.filter((u) => u.status === "banned").length,
           });
         }
       })
       .catch(console.error);
   }, [users]);
+
+  async function refreshUsers() {
+    const d = await fetch("/api/admin/users").then((r) => r.json());
+    if (Array.isArray(d)) setUsers(d);
+    return d as AdminUser[];
+  }
+
+  async function handleToggleBan() {
+    if (!selectedUser || selectedUser.role === "admin" || userActionLoading)
+      return;
+    const next = selectedUser.status === "banned" ? "active" : "banned";
+    const label = next === "banned" ? "封禁" : "解封";
+    if (!confirm(`确认${label}用户「${selectedUser.username}」？`)) return;
+    setUserActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || `${label}失败`);
+      } else {
+        const list = await refreshUsers();
+        const updated = list.find((u) => u.id === selectedUser.id);
+        if (updated) setSelectedUser(updated);
+        else setSelectedUser({ ...selectedUser, status: next });
+      }
+    } catch {
+      alert("网络错误");
+    }
+    setUserActionLoading(false);
+  }
+
+  async function handleDeleteUser() {
+    if (!selectedUser || selectedUser.role === "admin" || userActionLoading)
+      return;
+    if (
+      !confirm(
+        `确认永久删除用户「${selectedUser.username}」？对话、图片与积分流水将一并删除，不可恢复。`,
+      )
+    ) {
+      return;
+    }
+    setUserActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "删除失败");
+      } else {
+        setSelectedUser(null);
+        await refreshUsers();
+      }
+    } catch {
+      alert("网络错误");
+    }
+    setUserActionLoading(false);
+  }
 
   useEffect(() => {
     if (!selectedUser) {
@@ -187,7 +252,20 @@ export default function AdminPage() {
         ) : (
           <div className="max-w-4xl mx-auto space-y-6">
             <div>
-              <h1 className="text-xl font-bold">{selectedUser.username}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold">{selectedUser.username}</h1>
+                {selectedUser.status === "banned" && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                    style={{
+                      background: "var(--danger-surface)",
+                      color: "var(--danger)",
+                    }}
+                  >
+                    已封禁
+                  </span>
+                )}
+              </div>
               <p
                 className="text-xs mt-1"
                 style={{ color: "var(--text-muted)" }}
@@ -205,18 +283,60 @@ export default function AdminPage() {
                 对话 {selectedUser.conversationCount} · 图片{" "}
                 {selectedUser.imageCount}
               </p>
-              <button
-                type="button"
-                onClick={() => setResetOpen(true)}
-                className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                🔑 重置密码
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetOpen(true)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  重置密码
+                </button>
+                {selectedUser.role !== "admin" && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={userActionLoading}
+                      onClick={handleToggleBan}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                      style={{
+                        background:
+                          selectedUser.status === "banned"
+                            ? "var(--accent-surface)"
+                            : "var(--danger-surface)",
+                        border: `1px solid ${
+                          selectedUser.status === "banned"
+                            ? "var(--accent)"
+                            : "var(--danger)"
+                        }`,
+                        color:
+                          selectedUser.status === "banned"
+                            ? "var(--accent)"
+                            : "var(--danger)",
+                      }}
+                    >
+                      {selectedUser.status === "banned" ? "解封" : "封禁"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={userActionLoading}
+                      onClick={handleDeleteUser}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                      style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--danger)",
+                        color: "var(--danger)",
+                      }}
+                    >
+                      删除用户
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div

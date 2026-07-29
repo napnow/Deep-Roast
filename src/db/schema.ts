@@ -53,6 +53,8 @@ export const siteSettings = pgTable(
     adminContactImagePath: text("admin_contact_image_path")
       .notNull()
       .default(""),
+    /** 是否开放注册；关闭后 register API 与登录页注册入口不可用 */
+    registrationEnabled: integer("registration_enabled").notNull().default(1), // 1=开 0=关
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
@@ -67,8 +69,22 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default("user"), // 'user' | 'admin'
   credits: integer("credits").notNull().default(100), // 积分余额
+  /** active | banned */
+  status: text("status").notNull().default("active"),
+  /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
+  lastCheckinOn: text("last_checkin_on"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ── Site announcements ──
+export const announcements = pgTable("announcements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ── Conversations ──

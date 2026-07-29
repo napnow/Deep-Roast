@@ -2,20 +2,33 @@
 
 import { useState, useEffect } from "react";
 import type { CreditTransaction } from "@/types";
-import { CREDIT_TYPE_LABELS, CREDIT_PER_IMAGE, RECHARGE_PLANS } from "@/types";
+import {
+  CREDIT_TYPE_LABELS,
+  CREDIT_PER_IMAGE,
+  CHECKIN_REWARD,
+  RECHARGE_PLANS,
+} from "@/types";
 
 interface CreditWalletModalProps {
   open: boolean;
   onClose: () => void;
   credits: number;
-  onRechargeClick: () => void;
+  role: string;
+  checkinEligible: boolean;
+  todayChecked: boolean;
+  checkinLoading?: boolean;
+  onCheckinClick: () => void;
 }
 
 export default function CreditWalletModal({
   open,
   onClose,
   credits,
-  onRechargeClick,
+  role,
+  checkinEligible,
+  todayChecked,
+  checkinLoading,
+  onCheckinClick,
 }: CreditWalletModalProps) {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,18 +46,13 @@ export default function CreditWalletModal({
     }
   }, [open]);
 
-  // 累计充值积分
-  const totalRecharged = transactions
-    .filter((tx) => tx.type === "recharge")
+  const totalCheckin = transactions
+    .filter((tx) => tx.type === "checkin")
     .reduce((sum, tx) => sum + tx.amount, 0);
 
-  // 累计充值金额
-  const totalRechargeAmount = transactions
-    .filter((tx) => tx.type === "recharge" && tx.planId)
-    .reduce((sum, tx) => {
-      const plan = RECHARGE_PLANS.find((p) => p.planId === tx.planId);
-      return sum + (plan?.amount || 0);
-    }, 0);
+  const totalConsumed = transactions
+    .filter((tx) => tx.type === "consume")
+    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
   if (!open) return null;
 
@@ -63,29 +71,36 @@ export default function CreditWalletModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div
           className="flex items-center justify-between px-5 py-4 border-b shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
           <div>
-            <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
-              💰 我的钱包
+            <h2
+              className="text-base font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              我的钱包
             </h2>
-            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-[11px] mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
               积分明细与消费记录
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all duration-150 hover:scale-110"
-            style={{ background: "var(--bg-root)", color: "var(--text-muted)" }}
+            style={{
+              background: "var(--bg-root)",
+              color: "var(--text-muted)",
+            }}
           >
             ✕
           </button>
         </div>
 
-        {/* Balance Card */}
         <div
           className="mx-5 mt-4 rounded-xl p-4 shrink-0"
           style={{
@@ -93,51 +108,70 @@ export default function CreditWalletModal({
             color: "#fff",
           }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs opacity-80">当前余额</p>
               <p className="text-3xl font-bold mt-1">{credits}</p>
               <p className="text-xs mt-0.5 opacity-70">
-                可生成 {Math.floor(credits / CREDIT_PER_IMAGE)} 张图片
+                {role === "admin"
+                  ? "管理员生图不扣积分"
+                  : `可生成 ${Math.floor(credits / CREDIT_PER_IMAGE)} 张图片`}
               </p>
             </div>
-            <button
-              onClick={() => { onClose(); onRechargeClick(); }}
-              className="px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 hover:scale-105 active:scale-95"
-              style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)" }}
-            >
-              充值
-            </button>
+            {checkinEligible && (
+              <button
+                onClick={onCheckinClick}
+                disabled={todayChecked || checkinLoading}
+                className="px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100 shrink-0"
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                }}
+              >
+                {checkinLoading
+                  ? "签到中…"
+                  : todayChecked
+                    ? "今日已签"
+                    : `签到 +${CHECKIN_REWARD}`}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Stats Row */}
         <div className="flex gap-3 mx-5 mt-3 shrink-0">
           <div
             className="flex-1 rounded-xl p-3 text-center"
             style={{ background: "var(--bg-root)" }}
           >
             <p className="text-lg font-bold" style={{ color: "#10b981" }}>
-              +{totalRecharged}
+              +{totalCheckin}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-              累计充值积分
+            <p
+              className="text-[10px] mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              累计签到积分
             </p>
           </div>
           <div
             className="flex-1 rounded-xl p-3 text-center"
             style={{ background: "var(--bg-root)" }}
           >
-            <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-              ¥{totalRechargeAmount}
+            <p
+              className="text-lg font-bold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              −{totalConsumed}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-              累计充值金额
+            <p
+              className="text-[10px] mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              累计消耗积分
             </p>
           </div>
         </div>
 
-        {/* Transaction History */}
         <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
           <h3
             className="text-[11px] font-semibold tracking-widest uppercase mb-2"
@@ -147,17 +181,26 @@ export default function CreditWalletModal({
           </h3>
 
           {loading ? (
-            <p className="text-xs text-center py-8" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-xs text-center py-8"
+              style={{ color: "var(--text-muted)" }}
+            >
               加载中...
             </p>
           ) : transactions.length === 0 ? (
-            <p className="text-xs text-center py-8" style={{ color: "var(--text-muted)" }}>
+            <p
+              className="text-xs text-center py-8"
+              style={{ color: "var(--text-muted)" }}
+            >
               暂无记录
             </p>
           ) : (
             <div className="space-y-1.5">
               {transactions.map((tx) => {
-                const typeInfo = CREDIT_TYPE_LABELS[tx.type] || { label: tx.type, color: "#6b7280" };
+                const typeInfo = CREDIT_TYPE_LABELS[tx.type] || {
+                  label: tx.type,
+                  color: "#6b7280",
+                };
                 return (
                   <div
                     key={tx.id}
@@ -175,12 +218,19 @@ export default function CreditWalletModal({
                         {typeInfo.label}
                       </span>
                       {tx.planId && (
-                        <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
-                          {RECHARGE_PLANS.find((p) => p.planId === tx.planId)?.label || tx.planId}
+                        <span
+                          className="text-[10px] shrink-0"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {RECHARGE_PLANS.find((p) => p.planId === tx.planId)
+                            ?.label || tx.planId}
                         </span>
                       )}
                       {tx.note && (
-                        <span className="text-[10px] truncate" style={{ color: "var(--text-muted)" }}>
+                        <span
+                          className="text-[10px] truncate"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {tx.note}
                         </span>
                       )}
@@ -192,9 +242,13 @@ export default function CreditWalletModal({
                           fontWeight: 600,
                         }}
                       >
-                        {tx.amount > 0 ? "+" : ""}{tx.amount}
+                        {tx.amount > 0 ? "+" : ""}
+                        {tx.amount}
                       </span>
-                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <span
+                        className="text-[10px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         {tx.createdAt
                           ? new Date(tx.createdAt).toLocaleString("zh-CN", {
                               month: "2-digit",

@@ -13,9 +13,14 @@ interface ImageInputColumnProps {
   sizeOptions: { value: string; label: string }[];
   generating: boolean;
   credits: number;
+  /** admin 生图免费，不因余额禁用 */
+  isAdmin?: boolean;
+  checkinEligible?: boolean;
+  todayChecked?: boolean;
   onGenerate: (prompt: string, size: string) => void;
   onStopGenerate: () => void;
-  onRechargeClick: () => void;
+  onCheckinClick?: () => void;
+  onWalletClick?: () => void;
 }
 
 const toolbarBtn =
@@ -29,10 +34,15 @@ export default function ImageInputColumn({
   sizeOptions,
   generating,
   credits,
+  isAdmin = false,
+  checkinEligible = false,
+  todayChecked = false,
   onGenerate,
   onStopGenerate,
-  onRechargeClick,
+  onCheckinClick,
+  onWalletClick,
 }: ImageInputColumnProps) {
+  const canAfford = isAdmin || credits >= CREDIT_PER_IMAGE;
   const [toolbarOpen, setToolbarOpen] = useState<"reverse" | "img2img" | null>(
     null,
   );
@@ -199,9 +209,7 @@ export default function ImageInputColumn({
 
           <button
             onClick={generating ? onStopGenerate : handleGenerate}
-            disabled={
-              !generating && (!prompt.trim() || credits < CREDIT_PER_IMAGE)
-            }
+            disabled={!generating && (!prompt.trim() || !canAfford)}
             className="rounded-xl px-5 py-2.5 text-[13px] font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:scale-100 whitespace-nowrap"
             style={
               generating
@@ -213,7 +221,7 @@ export default function ImageInputColumn({
                 : {
                     background: "var(--accent-surface)",
                     border: `1px solid ${
-                      prompt.trim() && credits >= CREDIT_PER_IMAGE
+                      prompt.trim() && canAfford
                         ? "var(--accent)"
                         : "var(--border)"
                     }`,
@@ -221,33 +229,41 @@ export default function ImageInputColumn({
                   }
             }
           >
-            {generating
-              ? "⏹ 停止"
-              : credits < CREDIT_PER_IMAGE
-                ? "积分不足"
-                : "生成"}
+            {generating ? "⏹ 停止" : !canAfford ? "积分不足" : "生成"}
           </button>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            每张图消耗 {CREDIT_PER_IMAGE} 积分
-            {" · "}余额 {credits} 积分
-            {" · "}可生成 {Math.floor(credits / CREDIT_PER_IMAGE)} 张
+            {isAdmin
+              ? "管理员生图免费"
+              : `每张图消耗 ${CREDIT_PER_IMAGE} 积分 · 余额 ${credits} · 可生成 ${Math.floor(credits / CREDIT_PER_IMAGE)} 张`}
           </p>
-          <button
-            onClick={onRechargeClick}
-            className="text-[10px] font-medium transition-all duration-150 hover:scale-105"
-            style={{
-              color: credits <= 40 ? "var(--danger)" : "var(--accent)",
-            }}
-          >
-            {credits < CREDIT_PER_IMAGE
-              ? "⚡ 立即充值"
-              : credits <= 40
-                ? "⚠️ 余额偏低，充值 →"
-                : "💰 充值"}
-          </button>
+          {!isAdmin && (
+            <button
+              onClick={() => {
+                if (checkinEligible && !todayChecked && onCheckinClick) {
+                  onCheckinClick();
+                } else if (onWalletClick) {
+                  onWalletClick();
+                }
+              }}
+              className="text-[10px] font-medium transition-all duration-150 hover:scale-105 shrink-0"
+              style={{
+                color: credits <= 40 ? "var(--danger)" : "var(--accent)",
+              }}
+            >
+              {!canAfford
+                ? checkinEligible && !todayChecked
+                  ? "去签到 →"
+                  : "查看钱包 →"
+                : credits <= 40
+                  ? checkinEligible && !todayChecked
+                    ? "余额偏低，签到 →"
+                    : "查看钱包 →"
+                  : "钱包"}
+            </button>
+          )}
         </div>
       </div>
     </div>

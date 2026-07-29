@@ -1,11 +1,6 @@
-import { requireUser } from "@/server/auth";
-import { handleRoute, jsonOk, readJson } from "@/server/http";
-import { rechargeCredits } from "@/server/services/credits";
+import { ApiError, handleRoute } from "@/server/http";
 
-// POST /api/credits/recharge — 模拟充值
-export const POST = handleRoute(async (req) => {
-  const { userId } = requireUser(req);
-  const body = await readJson<{ planId?: string }>(req);
-  const result = await rechargeCredits(userId, body.planId || "");
-  return jsonOk(result);
+/** 模拟充值已下线 */
+export const POST = handleRoute(async () => {
+  throw new ApiError("充值功能已关闭，请使用每日签到获取积分", 410);
 });

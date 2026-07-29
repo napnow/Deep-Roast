@@ -6,6 +6,7 @@ import { apiJson, jsonBody } from "@/lib/client-api";
 export default function AdminSiteSettingsCard() {
   const [text, setText] = useState("");
   const [imagePath, setImagePath] = useState("");
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -16,9 +17,11 @@ export default function AdminSiteSettingsCard() {
       const data = await apiJson<{
         adminContactText: string;
         adminContactImagePath: string;
+        registrationEnabled?: boolean;
       }>("/api/admin/site-settings");
       setText(data.adminContactText || "");
       setImagePath(data.adminContactImagePath || "");
+      setRegistrationEnabled(data.registrationEnabled !== false);
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "加载失败");
     }
@@ -89,6 +92,25 @@ export default function AdminSiteSettingsCard() {
     setSaving(false);
   }
 
+  async function toggleRegistration(next: boolean) {
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ registrationEnabled?: boolean }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ registrationEnabled: next }),
+        },
+      );
+      setRegistrationEnabled(data.registrationEnabled !== false);
+      setMsg(next ? "✓ 已开放注册" : "✓ 已关闭注册");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
   const inputStyle = {
     background: "var(--bg-root)",
     border: "1px solid var(--border)",
@@ -101,10 +123,10 @@ export default function AdminSiteSettingsCard() {
       style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
     >
       <p className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>
-        📞 站点设置 · 联系方式
+        站点设置
       </p>
       <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-        展示在登录页「联系管理员」弹层；可填微信/邮箱说明，并上传交流群二维码。
+        注册开关与登录页「联系管理员」内容。
       </p>
       {loading ? (
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -112,6 +134,49 @@ export default function AdminSiteSettingsCard() {
         </p>
       ) : (
         <>
+          <div
+            className="flex items-center justify-between rounded-lg px-3 py-2"
+            style={{ background: "var(--bg-root)" }}
+          >
+            <div>
+              <p
+                className="text-xs font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                开放新用户注册
+              </p>
+              <p
+                className="text-[10px] mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                关闭后登录页隐藏注册，API 拒绝注册
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => toggleRegistration(!registrationEnabled)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+              style={{
+                background: registrationEnabled
+                  ? "var(--accent-surface)"
+                  : "var(--danger-surface)",
+                border: `1px solid ${
+                  registrationEnabled ? "var(--accent)" : "var(--danger)"
+                }`,
+                color: registrationEnabled ? "var(--accent)" : "var(--danger)",
+              }}
+            >
+              {registrationEnabled ? "已开放" : "已关闭"}
+            </button>
+          </div>
+
+          <p
+            className="text-[11px] font-semibold pt-1"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            联系管理员
+          </p>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

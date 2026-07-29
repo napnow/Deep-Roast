@@ -12,11 +12,19 @@ import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
 
 export async function generateImage(opts: {
   userId: string;
+  /** admin 生图不扣积分 */
+  role?: string;
   prompt: string;
   modelOverride?: string;
   size?: string;
 }) {
-  const { userId, prompt, modelOverride, size = "1024x1024" } = opts;
+  const {
+    userId,
+    role = "user",
+    prompt,
+    modelOverride,
+    size = "1024x1024",
+  } = opts;
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
 
   const config = await getConfig();
@@ -24,7 +32,8 @@ export async function generateImage(opts: {
   const model =
     modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
 
-  if (userId) {
+  const chargeCredits = role !== "admin";
+  if (userId && chargeCredits) {
     await assertEnoughCredits(userId, CREDIT_PER_IMAGE);
   }
 
@@ -98,7 +107,7 @@ export async function generateImage(opts: {
         userId,
       });
 
-      if (userId) {
+      if (userId && chargeCredits) {
         await consumeCredits(
           userId,
           CREDIT_PER_IMAGE,

@@ -6,6 +6,9 @@ import {
   messages,
 } from "@/db/schema";
 import { desc, eq, asc, sql } from "drizzle-orm";
+import { unlink } from "fs/promises";
+import path from "path";
+import { ApiError } from "@/server/http";
 
 export async function listUsersWithStats() {
   const userRows = await db
@@ -14,6 +17,7 @@ export async function listUsersWithStats() {
       username: users.username,
       role: users.role,
       credits: users.credits,
+      status: users.status,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -59,6 +63,7 @@ export async function listUsersWithStats() {
         username: user.username,
         role: user.role,
         credits: user.credits,
+        status: user.status ?? "active",
         conversationCount: convCount?.count ?? 0,
         imageCount: imgCount?.count ?? 0,
         createdAt: user.createdAt,
@@ -66,6 +71,60 @@ export async function listUsersWithStats() {
       };
     }),
   );
+}
+
+function assertNotAdminTarget(role: string) {
+  if (role === "admin") {
+    throw new ApiError("不能封禁或删除管理员账号", 403);
+  }
+}
+
+export async function setUserStatus(
+  userId: string,
+  status: "active" | "banned",
+) {
+  if (status !== "active" && status !== "banned") {
+    throw new ApiError("无效状态", 400);
+  }
+  const [target] = await db.select().from(users).where(eq(users.id, userId));
+  if (!target) throw new ApiError("用户不存在", 404);
+  assertNotAdminTarget(target.role);
+
+  const [row] = await db
+    .update(users)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      status: users.status,
+      credits: users.credits,
+    });
+  return row!;
+}
+
+export async function deleteUserHard(userId: string) {
+  const [target] = await db.select().from(users).where(eq(users.id, userId));
+  if (!target) throw new ApiError("用户不存在", 404);
+  assertNotAdminTarget(target.role);
+
+  const images = await db
+    .select({ imageUrl: imageGenerations.imageUrl })
+    .from(imageGenerations)
+    .where(eq(imageGenerations.userId, userId));
+
+  for (const img of images) {
+    try {
+      const rel = img.imageUrl.replace(/^\//, "");
+      await unlink(path.join(process.cwd(), "public", rel));
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  await db.delete(users).where(eq(users.id, userId));
+  return { success: true };
 }
 
 export async function listUserConversations(userId: string) {

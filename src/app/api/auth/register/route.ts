@@ -3,9 +3,14 @@ import { users, creditTransactions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
 import { MIN_PASSWORD_LENGTH } from "@/server/services/auth-password";
+import { isRegistrationEnabled } from "@/server/services/site-settings";
 
 export async function POST(req: Request) {
   try {
+    if (!(await isRegistrationEnabled())) {
+      return Response.json({ error: "暂不开放注册" }, { status: 403 });
+    }
+
     const { username, password } = await req.json();
 
     if (!username || !password) {
@@ -23,7 +28,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if username already exists
     const existing = await db
       .select()
       .from(users)
@@ -39,7 +43,6 @@ export async function POST(req: Request) {
       .values({ username, password: hashed })
       .returning();
 
-    // 注册赠送积分流水
     await db.insert(creditTransactions).values({
       userId: user.id,
       type: "signup_bonus",
@@ -55,7 +58,10 @@ export async function POST(req: Request) {
     });
     await setAuthCookie(token);
 
-    return Response.json({ success: true, username: user.username, role: user.role }, { status: 201 });
+    return Response.json(
+      { success: true, username: user.username, role: user.role },
+      { status: 201 },
+    );
   } catch {
     return Response.json({ error: "注册失败，请重试" }, { status: 500 });
   }

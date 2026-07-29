@@ -31,13 +31,23 @@ async function ensureRow() {
   return row!;
 }
 
-export async function getSiteSettings() {
-  const row = await ensureRow();
+function mapSettings(row: typeof siteSettings.$inferSelect) {
   return {
     adminContactText: row.adminContactText ?? "",
     adminContactImagePath: row.adminContactImagePath ?? "",
+    registrationEnabled: (row.registrationEnabled ?? 1) !== 0,
     updatedAt: row.updatedAt,
   };
+}
+
+export async function getSiteSettings() {
+  const row = await ensureRow();
+  return mapSettings(row);
+}
+
+export async function isRegistrationEnabled(): Promise<boolean> {
+  const s = await getSiteSettings();
+  return s.registrationEnabled;
 }
 
 export async function getPublicAdminContact() {
@@ -45,6 +55,7 @@ export async function getPublicAdminContact() {
   return {
     text: s.adminContactText,
     imageUrl: s.adminContactImagePath ? s.adminContactImagePath : null,
+    registrationEnabled: s.registrationEnabled,
   };
 }
 
@@ -55,11 +66,20 @@ export async function updateAdminContactText(text: string) {
     .set({ adminContactText: text, updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
-  return {
-    adminContactText: row!.adminContactText,
-    adminContactImagePath: row!.adminContactImagePath,
-    updatedAt: row!.updatedAt,
-  };
+  return mapSettings(row!);
+}
+
+export async function setRegistrationEnabled(enabled: boolean) {
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({
+      registrationEnabled: enabled ? 1 : 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
 }
 
 export async function clearAdminContactImage() {
@@ -79,11 +99,7 @@ export async function clearAdminContactImage() {
     .set({ adminContactImagePath: "", updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
-  return {
-    adminContactText: row!.adminContactText,
-    adminContactImagePath: row!.adminContactImagePath,
-    updatedAt: row!.updatedAt,
-  };
+  return mapSettings(row!);
 }
 
 export async function saveAdminContactImage(

@@ -62,46 +62,63 @@ export default function AdminUserList({
           </p>
         </div>
       ) : (
-        users.map((u) => (
-          <button
-            key={u.id}
-            onClick={() => onSelect(u)}
-            className="w-full text-left px-4 py-3 border-b transition-colors duration-100"
-            style={{
-              borderColor: "var(--border)",
-              background:
-                selectedUser?.id === u.id
-                  ? "var(--accent-surface)"
-                  : "transparent",
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium truncate">{u.username}</span>
-              {u.role === "admin" && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
-                  style={{
-                    background: "var(--accent-surface)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  ADMIN
-                </span>
-              )}
-            </div>
-            <div
-              className="flex gap-3 mt-1 text-[11px]"
-              style={{ color: "var(--text-muted)" }}
+        users.map((u) => {
+          const banned = u.status === "banned";
+          return (
+            <button
+              key={u.id}
+              onClick={() => onSelect(u)}
+              className="w-full text-left px-4 py-3 border-b transition-colors duration-100"
+              style={{
+                borderColor: "var(--border)",
+                background:
+                  selectedUser?.id === u.id
+                    ? "var(--accent-surface)"
+                    : "transparent",
+                opacity: banned ? 0.75 : 1,
+              }}
             >
-              <span>💰 {u.credits ?? 0}</span>
-              <span>对话 {u.conversationCount}</span>
-              <span>图片 {u.imageCount}</span>
-              <span>
-                {u.lastActive ? relativeTime(u.lastActive) : "从未活跃"}
-              </span>
-            </div>
-          </button>
-        ))
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium truncate">{u.username}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {banned && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                      style={{
+                        background: "var(--danger-surface)",
+                        color: "var(--danger)",
+                      }}
+                    >
+                      封禁
+                    </span>
+                  )}
+                  {u.role === "admin" && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                      style={{
+                        background: "var(--accent-surface)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      ADMIN
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div
+                className="flex gap-3 mt-1 text-[11px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <span>💰 {u.credits ?? 0}</span>
+                <span>对话 {u.conversationCount}</span>
+                <span>图片 {u.imageCount}</span>
+                <span>
+                  {u.lastActive ? relativeTime(u.lastActive) : "从未活跃"}
+                </span>
+              </div>
+            </button>
+          );
+        })
       )}
     </div>
   );
