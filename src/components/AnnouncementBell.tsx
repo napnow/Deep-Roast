@@ -9,7 +9,7 @@ import {
 } from "@/lib/announcement-read";
 
 /**
- * Header 旁的小喇叭：与设置同排。
+ * Header 旁的铃铛：与设置同排。
  * 有未读公告时红点；点开列表后标记已读，红点消失。
  */
 export default function AnnouncementBell() {
@@ -118,10 +118,9 @@ export default function AnnouncementBell() {
           strokeLinejoin="round"
           aria-hidden
         >
-          {/* megaphone / 小喇叭 */}
-          <path d="M3 11v2a1 1 0 0 0 1 1h1.5L11 18V6L5.5 10H4a1 1 0 0 0-1 1z" />
-          <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-          <path d="M18 6.5a8.5 8.5 0 0 1 0 11" />
+          {/* bell / 铃铛 */}
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unread && (
           <span

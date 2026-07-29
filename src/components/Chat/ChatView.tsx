@@ -75,9 +75,14 @@ export default function ChatView({
                 key={m.id || i}
                 className={`flex ${isUser ? "justify-end" : "justify-start"}`}
               >
-                <div className={`max-w-[78%] ${isUser ? "" : "w-full"}`}>
+                {/* 气泡按内容宽度收缩，最长不超过 78%；短句不再拉满整行 */}
+                <div
+                  className={`flex flex-col max-w-[78%] min-w-0 ${
+                    isUser ? "items-end" : "items-start"
+                  }`}
+                >
                   {hasReasoning && (
-                    <div className="mb-1.5">
+                    <div className="mb-1.5 w-full max-w-full">
                       <button
                         onClick={() => toggleReasoning(i)}
                         className="flex items-center gap-1.5 text-[11px] font-medium transition-colors duration-150 mb-1"
@@ -100,7 +105,7 @@ export default function ChatView({
                       </button>
                       {reasoningOpen && (
                         <div
-                          className="rounded-lg px-3 py-2 text-[12px] leading-relaxed animate-fade-in border"
+                          className="rounded-lg px-3 py-2 text-[12px] leading-relaxed animate-fade-in border w-full"
                           style={{
                             background: "var(--bg-root)",
                             borderColor: "var(--border)",
@@ -114,7 +119,7 @@ export default function ChatView({
                   )}
 
                   <div
-                    className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    className={`w-fit max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                       isUser ? "rounded-br-md" : "rounded-bl-md"
                     }`}
                     style={
@@ -132,7 +137,9 @@ export default function ChatView({
                           }
                     }
                   >
-                    <div className="whitespace-pre-wrap">{m.content}</div>
+                    <div className="whitespace-pre-wrap break-words">
+                      {m.content}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -141,9 +148,9 @@ export default function ChatView({
 
           {streaming && streamingText && (
             <div className="flex justify-start">
-              <div className="max-w-[78%]">
+              <div className="max-w-[78%] min-w-0 flex flex-col items-start">
                 <div
-                  className="rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed"
+                  className="w-fit max-w-full rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed"
                   style={{
                     background: "var(--bg-surface)",
                     color: "var(--text-primary)",
@@ -152,7 +159,9 @@ export default function ChatView({
                     boxShadow: "0 0 0 1px var(--accent-glow)",
                   }}
                 >
-                  {streamingText}
+                  <span className="whitespace-pre-wrap break-words">
+                    {streamingText}
+                  </span>
                   <span
                     className="inline-block w-1.5 h-4 ml-0.5 align-middle rounded-sm animate-pulse-soft"
                     style={{ background: "var(--accent)" }}
