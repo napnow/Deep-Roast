@@ -3,6 +3,7 @@
 import type { ModelInfo } from "@/types";
 import ModelSelector from "@/components/Header/ModelSelector";
 import UserMenu from "@/components/Header/UserMenu";
+import AnnouncementBell from "@/components/AnnouncementBell";
 
 interface HeaderProps {
   activeMode: "text" | "image";
@@ -120,6 +121,8 @@ export default function Header({
           onModelChange={onModelChange}
           onModelRemove={onModelRemove}
         />
+
+        <AnnouncementBell />
 
         <button
           onClick={onSettingsClick}

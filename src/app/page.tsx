@@ -5,7 +5,6 @@ import Header from "@/components/Header";
 import TextModePanel from "@/components/Chat/TextModePanel";
 import ImageGenView from "@/components/ImageGen/ImageGenView";
 import AppModals from "@/components/AppModals";
-import AnnouncementsBanner from "@/components/AnnouncementsBanner";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
@@ -114,8 +113,6 @@ export default function Home() {
         onCheckinClick={handleCheckin}
         onWalletClick={() => setWalletOpen(true)}
       />
-
-      <AnnouncementsBanner />
 
       {!hasApiKey && (
         <div
