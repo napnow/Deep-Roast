@@ -187,33 +187,6 @@ export function useChatActions(loadConversations: () => Promise<void>) {
     setStreamingText("");
   }, [setStreaming, setStreamingText]);
 
-  const handleExamplePrompt = useCallback(
-    async (text: string) => {
-      try {
-        const conv = await apiJson<Conversation>("/api/conversations", {
-          method: "POST",
-          ...jsonBody({
-            title: text.slice(0, 30),
-            model: useDeepRoastStore.getState().config.textModel,
-          }),
-        });
-        setConversations((prev) => [conv, ...prev]);
-        setActiveConvId(conv.id);
-        resetChatSession();
-        setTimeout(() => handleSendMessage(text), 300);
-      } catch {
-        toast("创建对话失败", "error");
-      }
-    },
-    [
-      setConversations,
-      setActiveConvId,
-      resetChatSession,
-      handleSendMessage,
-      toast,
-    ],
-  );
-
   return {
     handleNewConversation,
     handleSelectConversation,
@@ -221,6 +194,5 @@ export function useChatActions(loadConversations: () => Promise<void>) {
     handleRenameConversation,
     handleSendMessage,
     handleStopChat,
-    handleExamplePrompt,
   };
 }

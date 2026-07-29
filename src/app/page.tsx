@@ -141,7 +141,6 @@ export default function Home() {
             onRename={actions.handleRenameConversation}
             onSend={actions.handleSendMessage}
             onStop={actions.handleStopChat}
-            onExamplePrompt={actions.handleExamplePrompt}
           />
         ) : (
           <ImageGenView

@@ -130,13 +130,6 @@ export const IMAGE_STYLE_PRESETS = [
 ];
 
 // ── Example prompts for empty state ──
-export const EXAMPLE_PROMPTS = [
-  { icon: "💡", text: "用 Rust 写一个简单的 HTTP 服务器" },
-  { icon: "🎨", text: "解释量子纠缠，用通俗易懂的比喻" },
-  { icon: "📝", text: "帮我润色这段话，让它更专业" },
-  { icon: "🔍", text: "分析这段代码的时间复杂度" },
-];
-
 // ── Relative time formatter ──
 export function relativeTime(dateStr: string): string {
   const now = Date.now();
