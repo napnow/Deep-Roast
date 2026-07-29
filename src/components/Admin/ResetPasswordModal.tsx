@@ -104,7 +104,9 @@ export default function ResetPasswordModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={() => {
+          if (!tempShown) onClose();
+        }}
       />
       <div
         className="relative z-10 w-[24rem] max-w-[calc(100vw-2rem)] rounded-2xl border p-5 space-y-3"

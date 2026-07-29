@@ -5,7 +5,12 @@ import { changeOwnPassword } from "@/server/services/auth-password";
 function tokenFromCookie(req: Request): string | null {
   const cookieHeader = req.headers.get("cookie") || "";
   const tokenMatch = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
-  return tokenMatch ? decodeURIComponent(tokenMatch[1]!) : null;
+  if (!tokenMatch?.[1]) return null;
+  try {
+    return decodeURIComponent(tokenMatch[1]);
+  } catch {
+    return null;
+  }
 }
 
 export const POST = handleRoute(async (req) => {
