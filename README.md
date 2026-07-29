@@ -87,8 +87,18 @@ npm run build && npm start
 
 ## 文档
 
-- [环境与运行](docs/setup.md)  
-- 更多设计稿见 `docs/superpowers/`（过程文档，可选读）  
+| 文档 | 说明 |
+|------|------|
+| [环境与运行](docs/setup.md) | 安装、迁移、环境变量 |
+| [产品范围](docs/PRD.md) | 功能与非目标 |
+| [API 概要](docs/api.md) | 主要路由约定 |
+| [架构说明](docs/architecture.md) | 技术栈与数据流 |
+| [文生图系统提示词](docs/image-system-prompt.md) | 全局生图前缀说明 |
+
+## 小范围部署提示
+
+自托管给少数用户时，通常需要：**1 台可跑 Node 的机器 + PostgreSQL + 磁盘存图 + 你自己的上游 API Key**。  
+不必自备 GPU（推理在外部网关）。生产务必设置强 `JWT_SECRET`、改掉默认 admin 密码，并评估是否开放注册。详见 [docs/setup.md](docs/setup.md)。
 
 ## License
 

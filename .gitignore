@@ -54,6 +54,8 @@ doubaome.md
 .claude/
 # agent design/plan history — keep locally, not for public clone
 docs/superpowers/
+# superseded internal design drafts (local only)
+docs/AI生图系统提示词-功能文档.md
 
 # OS / editor
 .idea/
