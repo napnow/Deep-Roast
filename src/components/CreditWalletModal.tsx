@@ -1,0 +1,217 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import type { CreditTransaction } from "@/types";
+import { CREDIT_TYPE_LABELS, CREDIT_PER_IMAGE, RECHARGE_PLANS } from "@/types";
+
+interface CreditWalletModalProps {
+  open: boolean;
+  onClose: () => void;
+  credits: number;
+  onRechargeClick: () => void;
+}
+
+export default function CreditWalletModal({
+  open,
+  onClose,
+  credits,
+  onRechargeClick,
+}: CreditWalletModalProps) {
+  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setLoading(true);
+      fetch("/api/credits/transactions")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) setTransactions(data);
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }
+  }, [open]);
+
+  // 累计充值积分
+  const totalRecharged = transactions
+    .filter((tx) => tx.type === "recharge")
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  // 累计充值金额
+  const totalRechargeAmount = transactions
+    .filter((tx) => tx.type === "recharge" && tx.planId)
+    .reduce((sum, tx) => {
+      const plan = RECHARGE_PLANS.find((p) => p.planId === tx.planId);
+      return sum + (plan?.amount || 0);
+    }, 0);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl border w-full max-w-md max-h-[80vh] flex flex-col animate-fade-up"
+        style={{
+          background: "var(--bg-surface)",
+          borderColor: "var(--border)",
+          boxShadow: "var(--shadow-xl)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-4 border-b shrink-0"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div>
+            <h2 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+              💰 我的钱包
+            </h2>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+              积分明细与消费记录
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all duration-150 hover:scale-110"
+            style={{ background: "var(--bg-root)", color: "var(--text-muted)" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Balance Card */}
+        <div
+          className="mx-5 mt-4 rounded-xl p-4 shrink-0"
+          style={{
+            background: "linear-gradient(135deg, #1677FF 0%, #0958d9 100%)",
+            color: "#fff",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs opacity-80">当前余额</p>
+              <p className="text-3xl font-bold mt-1">{credits}</p>
+              <p className="text-xs mt-0.5 opacity-70">
+                可生成 {Math.floor(credits / CREDIT_PER_IMAGE)} 张图片
+              </p>
+            </div>
+            <button
+              onClick={() => { onClose(); onRechargeClick(); }}
+              className="px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 hover:scale-105 active:scale-95"
+              style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)" }}
+            >
+              充值
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="flex gap-3 mx-5 mt-3 shrink-0">
+          <div
+            className="flex-1 rounded-xl p-3 text-center"
+            style={{ background: "var(--bg-root)" }}
+          >
+            <p className="text-lg font-bold" style={{ color: "#10b981" }}>
+              +{totalRecharged}
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+              累计充值积分
+            </p>
+          </div>
+          <div
+            className="flex-1 rounded-xl p-3 text-center"
+            style={{ background: "var(--bg-root)" }}
+          >
+            <p className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+              ¥{totalRechargeAmount}
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+              累计充值金额
+            </p>
+          </div>
+        </div>
+
+        {/* Transaction History */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+          <h3
+            className="text-[11px] font-semibold tracking-widest uppercase mb-2"
+            style={{ color: "var(--text-muted)" }}
+          >
+            积分流水
+          </h3>
+
+          {loading ? (
+            <p className="text-xs text-center py-8" style={{ color: "var(--text-muted)" }}>
+              加载中...
+            </p>
+          ) : transactions.length === 0 ? (
+            <p className="text-xs text-center py-8" style={{ color: "var(--text-muted)" }}>
+              暂无记录
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {transactions.map((tx) => {
+                const typeInfo = CREDIT_TYPE_LABELS[tx.type] || { label: tx.type, color: "#6b7280" };
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+                    style={{ background: "var(--bg-root)" }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0"
+                        style={{
+                          background: typeInfo.color + "20",
+                          color: typeInfo.color,
+                        }}
+                      >
+                        {typeInfo.label}
+                      </span>
+                      {tx.planId && (
+                        <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
+                          {RECHARGE_PLANS.find((p) => p.planId === tx.planId)?.label || tx.planId}
+                        </span>
+                      )}
+                      {tx.note && (
+                        <span className="text-[10px] truncate" style={{ color: "var(--text-muted)" }}>
+                          {tx.note}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
+                      <span
+                        style={{
+                          color: tx.amount >= 0 ? "#10b981" : "#ef4444",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {tx.amount > 0 ? "+" : ""}{tx.amount}
+                      </span>
+                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        {tx.createdAt
+                          ? new Date(tx.createdAt).toLocaleString("zh-CN", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,26 +1,346 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Design Token: Deep Roast Atelier ──
+   深焙工坊：炭黑/石米分层，焦糖仅作火候强调，少甜多沉。 */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 浅色：冷石米纸，不是奶茶 */
+  --bg-root: #e6e2d9;
+  --bg-surface: #f2efe8;
+  --bg-elevated: #faf8f4;
+  --bg-hover: #d9d3c7;
+  --bg-sidebar: #ddd8ce;
+  --bg-canvas: #ebe7de;
+  --text-primary: #1a1612;
+  --text-secondary: #5a5248;
+  --text-muted: #8a8175;
+  --accent: #9a5528;
+  --accent-soft: #b86a35;
+  --accent-on: #fff8f0;
+  --accent-glow: rgba(154, 85, 40, 0.22);
+  --accent-surface: rgba(154, 85, 40, 0.1);
+  --border: rgba(40, 32, 24, 0.12);
+  --border-hover: rgba(40, 32, 24, 0.22);
+  --border-strong: rgba(40, 32, 24, 0.18);
+  --danger: #c9443c;
+  --danger-surface: rgba(201, 68, 60, 0.1);
+  --success: #3d8a58;
+  --shadow-sm: 0 1px 2px rgba(26, 22, 18, 0.06);
+  --shadow-md: 0 6px 20px rgba(26, 22, 18, 0.08), 0 1px 3px rgba(26, 22, 18, 0.04);
+  --shadow-lg: 0 16px 48px rgba(26, 22, 18, 0.12), 0 4px 12px rgba(26, 22, 18, 0.06);
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --header-h: 52px;
+  --glow-spot: radial-gradient(
+    900px 420px at 12% -10%,
+    rgba(154, 85, 40, 0.09),
+    transparent 55%
+  );
+  --canvas-vignette: radial-gradient(
+    ellipse 80% 70% at 50% 45%,
+    transparent 30%,
+    rgba(26, 22, 18, 0.04) 100%
+  );
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html.dark {
+  --bg-root: #090807;
+  --bg-surface: #12100e;
+  --bg-elevated: #1a1714;
+  --bg-hover: #242018;
+  --bg-sidebar: #0e0c0a;
+  --bg-canvas: #0c0b09;
+  --text-primary: #ede6dc;
+  --text-secondary: #a89a8a;
+  --text-muted: #6e6358;
+  --accent: #d4894a;
+  --accent-soft: #e8a56a;
+  --accent-on: #1a1008;
+  --accent-glow: rgba(212, 137, 74, 0.2);
+  --accent-surface: rgba(212, 137, 74, 0.1);
+  --border: rgba(237, 230, 220, 0.07);
+  --border-hover: rgba(237, 230, 220, 0.14);
+  --border-strong: rgba(237, 230, 220, 0.12);
+  --danger: #e85d55;
+  --danger-surface: rgba(232, 93, 85, 0.12);
+  --success: #6fbf83;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --glow-spot: radial-gradient(
+    1000px 480px at 8% -8%,
+    rgba(212, 137, 74, 0.11),
+    transparent 50%
+  ),
+    radial-gradient(
+      700px 360px at 92% 0%,
+      rgba(90, 50, 20, 0.12),
+      transparent 45%
+    );
+  --canvas-vignette: radial-gradient(
+    ellipse 75% 65% at 50% 40%,
+    transparent 25%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Base ── */
+body {
+  font-family: var(--font-body), "PingFang SC", "Microsoft YaHei", system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-root);
+  color: var(--text-primary);
+  transition: background 0.35s ease, color 0.35s ease;
+  letter-spacing: 0.01em;
+}
+
+.font-display {
+  font-family: var(--font-display), "Songti SC", "Noto Serif SC", serif;
+  font-feature-settings: "ss01" on;
+  letter-spacing: -0.02em;
+}
+
+/* ── Atmosphere: grain + warm spot (both themes) ── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: multiply;
+}
+
+html.dark body::before {
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--glow-spot);
+}
+
+/* App shell sits above atmosphere */
+.dr-app {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+}
+
+.dr-canvas {
+  background: var(--bg-canvas);
+  position: relative;
+}
+
+.dr-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--canvas-vignette);
+  z-index: 0;
+}
+
+.dr-canvas > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dr-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.dr-header-bar {
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+}
+
+/* ── Focus ring ── */
+*:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Animations ── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
+.animate-fade-up {
+  animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-slide-up {
+  animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-scale-in {
+  animation: scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-toast-in {
+  animation: toast-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+.animate-toast-out {
+  animation: toast-out 0.25s ease-in forwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent-surface) 40%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@keyframes ember-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 20px 2px var(--accent-glow);
+  }
+}
+.animate-ember {
+  animation: ember-breathe 2.4s ease-in-out infinite;
+}
+
+/* ── Typography helpers ── */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+/* ── Autofill override ── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0 30px var(--bg-surface) inset !important;
+  caret-color: var(--text-primary) !important;
 }
