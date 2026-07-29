@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { apiJson } from "@/lib/client-api";
-import { DEFAULT_REVERSE_PROMPT_MODEL } from "@/types";
 
 interface ReversePromptModelPickerProps {
   value: string;
@@ -80,12 +79,6 @@ export default function ReversePromptModelPicker({
       if (value?.trim() && !ids.includes(value.trim())) {
         ids.unshift(value.trim());
       }
-      if (
-        DEFAULT_REVERSE_PROMPT_MODEL &&
-        !ids.includes(DEFAULT_REVERSE_PROMPT_MODEL)
-      ) {
-        ids.push(DEFAULT_REVERSE_PROMPT_MODEL);
-      }
 
       setCatalog(ids);
       if (data.warning) setWarning(data.warning);
@@ -151,7 +144,7 @@ export default function ReversePromptModelPicker({
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-strong)",
-          color: "var(--accent)",
+          color: value?.trim() ? "var(--accent)" : "var(--text-muted)",
         }}
       >
         <span
@@ -160,9 +153,26 @@ export default function ReversePromptModelPicker({
         >
           当前
         </span>
-        <span className="truncate" title={value || DEFAULT_REVERSE_PROMPT_MODEL}>
-          {value || DEFAULT_REVERSE_PROMPT_MODEL}
+        <span
+          className="truncate"
+          title={value?.trim() || "未设置（运行时用文生文模型）"}
+        >
+          {value?.trim() || "未设置 · 将用文生文模型"}
         </span>
+        {value?.trim() && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="ml-auto shrink-0 text-[9px] font-sans px-1.5 py-0.5 rounded"
+            style={{
+              color: "var(--text-muted)",
+              border: "1px solid var(--border)",
+            }}
+            title="清除，改用文生文模型"
+          >
+            清除
+          </button>
+        )}
       </div>
 
       {sourceHint && (

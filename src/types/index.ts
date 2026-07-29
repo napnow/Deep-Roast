@@ -89,8 +89,11 @@ export interface Config {
   enabledImageModels?: string[];
 }
 
-/** 图推默认模型（设置未配时回落） */
-export const DEFAULT_REVERSE_PROMPT_MODEL = "gemini-3.5-flash";
+/**
+ * 图推默认模型 id。空字符串 = 未写死任何模型；
+ * 运行时回落 config.textModel，仍无则要求在设置里选。
+ */
+export const DEFAULT_REVERSE_PROMPT_MODEL = "";
 
 export interface ModelInfo {
   id: string;

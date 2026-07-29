@@ -1,7 +1,6 @@
 import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
 import { resolveVisionEndpoint } from "@/server/providers/llm";
-import { DEFAULT_REVERSE_PROMPT_MODEL } from "@/types";
 
 export async function reversePromptFromImage(opts: {
   imageBase64: string;
@@ -18,8 +17,15 @@ export async function reversePromptFromImage(opts: {
   }
 
   const config = await getConfig();
+  // 图推模型：设置页显式配置 > 文生文默认模型；不再写死 gemini
   const model =
-    config?.reversePromptModel?.trim() || DEFAULT_REVERSE_PROMPT_MODEL;
+    config?.reversePromptModel?.trim() || config?.textModel?.trim() || "";
+  if (!model) {
+    throw new ApiError(
+      "请先在设置中选择图推模型（获取模型后点选），或至少配置文生文模型",
+      400,
+    );
+  }
 
   const { apiKey, baseUrl } = resolveVisionEndpoint(model, {
     arkApiKey: config?.arkApiKey,

@@ -41,8 +41,7 @@ function publicConfig(
     textModel: config.textModel,
     imageModel: config.imageModel,
     imageSystemPrompt: config.imageSystemPrompt,
-    reversePromptModel:
-      config.reversePromptModel || "gemini-3.5-flash",
+    reversePromptModel: config.reversePromptModel || "",
     updatedAt: config.updatedAt,
     arkApiKey: "",
     hasApiKey: hasAnyApiCredential(config),
@@ -104,9 +103,8 @@ export const PUT = handleRoute(async (req) => {
     updates.imageSystemPrompt = String(body.imageSystemPrompt ?? "");
   }
   if (body.reversePromptModel !== undefined) {
-    const m = String(body.reversePromptModel ?? "").trim();
-    if (!m) throw new ApiError("图推模型不能为空", 400);
-    updates.reversePromptModel = m;
+    // 允许空字符串：表示未单独配置，运行时回落 textModel
+    updates.reversePromptModel = String(body.reversePromptModel ?? "").trim();
   }
 
   const enabledText = asStringArray(body.enabledTextModels);
@@ -149,8 +147,7 @@ export const PUT = handleRoute(async (req) => {
       imageModel:
         (updates.imageModel as string) || "doubao-seedream-4-5-251128",
       imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
-      reversePromptModel:
-        (updates.reversePromptModel as string) || "gemini-3.5-flash",
+      reversePromptModel: (updates.reversePromptModel as string) || "",
       enabledTextModels:
         (updates.enabledTextModels as string) ||
         serializeModelIds(defaultTextModelIds()),

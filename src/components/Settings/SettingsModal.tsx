@@ -2,11 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Config } from "@/types";
-import {
-  DEFAULT_IMAGE_MODELS,
-  DEFAULT_REVERSE_PROMPT_MODEL,
-  DEFAULT_TEXT_MODELS,
-} from "@/types";
+import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
 import ModelManager from "@/components/Settings/ModelManager";
 import ReversePromptModelPicker from "@/components/Settings/ReversePromptModelPicker";
 
@@ -31,7 +27,7 @@ export default function SettingsModal({
     config.imageSystemPrompt || "",
   );
   const [reversePromptModel, setReversePromptModel] = useState(
-    config.reversePromptModel || DEFAULT_REVERSE_PROMPT_MODEL,
+    config.reversePromptModel || "",
   );
   const [enabledText, setEnabledText] = useState<string[]>(
     config.enabledTextModels || DEFAULT_TEXT_MODELS.map((m) => m.id),
@@ -50,9 +46,7 @@ export default function SettingsModal({
       setTextModel(config.textModel);
       setImageModel(config.imageModel);
       setImageSystemPrompt(config.imageSystemPrompt || "");
-      setReversePromptModel(
-        config.reversePromptModel || DEFAULT_REVERSE_PROMPT_MODEL,
-      );
+      setReversePromptModel(config.reversePromptModel || "");
       setEnabledText(
         config.enabledTextModels?.length
           ? config.enabledTextModels
@@ -77,7 +71,8 @@ export default function SettingsModal({
         textModel,
         imageModel,
         imageSystemPrompt,
-        reversePromptModel: reversePromptModel.trim() || DEFAULT_REVERSE_PROMPT_MODEL,
+        // 允许留空：运行时回落 textModel；若填写则必须非空字符串
+        reversePromptModel: reversePromptModel.trim(),
         enabledTextModels: enabledText,
         enabledImageModels: enabledImage,
       };
