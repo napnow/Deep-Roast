@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { relativeTime } from "@/types";
 import type { Conversation } from "@/types";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -10,6 +12,9 @@ interface SidebarProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  /** 移动端抽屉开关（md 以上忽略） */
+  open?: boolean;
+  onClose?: () => void;
 }
 
 export default function Sidebar({
@@ -18,15 +23,30 @@ export default function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  open = false,
+  onClose,
 }: SidebarProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingDeleteTitle, setPendingDeleteTitle] = useState("");
   return (
-    <aside
-      className="w-64 shrink-0 border-r flex flex-col h-full"
-      style={{
-        background: "var(--bg-sidebar)",
-        borderColor: "var(--border-strong)",
-      }}
-    >
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden animate-fade-in"
+          onClick={onClose}
+          aria-hidden
+        />
+      )}
+      <aside
+        className={`w-64 shrink-0 border-r flex flex-col h-full fixed md:static inset-y-0 left-0 z-40 transition-transform duration-300 ease-out ${
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+        style={{
+          background: "var(--bg-sidebar)",
+          borderColor: "var(--border-strong)",
+        }}
+      >
       <div className="p-3">
         <button
           onClick={onNew}
@@ -61,7 +81,10 @@ export default function Sidebar({
           return (
             <div
               key={conv.id}
-              onClick={() => onSelect(conv.id)}
+              onClick={() => {
+                onSelect(conv.id);
+                onClose?.();
+              }}
               className="group relative pl-3 pr-2 py-2.5 rounded-lg cursor-pointer transition-all duration-150"
               style={{
                 background: isActive ? "var(--bg-elevated)" : "transparent",
@@ -82,14 +105,17 @@ export default function Sidebar({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm(`删除对话「${conv.title}」？`)) onDelete(conv.id);
+                    setPendingDeleteId(conv.id);
+                    setPendingDeleteTitle(conv.title);
+                    setConfirmOpen(true);
                   }}
-                  className="shrink-0 w-5 h-5 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 text-[10px]"
+                  className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 text-xs"
                   style={{
                     color: "var(--danger)",
                     background: "var(--danger-surface)",
                   }}
                   title="删除"
+                  aria-label={`删除对话 ${conv.title}`}
                 >
                   ✕
                 </button>
@@ -106,6 +132,17 @@ export default function Sidebar({
           );
         })}
       </div>
-    </aside>
+      </aside>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="删除对话"
+        message={`确定删除对话「${pendingDeleteTitle}」？此操作不可撤销。`}
+        confirmText="删除"
+        onConfirm={() => {
+          if (pendingDeleteId) onDelete(pendingDeleteId);
+        }}
+        onClose={() => setConfirmOpen(false)}
+      />
+    </>
   );
 }

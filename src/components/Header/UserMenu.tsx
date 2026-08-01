@@ -10,6 +10,7 @@ interface UserMenuProps {
   role: string;
   onLogout: () => void;
   onWalletClick: () => void;
+  onSettingsClick: () => void;
 }
 
 export default function UserMenu({
@@ -17,6 +18,7 @@ export default function UserMenu({
   role,
   onLogout,
   onWalletClick,
+  onSettingsClick,
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -76,6 +78,16 @@ export default function UserMenu({
             style={{ color: "var(--text-secondary)" }}
           >
             💰 我的钱包
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onSettingsClick();
+            }}
+            className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 hover:opacity-80"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            ⚙ 设置
           </button>
           {role === "admin" && (
             <button

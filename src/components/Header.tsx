@@ -22,6 +22,7 @@ interface HeaderProps {
   checkinLoading?: boolean;
   onCheckinClick: () => void;
   onWalletClick: () => void;
+  onMenuClick?: () => void;
 }
 
 export default function Header({
@@ -41,6 +42,7 @@ export default function Header({
   checkinLoading,
   onCheckinClick,
   onWalletClick,
+  onMenuClick,
 }: HeaderProps) {
   const lowCredits = credits <= 40 && role !== "admin";
 
@@ -49,19 +51,32 @@ export default function Header({
       className="dr-header-bar relative z-20 flex items-center justify-between px-5 py-2"
       style={{ minHeight: "var(--header-h)" }}
     >
-      <div className="flex items-center gap-5">
-        <h1
-          className="font-display text-[1.15rem] font-semibold tracking-tight select-none flex items-center gap-2.5"
-          style={{ color: "var(--text-primary)" }}
-        >
-          <span
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm"
+      <div className="flex items-center gap-2 sm:gap-5">
+        {activeMode === "text" && onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            aria-label="打开对话列表"
+            className="md:hidden glass-neon-hover rounded-lg flex items-center justify-center transition-all active:scale-95"
             style={{
-              background:
-                "linear-gradient(145deg, var(--accent-soft), var(--accent))",
+              background: "var(--bg-root)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              minWidth: "36px",
+              minHeight: "36px",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M3 12h18M3 6h18M3 18h18" />
+            </svg>
+          </button>
+        )}
+        <h1 className="font-display text-[1.15rem] font-semibold tracking-tight select-none flex items-center gap-2.5">
+          <span
+            className="inline-flex h-7 w-7 items-center justify-center rounded-xl text-sm p-1 transition-all duration-300"
+            style={{
+              background: "linear-gradient(145deg, var(--accent-soft), var(--accent))",
               color: "var(--accent-on)",
-              boxShadow:
-                "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-sm)",
+              boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-sm)",
             }}
             aria-hidden
           >
@@ -69,29 +84,20 @@ export default function Header({
           </span>
           <span>
             深焙
-            <span
-              className="ml-2 text-[10px] font-sans font-medium tracking-[0.14em] uppercase align-middle"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <span className="ml-2 text-[10px] font-sans font-medium tracking-[0.14em] uppercase align-middle text-[var(--text-muted)] hidden sm:inline">
               Deep Roast
             </span>
           </span>
         </h1>
 
-        <div
-          className="flex gap-0.5 rounded-lg p-0.5"
-          style={{
-            background: "var(--bg-root)",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <div className="flex gap-0.5 p-0.5 rounded-xl border border-white/10 glass-neon-hover">
           {(["text", "image"] as const).map((mode) => {
             const on = activeMode === mode;
             return (
               <button
                 key={mode}
                 onClick={() => setActiveMode(mode)}
-                className="px-3.5 py-1.5 rounded-md text-[12.5px] font-semibold transition-all duration-200"
+                className={`px-4 py-1.5 rounded-[10px] text-[12.8px] font-semibold transition-all duration-200 ${on ? "active" : ""}`}
                 style={
                   on
                     ? {
@@ -124,85 +130,41 @@ export default function Header({
 
         <AnnouncementBell />
 
-        <button
-          onClick={onSettingsClick}
-          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 hover:opacity-90"
-          style={{
-            background: "var(--bg-root)",
-            border: "1px solid var(--border)",
-            color: "var(--text-muted)",
-          }}
-          title="设置"
-        >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-          </svg>
-        </button>
-
-        {checkinEligible && (
+        {checkinEligible && !todayChecked && (
           <button
             onClick={onCheckinClick}
-            disabled={todayChecked || checkinLoading}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:active:scale-100"
+            disabled={checkinLoading}
+            className="glass-neon-hover px-4 py-1.5 rounded-2xl text-xs font-semibold transition-all active:scale-95"
             style={{
-              background: todayChecked
-                ? "var(--bg-root)"
-                : "var(--accent-surface)",
-              border: `1px solid ${
-                todayChecked ? "var(--border)" : "var(--accent)"
-              }`,
-              color: todayChecked ? "var(--text-muted)" : "var(--accent)",
+              background: "var(--accent-surface)",
+              border: "1px solid var(--accent)",
+              color: "var(--accent)",
             }}
-            title={todayChecked ? "今日已签到" : "每日签到 +50 积分"}
           >
-            {checkinLoading
-              ? "签到中…"
-              : todayChecked
-                ? "已签到"
-                : "签到 +50"}
+            {checkinLoading ? "签到中…" : "签到 +50"}
           </button>
         )}
 
         <button
           onClick={onWalletClick}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-[0.98] relative"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-2xl text-xs font-semibold transition-all active:scale-95 relative"
           style={{
-            background: lowCredits
-              ? "var(--danger-surface)"
-              : "var(--bg-elevated)",
-            border: `1px solid ${
-              lowCredits ? "var(--danger)" : "var(--border-strong)"
-            }`,
+            background: lowCredits ? "var(--danger-surface)" : "var(--bg-elevated)",
+            border: `1px solid ${lowCredits ? "var(--danger)" : "var(--border-strong)"}`,
             color: lowCredits ? "var(--danger)" : "var(--text-secondary)",
           }}
-          title="我的钱包"
         >
           <span
             className="inline-block w-1.5 h-1.5 rounded-full"
             style={{
               background: lowCredits ? "var(--danger)" : "var(--accent)",
-              boxShadow: lowCredits
-                ? "0 0 6px var(--danger)"
-                : "0 0 6px var(--accent-glow)",
+              boxShadow: lowCredits ? "0 0 6px var(--danger)" : "0 0 6px var(--accent-glow)",
             }}
           />
           <span className="tabular-nums">{credits}</span>
-          <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>
-            积分
-          </span>
+          <span style={{ color: "var(--text-muted)", fontWeight: 500 }} className="hidden sm:inline">积分</span>
           {lowCredits && (
-            <span
-              className="absolute -top-1 -right-1 text-[9px] px-1 rounded-full font-bold animate-pulse-soft"
-              style={{ background: "var(--danger)", color: "#fff" }}
-            >
+            <span className="absolute -top-1 -right-1 text-[9px] px-1.5 rounded-full font-bold bg-[var(--danger)] text-white">
               低
             </span>
           )}
@@ -213,6 +175,7 @@ export default function Header({
           role={role}
           onLogout={onLogout}
           onWalletClick={onWalletClick}
+          onSettingsClick={onSettingsClick}
         />
       </div>
     </header>

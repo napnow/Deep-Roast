@@ -8,14 +8,16 @@
 :root {
   /* 浅色：冷石米纸，不是奶茶 */
   --bg-root: #e6e2d9;
-  --bg-surface: #f2efe8;
-  --bg-elevated: #faf8f4;
-  --bg-hover: #d9d3c7;
-  --bg-sidebar: #ddd8ce;
+  --bg-surface: #f5f2ec;
+  --bg-elevated: #fbf9f5;
+  --bg-hover: #d4cec0;
+  --bg-sidebar: #d6d0c2;
   --bg-canvas: #ebe7de;
+  --text: #1a1612;
   --text-primary: #1a1612;
   --text-secondary: #5a5248;
-  --text-muted: #8a8175;
+  --muted: #6b665a;
+  --text-muted: #6b665a;
   --accent: #9a5528;
   --accent-soft: #b86a35;
   --accent-on: #fff8f0;
@@ -48,15 +50,17 @@
 }
 
 html.dark {
-  --bg-root: #090807;
-  --bg-surface: #12100e;
-  --bg-elevated: #1a1714;
-  --bg-hover: #242018;
-  --bg-sidebar: #0e0c0a;
-  --bg-canvas: #0c0b09;
+  --bg-root: #1a1714;
+  --bg-surface: #221e1a;
+  --bg-elevated: #2a2520;
+  --bg-hover: #332d26;
+  --bg-sidebar: #1e1b17;
+  --bg-canvas: #242019;
+  --text: #ede6dc;
   --text-primary: #ede6dc;
   --text-secondary: #a89a8a;
-  --text-muted: #6e6358;
+  --muted: #8a827a;
+  --text-muted: #8a827a;
   --accent: #d4894a;
   --accent-soft: #e8a56a;
   --accent-on: #1a1008;
@@ -68,9 +72,9 @@ html.dark {
   --danger: #e85d55;
   --danger-surface: rgba(232, 93, 85, 0.12);
   --success: #6fbf83;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.22);
   --glow-spot: radial-gradient(
     1000px 480px at 8% -8%,
     rgba(212, 137, 74, 0.11),
@@ -84,7 +88,7 @@ html.dark {
   --canvas-vignette: radial-gradient(
     ellipse 75% 65% at 50% 40%,
     transparent 25%,
-    rgba(0, 0, 0, 0.35) 100%
+    rgba(0, 0, 0, 0.2) 100%
   );
 }
 
@@ -140,6 +144,14 @@ body::after {
   min-height: 100%;
 }
 
+/* PWA 全屏（standalone）时把页面内容避开顶部刘海/状态栏，
+   配合 viewport-fit: cover 实现真正满屏且不被遮挡 */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
 .dr-canvas {
   background: var(--bg-canvas);
   position: relative;
@@ -193,6 +205,11 @@ body::after {
   outline: 2px solid var(--accent-soft);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* 移动端点击时去掉系统默认高亮闪烁，避免 tab 切换/按钮点击"闪一下" */
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Page transitions (route + mode) ── */
@@ -271,11 +288,27 @@ body::after {
   .animate-fade-up,
   .animate-fade-in,
   .animate-scale-in,
-  .animate-slide-up {
+  .animate-slide-up,
+  .animate-fade-rise,
+  .animate-fade-rise-delay,
+  .animate-fade-rise-delay-2,
+  .glow-drift,
+  .glow-drift-slow,
+  .light-orb-1,
+  .light-orb-2,
+  .blur-word,
+  .hero-breathe,
+  .hero-rise,
+  .hero-fade {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
     filter: none !important;
+  }
+
+  .snap-scroll {
+    scroll-behavior: auto;
+    scroll-snap-type: none;
   }
 
   ::view-transition-old(root),
@@ -678,3 +711,310 @@ input:-webkit-autofill:active {
 .admin-stagger > *:nth-child(4) { animation-delay: 0.17s; }
 .admin-stagger > *:nth-child(5) { animation-delay: 0.22s; }
 .admin-stagger > *:nth-child(6) { animation-delay: 0.27s; }
+
+/* ── Slow Roast Ember: 新增蒸汽升腾 & 烘焙完成动画 ── */
+@keyframes steam-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.animate-steam-rise {
+  animation: steam-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+@keyframes bake-done {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(8px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.01);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+.animate-bake-done {
+  animation: bake-done 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.glass-neon-hover:hover {
+  animation: caramel-glow 0.4s ease-out forwards;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+@keyframes caramel-glow {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+}
+
+.stagger-children > * {
+  opacity: 0;
+  animation: steam-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.14s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.26s; }
+
+/* ── Liquid Glass + 动态氛围（借鉴 Velorah，深焙版）── */
+.liquid-glass {
+  background: rgba(26, 22, 18, 0.1);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  border: none;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    0 8px 32px rgba(26, 22, 18, 0.1),
+    var(--shadow-md);
+  overflow: hidden;
+}
+html.dark .liquid-glass {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    var(--shadow-md);
+}
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(212, 137, 74, 0.6) 0%,
+    rgba(212, 137, 74, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(212, 137, 74, 0.15) 80%,
+    rgba(212, 137, 74, 0.6) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* fade-rise 分级（复用 fade-up keyframes） */
+
+/* ── Liquid Glass Strong（暗色增强版）── */
+.liquid-glass-strong {
+  background: rgba(20, 18, 16, 0.12);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: none;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    0 12px 40px rgba(26, 22, 18, 0.15),
+    var(--shadow-lg);
+  overflow: hidden;
+}
+html.dark .liquid-glass-strong {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.12),
+    0 12px 48px rgba(0, 0, 0, 0.5),
+    var(--shadow-lg);
+}
+.liquid-glass-strong::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(212, 137, 74, 0.7) 0%,
+    rgba(212, 137, 74, 0.2) 15%,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, 0) 65%,
+    rgba(212, 137, 74, 0.2) 85%,
+    rgba(212, 137, 74, 0.7) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.animate-fade-rise {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-rise-delay {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+.animate-fade-rise-delay-2 {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+}
+
+/* 暖光斑缓慢漂移（登录页品牌舞台） */
+@keyframes glow-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  25% {
+    transform: translate3d(5%, 3%, 0) scale(1.08);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate3d(-4%, 5%, 0) scale(1.03);
+    opacity: 0.95;
+  }
+  75% {
+    transform: translate3d(3%, -2%, 0) scale(1.06);
+    opacity: 0.8;
+  }
+}
+.glow-drift {
+  animation: glow-drift 20s ease-in-out infinite;
+}
+.glow-drift-slow {
+  animation: glow-drift 28s ease-in-out infinite reverse;
+}
+
+/* ── Scroll Snap 滚动分屏（借鉴 debbiegrove）── */
+.snap-scroll {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+.snap-section {
+  height: 100vh;
+  min-height: 600px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+}
+
+/* ── 移动端登录页适配：使用 svh 动态视口高度，避免地址栏遮挡 */
+/* 移动端禁用 snap，改用普通滚动，让表单点击更可靠 */
+@media (max-width: 640px) {
+  .snap-scroll {
+    height: auto;
+    min-height: 100svh;
+    overflow-y: auto;
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+  }
+  .snap-section {
+    height: auto;
+    min-height: 100svh;
+    scroll-snap-align: none;
+    scroll-snap-stop: normal;
+  }
+}
+
+/* ── 浅米杏登录页动态光影 ── */
+@keyframes light-flow-1 {
+  0%,
+  100% {
+    transform: translate3d(-4%, -3%, 0) scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(5%, 4%, 0) scale(1.15);
+    opacity: 0.9;
+  }
+}
+@keyframes light-flow-2 {
+  0%,
+  100% {
+    transform: translate3d(4%, 3%, 0) scale(1.1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(-5%, -3%, 0) scale(0.95);
+    opacity: 0.75;
+  }
+}
+.light-orb-1 {
+  animation: light-flow-1 18s ease-in-out infinite;
+}
+.light-orb-2 {
+  animation: light-flow-2 24s ease-in-out infinite;
+}
+
+/* ── 登录页首屏动效（聚光逐字点燃）── */
+@keyframes hero-rise {
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes hero-fade {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes hero-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes blur-in {
+  0% {
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  50% {
+    filter: blur(5px);
+    opacity: 0.5;
+    transform: translateY(-5px);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise,
+  .hero-fade,
+  .hero-breathe,
+  .blur-word {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+/* ── 字号语义 scale（替代 text-[xx] 任意值，渐进替换）── */
+.t-caption { font-size: 11px; line-height: 1.5; }
+.t-meta { font-size: 12px; line-height: 1.5; }
+.t-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

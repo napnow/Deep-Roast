@@ -24,6 +24,7 @@ export default function ChatView({
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(
     new Set(),
   );
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,6 +37,22 @@ export default function ChatView({
       else next.add(idx);
       return next;
     });
+  }
+
+  function handleCopy(idx: number, text: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  }
+
+  function handleRegenerate() {
+    if (streaming) return;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        onSend(messages[i].content);
+        return;
+      }
+    }
   }
 
   return (
@@ -62,6 +79,22 @@ export default function ChatView({
               >
                 在下方输入，Enter 发送。深度思考会慢一点——值得等。
               </p>
+              <div className="flex flex-wrap gap-2 justify-center mt-6 max-w-md mx-auto">
+                {["帮我写一首关于秋天的诗", "解释一下量子纠缠", "用 Python 实现快速排序"].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => onSend(p)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95 hover:scale-[1.02]"
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -69,15 +102,18 @@ export default function ChatView({
             const isUser = m.role === "user";
             const hasReasoning = !!m.reasoning;
             const reasoningOpen = expandedReasoning.has(i);
+            // 慢焙蒸汽升腾：每条消息 staggered 出现，索引越大延迟越长（最多 0.4s）
+            const msgDelay = Math.min(i * 0.06, 0.4);
 
             return (
               <div
                 key={m.id || i}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                className={`flex ${isUser ? "justify-end" : "justify-start"} animate-steam-rise`}
+                style={{ animationDelay: `${msgDelay}s` }}
               >
                 {/* 气泡按内容宽度收缩，最长不超过 78%；短句不再拉满整行 */}
                 <div
-                  className={`flex flex-col max-w-[78%] min-w-0 ${
+                  className={`flex flex-col max-w-[78%] min-w-0 group ${
                     isUser ? "items-end" : "items-start"
                   }`}
                 >
@@ -141,6 +177,35 @@ export default function ChatView({
                       {m.content}
                     </div>
                   </div>
+
+                  {!isUser && !streaming && (
+                    <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <button
+                        onClick={() => handleCopy(i, m.content)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all active:scale-95"
+                        style={{
+                          color: "var(--text-muted)",
+                          background: "var(--bg-elevated)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        {copiedIdx === i ? "已复制" : "复制"}
+                      </button>
+                      {i === messages.length - 1 && (
+                        <button
+                          onClick={handleRegenerate}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all active:scale-95"
+                          style={{
+                            color: "var(--text-muted)",
+                            background: "var(--bg-elevated)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          重新生成
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );

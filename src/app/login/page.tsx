@@ -1,16 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { login, register } from "@/lib/auth-client";
 import { useAuth } from "@/components/AuthProvider";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
 import type { Announcement } from "@/types";
 
-const STAGE_BULLETS = [
-  "文生文 · 深度推理",
-  "文生图 · 慢火出图",
-  "每日签到 · 自托管友好",
-];
+const TITLE = "Deep Roast";
 
 export default function LoginPage() {
   const { refresh } = useAuth();
@@ -22,6 +18,28 @@ export default function LoginPage() {
   const [contactOpen, setContactOpen] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [focusField, setFocusField] = useState<"username" | "password" | null>(null);
+
+  const heroRef = useRef<HTMLDivElement>(null);
+  const spotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const hadDark = html.classList.contains("dark");
+    if (!hadDark) html.classList.add("dark");
+
+    // 只在宽屏（桌面）锁 body 滚动：桌面 .snap-scroll 自带滚动容器，锁 body 不影响它；
+    // 移动端（≤640px）页面是两屏纵向拼接，锁 body 会直接把页面钉在第一屏，
+    // 导致第二屏的登录/注册表单看不到、点不到 —— 这是"按钮点不动"的元凶之一。
+    const isNarrow = window.matchMedia("(max-width: 640px)").matches;
+    const hadNoScroll = document.body.style.overflow;
+    if (!isNarrow) document.body.style.overflow = "hidden";
+
+    return () => {
+      if (!hadDark) html.classList.remove("dark");
+      document.body.style.overflow = hadNoScroll;
+    };
+  }, []);
 
   useEffect(() => {
     fetch("/api/public/admin-contact")
@@ -39,6 +57,55 @@ export default function LoginPage() {
         if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
       })
       .catch(() => {});
+  }, []);
+
+  // 聚光逐字点燃
+  useEffect(() => {
+    const hero = heroRef.current;
+    const spot = spotRef.current;
+    if (!hero || !spot) return;
+    const letters = Array.from(
+      hero.querySelectorAll<HTMLSpanElement>("[data-letter]")
+    );
+
+    function onMove(e: MouseEvent) {
+      const rc = hero!.getBoundingClientRect();
+      const x = e.clientX - rc.left;
+      const y = e.clientY - rc.top;
+      spot!.style.left = x + "px";
+      spot!.style.top = y + "px";
+      for (const sp of letters) {
+        const sr = sp.getBoundingClientRect();
+        const lx = sr.left + sr.width / 2 - rc.left;
+        const ly = sr.top + sr.height / 2 - rc.top;
+        const dx = lx - x;
+        const dy = ly - y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 180) {
+          const t = 1 - d / 180;
+          sp.style.color =
+            t > 0.65
+              ? "#f5e6d3"
+              : t > 0.35
+                ? "#d4894a"
+                : "#b86a35";
+          sp.style.transform =
+            "translateY(" +
+            (-t * 5).toFixed(1) +
+            "px) scale(" +
+            (1 + t * 0.06).toFixed(3) +
+            ")";
+          sp.style.textShadow = t > 0.5 ? "0 0 20px rgba(212,137,74,0.6)" : "none";
+        } else {
+          sp.style.color = "rgba(245,230,211,0.35)";
+          sp.style.transform = "none";
+          sp.style.textShadow = "none";
+        }
+      }
+    }
+
+    hero.addEventListener("mousemove", onMove);
+    return () => hero.removeEventListener("mousemove", onMove);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -62,7 +129,6 @@ export default function LoginPage() {
           ? await login(username.trim(), password)
           : await register(username.trim(), password);
       if (result.success) {
-        // 刷新登录态；AuthProvider 会带过渡跳到首页
         await refresh();
       } else {
         setError(result.error || "操作失败");
@@ -73,325 +139,410 @@ export default function LoginPage() {
     setLoading(false);
   }
 
-  const inputStyle = {
-    background: "var(--bg-root)",
-    border: "1px solid var(--border-strong)",
-    color: "var(--text-primary)",
-  } as const;
-
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      {/* 左 · 品牌舞台：桌面固定深焙深色；窄屏隐藏 */}
-      <aside
-        className="relative hidden md:flex md:w-[46%] lg:w-[48%] flex-col overflow-hidden"
+    <div
+      className="snap-scroll relative"
+      style={{
+        background: "#0c0b0a",
+        color: "#ede6dc",
+        minHeight: "100vh",
+      }}
+    >
+      {/* 深层动态光斑背景 */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div
+          className="glow-drift absolute rounded-full"
+          style={{
+            width: "clamp(400px, 60vw, 800px)",
+            height: "clamp(400px, 60vw, 800px)",
+            background: "radial-gradient(circle, rgba(212,137,74,0.12) 0%, rgba(184,106,53,0.06) 35%, transparent 70%)",
+            filter: "blur(60px)",
+            top: "8%",
+            left: "12%",
+          }}
+        />
+        <div
+          className="glow-drift-slow absolute rounded-full"
+          style={{
+            width: "clamp(350px, 50vw, 700px)",
+            height: "clamp(350px, 50vw, 700px)",
+            background: "radial-gradient(circle, rgba(184,106,53,0.10) 0%, rgba(138,78,35,0.05) 40%, transparent 75%)",
+            filter: "blur(70px)",
+            bottom: "2%",
+            right: "8%",
+          }}
+        />
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: "clamp(500px, 80vw, 1000px)",
+            height: "400px",
+            background: "radial-gradient(ellipse, rgba(245,230,211,0.06) 0%, transparent 60%)",
+            top: "-100px",
+            left: "50%",
+            transform: "translateX(-50%)",
+          }}
+        />
+      </div>
+
+      {/* 噪声纹理层 */}
+      <div
+        className="pointer-events-none fixed inset-0 opacity-[0.025]"
         style={{
-          background:
-            "linear-gradient(165deg, #2a211c 0%, #3d2e24 42%, #4a3428 100%)",
-          color: "#f3ebe3",
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          backgroundSize: "200px 200px",
+          mixBlendMode: "overlay",
         }}
+        aria-hidden
+      />
+
+      {/* 屏 1 · 品牌首屏（聚光逐字点燃） */}
+      <section
+        id="hero"
+        ref={heroRef}
+        className="snap-section flex items-center justify-center px-8"
+        style={{ cursor: "none" }}
+      >
+        <div
+          className="hero-breathe pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(700px 500px at 50% 45%, rgba(212,137,74,0.08), transparent 65%)",
+          }}
+          aria-hidden
+        />
+        <div
+          ref={spotRef}
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            width: "clamp(260px, 40vw, 380px)",
+            height: "clamp(260px, 40vw, 380px)",
+            background:
+              "radial-gradient(circle, rgba(245,230,211,0.12), rgba(212,137,74,0.08) 40%, transparent 65%)",
+            transform: "translate(-50%,-50%)",
+            left: "50%",
+            top: "45%",
+            transition:
+              "left 0.28s cubic-bezier(0.16,1,0.3,1), top 0.28s cubic-bezier(0.16,1,0.3,1)",
+          }}
+          aria-hidden
+        />
+
+        <div className="relative text-center max-w-5xl">
+          {/* 大标题：BlurText 逐词模糊浮现 + 逐字点燃 */}
+          <h1
+            className="font-display italic font-normal tracking-[-0.02em] inline-flex items-baseline"
+            style={{
+              fontSize: "clamp(2.5rem, 11vw, 7rem)",
+              color: "rgba(245,230,211,0.35)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {TITLE.split(" ").map((word, wi) => (
+              <span
+                key={wi}
+                className="blur-word inline-block"
+                style={{
+                  filter: "blur(10px)",
+                  opacity: 0,
+                  transform: "translateY(50px)",
+                  animation:
+                    "blur-in 0.7s cubic-bezier(0.16,1,0.3,1) " +
+                    (0.4 + wi * 0.1) +
+                    "s forwards",
+                  marginRight: "0.28em",
+                  flexShrink: 0,
+                }}
+              >
+                {word.split("").map((ch, ci) => (
+                  <span
+                    key={ci}
+                    data-letter
+                    className="inline-block"
+                    style={{
+                      transition: "color 0.5s ease, transform 0.5s ease, text-shadow 0.5s ease",
+                    }}
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </h1>
+
+          {/* slogan 遮罩揭示 */}
+          <div className="overflow-hidden mt-3">
+            <p
+              className="hero-rise text-base sm:text-lg md:text-xl leading-relaxed"
+              style={{
+                color: "#a89a8a",
+                transform: "translateY(110%)",
+                animation:
+                  "hero-rise 1.2s cubic-bezier(0.16,1,0.3,1) 1.1s forwards",
+              }}
+            >
+              深度思考，慢工出好答案。
+            </p>
+          </div>
+
+          <a
+            href="#start"
+            className="hero-fade inline-block mt-10 sm:mt-14 px-8 py-3 sm:px-10 sm:py-3.5 rounded-full text-xs sm:text-sm font-medium transition-all hover:scale-[1.03] active:scale-[0.98]"
+            style={{
+              background: "linear-gradient(135deg, #d4894a 0%, #b86a35 100%)",
+              color: "#f5e6d3",
+              boxShadow: "0 8px 32px rgba(212,137,74,0.25)",
+              opacity: 0,
+              animation: "hero-fade 1s ease 1.6s forwards",
+            }}
+          >
+            开始使用
+          </a>
+        </div>
+      </section>
+
+      {/* 屏 2 · 登录/注册 */}
+      <section
+        id="start"
+        className="snap-section relative flex items-center justify-center px-4 sm:px-6 pt-8 pb-12 sm:pt-0 sm:pb-0"
       >
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(820px 400px at 20% 10%, rgba(232, 165, 106, 0.26), transparent 52%), radial-gradient(560px 300px at 90% 92%, rgba(255, 200, 140, 0.07), transparent 48%)",
-          }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-            backgroundSize: "180px 180px",
-            mixBlendMode: "soft-light",
+              "radial-gradient(600px 420px at 50% 42%, rgba(212,137,74,0.06), transparent 55%)",
           }}
           aria-hidden
         />
 
-        {/* 主文案垂直居中，底部脚注贴底 */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center px-10 lg:px-14 py-12">
-          <div className="max-w-md animate-fade-up space-y-8">
-            <div>
-              <p
-                className="text-[11px] font-semibold tracking-[0.22em] uppercase mb-4"
-                style={{ color: "rgba(232, 165, 106, 0.9)" }}
-              >
-                Deep Roast
-              </p>
-              <h1 className="font-display text-5xl lg:text-[3.5rem] font-semibold tracking-tight leading-none">
-                深焙
-              </h1>
-              <div
-                className="mt-5 h-px w-12"
-                style={{ background: "rgba(232, 165, 106, 0.55)" }}
-                aria-hidden
-              />
-            </div>
-
-            <p
-              className="text-[15px] lg:text-base leading-[1.7] max-w-sm"
-              style={{ color: "rgba(243, 235, 227, 0.82)" }}
-            >
-              深度思考，慢焙出好答案。
-              <br />
-              把对话与出图放进同一炉火候里。
-            </p>
-
-            <ul className="space-y-3 pt-1">
-              {STAGE_BULLETS.map((line) => (
-                <li
-                  key={line}
-                  className="flex items-baseline gap-3 text-[13px] lg:text-sm"
-                  style={{ color: "rgba(243, 235, 227, 0.7)" }}
-                >
-                  <span
-                    className="mt-[0.55em] h-px w-4 shrink-0"
-                    style={{ background: "rgba(232, 165, 106, 0.7)" }}
-                    aria-hidden
-                  />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <p
-          className="relative z-10 px-10 lg:px-14 pb-8 text-[11px] tracking-wide"
-          style={{ color: "rgba(243, 235, 227, 0.38)" }}
-        >
-          自托管 · 积分可控 · 慢即是快
-        </p>
-      </aside>
-
-      {/* 右 · 凭证区 */}
-      <main
-        className="flex-1 flex flex-col min-h-screen"
-        style={{ background: "var(--bg-root)" }}
-      >
-        {/* 窄屏顶栏字标 */}
         <div
-          className="md:hidden flex items-center gap-2.5 px-5 py-4 border-b"
+          className="relative w-full max-w-[22rem] sm:max-w-[24rem] animate-fade-rise-delay-2 rounded-[1.5rem] sm:rounded-[2rem] px-6 py-8 sm:px-8 sm:py-10 md:px-10 md:py-11"
           style={{
-            borderColor: "var(--border-strong)",
-            background: "var(--bg-surface)",
+            background:
+              "linear-gradient(165deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow:
+              "0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
           }}
         >
+          {/* 顶部焦糖细线 */}
           <div
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg font-display text-sm font-semibold"
+            className="absolute top-0 left-1/2 h-px w-12 -translate-x-1/2"
             style={{
               background:
-                "linear-gradient(145deg, var(--accent-soft), var(--accent))",
-              color: "var(--accent-on)",
+                "linear-gradient(90deg, transparent, rgba(212,137,74,0.8), transparent)",
             }}
-          >
-            焙
-          </div>
-          <div>
-            <p
-              className="font-display text-base font-semibold leading-none"
-              style={{ color: "var(--text-primary)" }}
-            >
-              深焙
-            </p>
-            <p
-              className="text-[10px] mt-0.5 tracking-wide"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Deep Roast
-            </p>
-          </div>
-        </div>
+            aria-hidden
+          />
 
-        <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
-          <div className="w-full max-w-[22rem] animate-fade-up">
-            <div className="mb-8 hidden md:block">
-              <h2
-                className="font-display text-2xl font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {tab === "login" ? "欢迎回来" : "创建账户"}
-              </h2>
-              <p
-                className="text-sm mt-1.5"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {tab === "login"
-                  ? "登录后继续你的对话与出图"
-                  : "注册即可开始使用深焙"}
-              </p>
-            </div>
+          {/* 标题（key=tab 让切换时重新淡入） */}
+          <div key={tab} className="mb-7 text-center sm:mb-8 animate-fade-in">
+            <h2
+              className="font-display text-[1.35rem] sm:text-[1.5rem] font-semibold tracking-tight"
+              style={{ color: "#ede6dc" }}
+            >
+              {tab === "login" ? "欢迎回来" : "创建账户"}
+            </h2>
+            <p className="mt-1.5 text-[13px]" style={{ color: "#a89a8a" }}>
+              {tab === "login"
+                ? "登录后继续你的对话与出图"
+                : "注册即可开始使用"}
+            </p>
+          </div>
 
-            {registrationEnabled ? (
-              <div
-                className="flex rounded-lg p-0.5 mb-6"
-                style={{
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                {(["login", "register"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setTab(t);
-                      setError(null);
+          {/* Tab 切换：简约下划线式 */}
+          {registrationEnabled ? (
+            <div className="mb-7 flex items-center justify-center gap-4 sm:gap-8">
+              {(["login", "register"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTab(t);
+                    setError(null);
+                  }}
+                  className="relative pb-1.5 px-4 py-1.5 text-[14px] sm:text-sm transition-colors duration-200 active:scale-[0.98]"
+                  style={{
+                    color: tab === t ? "#ede6dc" : "#8a827a",
+                    fontWeight: tab === t ? 600 : 400,
+                    minWidth: "4rem",
+                  }}
+                >
+                  {t === "login" ? "登录" : "注册"}
+                  <span
+                    className="absolute bottom-0 left-1/2 h-px -translate-x-1/2 transition-all duration-300"
+                    style={{
+                      width: tab === t ? "100%" : "0%",
+                      background:
+                        "linear-gradient(90deg, transparent, #d4894a, transparent)",
                     }}
-                    className="flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-200"
-                    style={
-                      tab === t
-                        ? {
-                            background: "var(--bg-elevated)",
-                            color: "var(--text-primary)",
-                            boxShadow: "var(--shadow-sm)",
-                            border: "1px solid var(--border-strong)",
-                          }
-                        : {
-                            color: "var(--text-muted)",
-                            border: "1px solid transparent",
-                          }
-                    }
-                  >
-                    {t === "login" ? "登录" : "注册"}
-                  </button>
-                ))}
-              </div>
-            ) : (
+                  />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mb-8 text-center text-xs" style={{ color: "#8a827a" }}>
+              当前仅开放登录（注册已关闭）
+            </p>
+          )}
+
+          {/* 公告 */}
+          {announcements.length > 0 && (
+            <div
+              className="mb-6 max-h-24 space-y-2 overflow-y-auto rounded-xl px-4 py-3"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
               <p
-                className="mb-6 text-center text-xs"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] font-medium tracking-[0.2em]"
+                style={{ color: "#8a827a" }}
               >
-                当前仅开放登录（注册已关闭）
+                公告
               </p>
-            )}
-
-            {announcements.length > 0 && (
-              <div
-                className="mb-5 rounded-lg px-3 py-2.5 space-y-2 max-h-36 overflow-y-auto"
-                style={{
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border)",
-                }}
-              >
+              {announcements.slice(0, 3).map((a) => (
                 <p
-                  className="text-[10px] font-semibold tracking-widest uppercase"
-                  style={{ color: "var(--text-muted)" }}
+                  key={a.id}
+                  className="text-xs leading-relaxed whitespace-pre-wrap"
+                  style={{ color: "#c9c0b4" }}
                 >
-                  公告
+                  {a.body}
                 </p>
-                {announcements.slice(0, 5).map((a) => (
-                  <div key={a.id}>
-                    <p
-                      className="text-xs whitespace-pre-wrap"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
-                      {a.body}
-                    </p>
-                    <p
-                      className="text-[10px] mt-0.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {a.createdAt
-                        ? new Date(a.createdAt).toLocaleString("zh-CN")
-                        : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
+          )}
 
-            {error && (
-              <div
-                className="mb-4 px-3 py-2 rounded-lg text-xs font-medium"
-                style={{
-                  background: "var(--danger-surface)",
-                  color: "var(--danger)",
-                  border:
-                    "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
-                }}
+          {/* 错误提示 */}
+          {error && (
+            <div
+              className="mb-5 rounded-xl px-4 py-2.5 text-xs font-medium"
+              style={{
+                background: "rgba(201,68,60,0.10)",
+                color: "#e8827b",
+                border: "1px solid rgba(201,68,60,0.22)",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* 表单：下划线式输入框 */}
+          <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+            <div>
+              <label
+                htmlFor="username"
+                className="mb-1 block text-[11px] tracking-[0.15em]"
+                style={{ color: "#8a827a" }}
               >
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  className="block text-xs font-medium mb-1.5"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  用户名
-                </label>
+                用户名
+              </label>
+              <div className="relative">
                 <input
+                  id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-200"
-                  style={inputStyle}
+                  onFocus={() => setFocusField("username")}
+                  onBlur={() => setFocusField(null)}
+                  className="w-full bg-transparent pt-0.5 pb-2.5 text-base sm:text-sm outline-none placeholder:text-[#6b635c]"
+                  style={{ color: "#ede6dc" }}
                   placeholder="请输入用户名"
                   autoComplete="username"
                 />
+                <span
+                  className="absolute bottom-0 left-0 block h-px w-full transition-all duration-300"
+                  style={{
+                    background:
+                      focusField === "username"
+                        ? "linear-gradient(90deg, #d4894a, #b86a35)"
+                        : "rgba(255,255,255,0.14)",
+                    boxShadow:
+                      focusField === "username"
+                        ? "0 1px 8px rgba(212,137,74,0.45)"
+                        : "none",
+                  }}
+                />
               </div>
-              <div>
-                <label
-                  className="block text-xs font-medium mb-1.5"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  密码
-                </label>
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="mb-1 block text-[11px] tracking-[0.15em]"
+                style={{ color: "#8a827a" }}
+              >
+                密码
+              </label>
+              <div className="relative">
                 <input
+                  id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-200"
-                  style={inputStyle}
+                  onFocus={() => setFocusField("password")}
+                  onBlur={() => setFocusField(null)}
+                  className="w-full bg-transparent pt-0.5 pb-2.5 text-base sm:text-sm outline-none placeholder:text-[#6b635c]"
+                  style={{ color: "#ede6dc" }}
                   placeholder="请输入密码"
                   autoComplete={
                     tab === "login" ? "current-password" : "new-password"
                   }
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-                style={{
-                  background: "var(--accent)",
-                  color: "var(--accent-on)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                {loading ? "处理中..." : tab === "login" ? "登录" : "注册"}
-              </button>
-            </form>
-
-            {tab === "login" && (
-              <>
-                <p
-                  className="mt-5 text-center text-[11px]"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  忘记密码？{" "}
-                  <button
-                    type="button"
-                    onClick={() => setContactOpen(true)}
-                    className="underline font-medium"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    联系管理员
-                  </button>
-                </p>
-                <AdminContactModal
-                  open={contactOpen}
-                  onClose={() => setContactOpen(false)}
+                <span
+                  className="absolute bottom-0 left-0 block h-px w-full transition-all duration-300"
+                  style={{
+                    background:
+                      focusField === "password"
+                        ? "linear-gradient(90deg, #d4894a, #b86a35)"
+                        : "rgba(255,255,255,0.14)",
+                    boxShadow:
+                      focusField === "password"
+                        ? "0 1px 8px rgba(212,137,74,0.45)"
+                        : "none",
+                  }}
                 />
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full py-3 text-sm font-medium transition-all duration-300 hover:brightness-110 hover:shadow-[0_8px_28px_rgba(212,137,74,0.35)] active:scale-[0.98] disabled:opacity-50 disabled:hover:shadow-none disabled:hover:brightness-100"
+              style={{
+                background: "linear-gradient(135deg, #d4894a 0%, #b86a35 100%)",
+                color: "#f5e6d3",
+                boxShadow: "0 4px 18px rgba(212,137,74,0.22)",
+              }}
+            >
+              {loading ? "处理中..." : tab === "login" ? "登录" : "注册"}
+            </button>
+          </form>
+
+          {tab === "login" && (
+            <>
+              <p className="mt-5 sm:mt-6 text-center text-[11px] sm:text-xs" style={{ color: "#8a827a" }}>
+                忘记密码？{" "}
+                <button
+                  type="button"
+                  onClick={() => setContactOpen(true)}
+                  className="font-medium underline-offset-4 transition-colors hover:underline"
+                  style={{ color: "#d4894a" }}
+                >
+                  联系管理员
+                </button>
+              </p>
+              <AdminContactModal
+                open={contactOpen}
+                onClose={() => setContactOpen(false)}
+              />
+            </>
+          )}
         </div>
-      </main>
+      </section>
     </div>
   );
 }

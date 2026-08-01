@@ -35,7 +35,7 @@ export default function ModelSelector({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[220px] transition-all duration-200"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[120px] sm:max-w-[220px] transition-all duration-200"
         style={{
           background: "var(--bg-root)",
           border: `1px solid ${open ? "var(--accent-soft)" : "var(--border)"}`,

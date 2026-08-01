@@ -60,7 +60,7 @@ export default function ImageInputColumn({
 
   return (
     <div
-      className="w-1/4 min-w-[260px] border-r overflow-y-auto flex flex-col"
+      className="w-full md:w-1/4 md:min-w-[260px] border-b md:border-b-0 md:border-r overflow-y-auto flex flex-col shrink-0"
       style={{
         borderColor: "var(--border)",
         background: "var(--bg-root)",

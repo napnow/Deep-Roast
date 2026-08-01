@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { ImageRecord } from "@/types";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface ImageHistoryPanelProps {
   history: ImageRecord[];
@@ -15,9 +17,12 @@ export default function ImageHistoryPanel({
   onSelect,
   onDelete,
 }: ImageHistoryPanelProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   return (
+    <>
     <div
-      className="w-1/4 min-w-[220px] border-l overflow-y-auto p-4 space-y-3"
+      className="hidden md:block md:w-1/4 md:min-w-[220px] border-l overflow-y-auto p-4 space-y-3"
       style={{
         background: "var(--bg-root)",
         borderColor: "var(--border)",
@@ -78,7 +83,8 @@ export default function ImageHistoryPanel({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm("删除这张图片？")) onDelete(item.id);
+                setPendingDeleteId(item.id);
+                setConfirmOpen(true);
               }}
               className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-all duration-150 hover:scale-110"
               style={{
@@ -93,5 +99,16 @@ export default function ImageHistoryPanel({
         );
       })}
     </div>
+    <ConfirmDialog
+      open={confirmOpen}
+      title="删除图片"
+      message="确定删除这张图片？此操作不可撤销。"
+      confirmText="删除"
+      onConfirm={() => {
+        if (pendingDeleteId) onDelete(pendingDeleteId);
+      }}
+      onClose={() => setConfirmOpen(false)}
+    />
+    </>
   );
 }

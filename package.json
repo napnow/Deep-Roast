@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "深焙 Deep Roast — self-hosted text & image AI workbench",
-  "author": "yzgao2732-droid",
+  "author": "yzgao2732-droid <yzgao2732@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",

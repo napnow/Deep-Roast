@@ -16,6 +16,8 @@ interface TextModePanelProps {
   onRename: (id: string, title: string) => void;
   onSend: (text: string) => void;
   onStop: () => void;
+  sidebarOpen?: boolean;
+  onSidebarClose?: () => void;
 }
 
 export default function TextModePanel({
@@ -30,6 +32,8 @@ export default function TextModePanel({
   onRename,
   onSend,
   onStop,
+  sidebarOpen = false,
+  onSidebarClose,
 }: TextModePanelProps) {
   return (
     <>
@@ -40,6 +44,8 @@ export default function TextModePanel({
         onNew={onNew}
         onDelete={onDelete}
         onRename={onRename}
+        open={sidebarOpen}
+        onClose={onSidebarClose}
       />
 
       {activeConvId ? (
@@ -84,6 +90,17 @@ export default function TextModePanel({
               >
                 在左侧点「新对话」开始
               </p>
+              <button
+                onClick={onNew}
+                className="mt-5 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 hover:scale-[1.02]"
+                style={{
+                  background: "var(--accent)",
+                  color: "var(--accent-on)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                开始新对话
+              </button>
             </div>
           </div>
         </div>

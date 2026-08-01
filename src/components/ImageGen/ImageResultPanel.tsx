@@ -17,9 +17,9 @@ export default function ImageResultPanel({
   lastGenTime,
 }: ImageResultPanelProps) {
   return (
-    <div className="dr-canvas flex-[2] overflow-y-auto p-6 flex items-center justify-center min-h-0">
+    <div className="dr-canvas flex-1 md:flex-[2] overflow-y-auto p-4 md:p-6 flex items-center justify-center min-h-0">
       {activeImage ? (
-        <div className="w-full max-w-xl max-h-full overflow-auto animate-fade-up">
+        <div className="w-full max-w-xl max-h-full overflow-auto animate-bake-done">
           <div
             className="rounded-xl overflow-hidden border"
             style={{

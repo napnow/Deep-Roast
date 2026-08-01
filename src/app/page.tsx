@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, startTransition } from "react";
 import Header from "@/components/Header";
 import TextModePanel from "@/components/Chat/TextModePanel";
 import ImageGenView from "@/components/ImageGen/ImageGenView";
@@ -20,10 +20,11 @@ export default function Home() {
   const actions = useAppActions();
   const { toast } = useToast();
   const [checkinLoading, setCheckinLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const {
     activeMode,
-    setActiveMode,
+    setActiveMode: rawSetActiveMode,
     config,
     textModels,
     imageModels,
@@ -42,6 +43,13 @@ export default function Home() {
     setSettingsOpen,
     setWalletOpen,
   } = useDeepRoastStore();
+
+  // 用 startTransition 包装模式切换，减少 "Transition was skipped" 的概率
+  const setActiveMode = useCallback((mode: "text" | "image") => {
+    startTransition(() => {
+      rawSetActiveMode(mode);
+    });
+  }, [rawSetActiveMode]);
 
   const handleCheckin = useCallback(async () => {
     if (!checkinEligible || todayChecked || checkinLoading) return;
@@ -94,7 +102,7 @@ export default function Home() {
   const role = user?.role || "user";
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: "var(--bg-root)" }}>
+    <div className="h-dvh flex flex-col" style={{ background: "var(--bg-root)" }}>
       <Header
         activeMode={activeMode}
         setActiveMode={setActiveMode}
@@ -112,6 +120,7 @@ export default function Home() {
         checkinLoading={checkinLoading}
         onCheckinClick={handleCheckin}
         onWalletClick={() => setWalletOpen(true)}
+        onMenuClick={() => setSidebarOpen(true)}
       />
 
       {!hasApiKey && (
@@ -142,6 +151,8 @@ export default function Home() {
               onRename={actions.handleRenameConversation}
               onSend={actions.handleSendMessage}
               onStop={actions.handleStopChat}
+              sidebarOpen={sidebarOpen}
+              onSidebarClose={() => setSidebarOpen(false)}
             />
           ) : (
             <ImageGenView
