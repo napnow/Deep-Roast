@@ -23,6 +23,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.3",
     "next": "16.2.10",
     "openai": "^6.47.0",

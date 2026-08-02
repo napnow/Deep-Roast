@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useState, startTransition } from "react";
+import { useCallback, useState } from "react";
 import Header from "@/components/Header";
-import TextModePanel from "@/components/Chat/TextModePanel";
 import ImageGenView from "@/components/ImageGen/ImageGenView";
 import AppModals from "@/components/AppModals";
 import { useAuth } from "@/components/AuthProvider";
@@ -10,29 +9,27 @@ import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { useAppActions } from "@/hooks/useAppActions";
 import { ApiError, apiJson } from "@/lib/client-api";
-import { CHECKIN_REWARD } from "@/types";
+import { CHECKIN_REWARD, type ImageRecord } from "@/types";
 
 /**
  * 首页只负责布局拼装；状态在 store，业务在 useAppActions。
+ * 平台仅提供文生图；配置类操作仅管理员可用。
  */
 export default function Home() {
   const { user, logout } = useAuth();
   const actions = useAppActions();
   const { toast } = useToast();
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 结果区当前展示的图片（与顶部菜单「生图记录」联动）
+  const [activeImage, setActiveImage] = useState<ImageRecord | null>(null);
+  // 手机端：当前 Tab 与抽屉侧栏
+  const [mobileTab, setMobileTab] = useState<
+    "generate" | "gallery" | "announcements"
+  >("generate");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const {
-    activeMode,
-    setActiveMode: rawSetActiveMode,
     config,
-    textModels,
-    imageModels,
-    conversations,
-    activeConvId,
-    chatMessages,
-    streaming,
-    streamingText,
     imageHistory,
     generating,
     credits,
@@ -43,13 +40,6 @@ export default function Home() {
     setSettingsOpen,
     setWalletOpen,
   } = useDeepRoastStore();
-
-  // 用 startTransition 包装模式切换，减少 "Transition was skipped" 的概率
-  const setActiveMode = useCallback((mode: "text" | "image") => {
-    startTransition(() => {
-      rawSetActiveMode(mode);
-    });
-  }, [rawSetActiveMode]);
 
   const handleCheckin = useCallback(async () => {
     if (!checkinEligible || todayChecked || checkinLoading) return;
@@ -83,33 +73,24 @@ export default function Home() {
     toast,
   ]);
 
-  // 文生文：有当前会话时显示会话绑定的模型（实际对话用的就是它）
-  const activeConv =
-    activeMode === "text" && activeConvId
-      ? conversations.find((c) => c.id === activeConvId)
-      : undefined;
-  const currentModel =
-    activeMode === "text"
-      ? activeConv?.model || config.textModel
-      : config.imageModel;
-  // 当前模型若不在列表中（历史会话自定义 id），补进列表避免选中态丢失
-  const baseModels = activeMode === "text" ? textModels : imageModels;
-  const currentModels =
-    currentModel && !baseModels.some((m) => m.id === currentModel)
-      ? [{ id: currentModel }, ...baseModels]
-      : baseModels;
+  const currentModel = config.imageModel;
   const hasApiKey = !!config.hasApiKey;
   const role = user?.role || "user";
+  const isAdmin = role === "admin";
+
+  // 删除图片时若正在结果区展示，同步清空
+  const handleDeleteImage = useCallback(
+    async (id: string) => {
+      setActiveImage((prev) => (prev?.id === id ? null : prev));
+      await actions.handleDeleteImage(id);
+    },
+    [actions, setActiveImage],
+  );
 
   return (
     <div className="h-dvh flex flex-col" style={{ background: "var(--bg-root)" }}>
       <Header
-        activeMode={activeMode}
-        setActiveMode={setActiveMode}
         currentModel={currentModel}
-        models={currentModels}
-        onModelChange={actions.handleModelChange}
-        onModelRemove={actions.handleModelRemove}
         onSettingsClick={() => setSettingsOpen(true)}
         username={user?.username || ""}
         role={role}
@@ -120,7 +101,7 @@ export default function Home() {
         checkinLoading={checkinLoading}
         onCheckinClick={handleCheckin}
         onWalletClick={() => setWalletOpen(true)}
-        onMenuClick={() => setSidebarOpen(true)}
+        onMenuClick={() => setDrawerOpen(true)}
       />
 
       {!hasApiKey && (
@@ -132,45 +113,33 @@ export default function Home() {
             color: "var(--accent)",
           }}
         >
-          未配置 API Key — 点击右上角齿轮完成设置
+          {isAdmin
+            ? "未配置 API Key — 点击右上角齿轮完成设置"
+            : "生图服务暂未配置 — 请联系管理员"}
         </div>
       )}
 
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
-        <div key={activeMode} className="flex-1 flex min-h-0 mode-panel-enter">
-          {activeMode === "text" ? (
-            <TextModePanel
-              conversations={conversations}
-              activeConvId={activeConvId}
-              chatMessages={chatMessages}
-              streaming={streaming}
-              streamingText={streamingText}
-              onSelect={actions.handleSelectConversation}
-              onNew={actions.handleNewConversation}
-              onDelete={actions.handleDeleteConversation}
-              onRename={actions.handleRenameConversation}
-              onSend={actions.handleSendMessage}
-              onStop={actions.handleStopChat}
-              sidebarOpen={sidebarOpen}
-              onSidebarClose={() => setSidebarOpen(false)}
-            />
-          ) : (
-            <ImageGenView
-              model={config.imageModel}
-              onGenerate={actions.handleGenerateImage}
-              onStopGenerate={actions.handleStopGenerateImage}
-              generating={generating}
-              history={imageHistory}
-              onDeleteImage={actions.handleDeleteImage}
-              credits={credits}
-              isAdmin={role === "admin"}
-              checkinEligible={checkinEligible}
-              todayChecked={todayChecked}
-              onCheckinClick={handleCheckin}
-              onWalletClick={() => setWalletOpen(true)}
-            />
-          )}
-        </div>
+        <ImageGenView
+          model={config.imageModel}
+          onGenerate={actions.handleGenerateImage}
+          onStopGenerate={actions.handleStopGenerateImage}
+          generating={generating}
+          history={imageHistory}
+          activeImage={activeImage}
+          onActiveImageChange={setActiveImage}
+          onDeleteImage={handleDeleteImage}
+          credits={credits}
+          isAdmin={isAdmin}
+          checkinEligible={checkinEligible}
+          todayChecked={todayChecked}
+          onCheckinClick={handleCheckin}
+          onWalletClick={() => setWalletOpen(true)}
+          mobileTab={mobileTab}
+          onMobileTabChange={setMobileTab}
+          drawerOpen={drawerOpen}
+          onDrawerClose={() => setDrawerOpen(false)}
+        />
       </div>
 
       <AppModals

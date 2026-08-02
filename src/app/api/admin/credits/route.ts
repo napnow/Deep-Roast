@@ -1,3 +1,4 @@
+import { requireActiveAdmin } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 import {
   adjustCredits,
@@ -6,6 +7,7 @@ import {
 
 // GET /api/admin/credits
 export const GET = handleRoute(async (req) => {
+  await requireActiveAdmin(req);
   const { searchParams } = new URL(req.url);
   return jsonOk(
     await listAdminTransactions({
@@ -17,6 +19,7 @@ export const GET = handleRoute(async (req) => {
 
 // POST /api/admin/credits
 export const POST = handleRoute(async (req) => {
+  await requireActiveAdmin(req);
   const body = await readJson<{
     userId?: string;
     amount?: number;

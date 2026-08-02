@@ -1,6 +1,7 @@
 "use client";
 
 import type { ImageRecord } from "@/types";
+import { thumbSrc } from "@/components/ImageGen/imageUtils";
 
 interface AdminImagesTabProps {
   images: ImageRecord[];
@@ -53,7 +54,7 @@ export default function AdminImagesTab({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={img.imageUrl}
+                  src={thumbSrc(img)}
                   alt={img.prompt}
                   className="w-full h-full object-cover"
                   loading="lazy"

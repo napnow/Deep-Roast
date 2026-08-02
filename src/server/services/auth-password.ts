@@ -17,6 +17,23 @@ export function assertPasswordLength(password: string): void {
   }
 }
 
+/**
+ * 密码强度校验：至少 8 位，且同时包含字母、数字、符号。
+ * 用于注册与改密（管理员重置生成强随机临时密码，不经过此校验）。
+ */
+export function assertPasswordStrength(password: string): void {
+  assertPasswordLength(password);
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSymbol = /[^a-zA-Z0-9]/.test(password);
+  if (!hasLetter || !hasDigit || !hasSymbol) {
+    throw new ApiError(
+      `密码至少需要 ${MIN_PASSWORD_LENGTH} 位，且同时包含字母、数字和符号`,
+      400,
+    );
+  }
+}
+
 export function generateTemporaryPassword(length = 12): string {
   const bytes = randomBytes(length);
   let out = "";
@@ -34,7 +51,7 @@ export async function changeOwnPassword(
   if (!oldPassword || !newPassword) {
     throw new ApiError("旧密码和新密码不能为空", 400);
   }
-  assertPasswordLength(newPassword);
+  assertPasswordStrength(newPassword);
   if (newPassword === oldPassword) {
     throw new ApiError("新密码不能与旧密码相同", 400);
   }
@@ -82,7 +99,7 @@ export async function adminResetPassword(
     plain = generateTemporaryPassword(12);
     returnTemp = true;
   } else if (opts.password) {
-    assertPasswordLength(opts.password);
+    assertPasswordStrength(opts.password);
     plain = opts.password;
   } else {
     throw new ApiError("请提供 password 或 generate: true", 400);

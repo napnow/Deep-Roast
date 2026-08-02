@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ChangePasswordModal from "@/components/Auth/ChangePasswordModal";
+import AnnouncementList from "@/components/AnnouncementList";
+import { useAnnouncements } from "@/hooks/useAnnouncements";
 import { softNavigate } from "@/lib/nav-transition";
 
 interface UserMenuProps {
@@ -22,18 +24,36 @@ export default function UserMenu({
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [annOpen, setAnnOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const annPanelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const ann = useAnnouncements();
+
+  useEffect(() => {
+    ann.load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (ref.current && !ref.current.contains(t)) {
         setOpen(false);
       }
+      if (
+        annOpen &&
+        annPanelRef.current &&
+        !annPanelRef.current.contains(t)
+      ) {
+        setAnnOpen(false);
+      }
     }
-    if (open) document.addEventListener("mousedown", handleClick);
+    if (open || annOpen) {
+      document.addEventListener("mousedown", handleClick);
+    }
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  }, [open, annOpen]);
 
   return (
     <div className="relative" ref={ref}>
@@ -57,12 +77,12 @@ export default function UserMenu({
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
         </svg>
-        <span className="truncate max-w-[80px]">{username}</span>
+        <span className="truncate max-w-[56px] sm:max-w-[80px]">{username}</span>
       </button>
 
       {open && (
         <div
-          className="absolute right-0 mt-1.5 w-40 rounded-xl border shadow-lg py-1 z-30 animate-scale-in"
+          className="absolute right-0 mt-1.5 w-44 rounded-xl border shadow-lg py-1 z-30 animate-scale-in"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border)",
@@ -82,13 +102,35 @@ export default function UserMenu({
           <button
             onClick={() => {
               setOpen(false);
-              onSettingsClick();
+              setAnnOpen(true);
+              ann.markSeen();
             }}
-            className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 hover:opacity-80"
+            className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 hover:opacity-80 relative"
             style={{ color: "var(--text-secondary)" }}
           >
-            ⚙ 设置
+            📢 公告
+            {ann.unread && (
+              <span
+                className="absolute top-1/2 -translate-y-1/2 right-3 h-2 w-2 rounded-full"
+                style={{
+                  background: "var(--danger)",
+                  boxShadow: "0 0 6px var(--danger)",
+                }}
+              />
+            )}
           </button>
+          {role === "admin" && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                onSettingsClick();
+              }}
+              className="w-full text-left px-3 py-2 text-xs transition-colors duration-100 hover:opacity-80"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              ⚙ 管理员配置
+            </button>
+          )}
           {role === "admin" && (
             <button
               onClick={() => {
@@ -123,6 +165,45 @@ export default function UserMenu({
           </button>
         </div>
       )}
+
+      {/* 公告面板（下拉，不弹窗） */}
+      {annOpen && (
+        <div
+          ref={annPanelRef}
+          role="dialog"
+          aria-label="站点公告"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-[min(24rem,calc(100vw-1.5rem))] max-h-[min(26rem,60vh)] flex flex-col rounded-xl border shadow-lg animate-fade-in"
+          style={{
+            background: "var(--bg-surface)",
+            borderColor: "var(--border-strong)",
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-3.5 py-2.5 border-b shrink-0"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p
+              className="text-[13px] font-semibold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              站点公告
+            </p>
+            <button
+              onClick={() => setAnnOpen(false)}
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110"
+              style={{ color: "var(--text-muted)" }}
+              aria-label="关闭公告"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto p-2.5">
+            <AnnouncementList items={ann.items} loading={ann.loading} />
+          </div>
+        </div>
+      )}
+
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   );

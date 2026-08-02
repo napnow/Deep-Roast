@@ -5,12 +5,19 @@
 export class ApiError extends Error {
   status: number;
   code?: string;
+  headers?: Record<string, string>;
 
-  constructor(message: string, status = 400, code?: string) {
+  constructor(
+    message: string,
+    status = 400,
+    code?: string,
+    headers?: Record<string, string>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.headers = headers;
   }
 }
 
@@ -22,7 +29,10 @@ export function jsonError(err: unknown, fallback = "服务器错误"): Response 
   if (err instanceof ApiError) {
     const body: { error: string; code?: string } = { error: err.message };
     if (err.code) body.code = err.code;
-    return Response.json(body, { status: err.status });
+    return Response.json(body, {
+      status: err.status,
+      headers: err.headers,
+    });
   }
   console.error(err);
   const message =

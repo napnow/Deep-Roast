@@ -22,6 +22,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           prompt: string;
           model: string;
           imageUrl: string;
+          thumbUrl?: string;
           size: string;
         }>("/api/image", {
           method: "POST",
@@ -34,6 +35,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt: data.prompt,
             model: data.model,
             imageUrl: data.imageUrl,
+            thumbUrl: data.thumbUrl,
             size: data.size,
             createdAt: new Date().toISOString(),
           },

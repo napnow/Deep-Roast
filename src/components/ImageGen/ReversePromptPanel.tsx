@@ -14,10 +14,7 @@ export default function ReversePromptPanel({
   onPrompt,
 }: ReversePromptPanelProps) {
   const config = useDeepRoastStore((s) => s.config);
-  const reverseModel =
-    config.reversePromptModel?.trim() ||
-    config.textModel?.trim() ||
-    "";
+  const reverseModel = config.reversePromptModel?.trim() || "";
   const [preview, setPreview] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
   const [prompting, setPrompting] = useState(false);

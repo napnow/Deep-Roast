@@ -1,14 +1,20 @@
 import { db } from "@/db";
 import { imageGenerations } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getConfig } from "@/lib/config";
-import { writeFile, mkdir, unlink } from "fs/promises";
+import {
+  defaultImageModelIds,
+  getConfig,
+  parseEnabledModels,
+} from "@/lib/config";
+import { writeFile, mkdir, unlink, access } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
 import { ApiError } from "@/server/http";
 import { resolveImageEndpoint } from "@/server/providers/llm";
 import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
+
+const MAX_PROMPT_LENGTH = 2000;
 
 export async function generateImage(opts: {
   userId: string;
@@ -26,11 +32,25 @@ export async function generateImage(opts: {
     size = "1024x1024",
   } = opts;
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    throw new ApiError(`提示词不能超过 ${MAX_PROMPT_LENGTH} 字`, 400);
+  }
 
   const config = await getConfig();
 
   const model =
     modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+
+  // 越权防护：模型必须属于管理员启用的列表，
+  // 防止普通用户通过 modelOverride 指定任意模型（绕过模型配置 / 调用未授权上游）。
+  const enabledModels = parseEnabledModels(
+    config?.enabledImageModels,
+    defaultImageModelIds(),
+    config?.imageModel,
+  );
+  if (!enabledModels.includes(model)) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
 
   const chargeCredits = role !== "admin";
   if (userId && chargeCredits) {
@@ -99,13 +119,29 @@ export async function generateImage(opts: {
       await writeFile(path.join(imagesDir, filename), buffer);
       const imageUrl = `/images/${filename}`;
 
-      await db.insert(imageGenerations).values({
-        prompt,
-        model,
-        imageUrl,
-        size,
-        userId,
-      });
+      // 同步生成 webp 缩略图（列表/历史用，省 90%+ 流量；预览仍用原图）
+      let thumbUrl = imageUrl;
+      try {
+        const { default: sharp } = await import("sharp");
+        const thumbDir = path.join(imagesDir, "thumbs");
+        await mkdir(thumbDir, { recursive: true });
+        const thumbName = filename.replace(/\.png$/i, ".webp");
+        await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
+        thumbUrl = `/images/thumbs/${thumbName}`;
+      } catch {
+        /* 缩略图失败不影响生图主流程 */
+      }
+
+      const [row] = await db
+        .insert(imageGenerations)
+        .values({
+          prompt,
+          model,
+          imageUrl,
+          size,
+          userId,
+        })
+        .returning({ id: imageGenerations.id });
 
       if (userId && chargeCredits) {
         await consumeCredits(
@@ -119,8 +155,9 @@ export async function generateImage(opts: {
         `Image gen success (attempt ${attempt}/${maxRetries}): ${model}`,
       );
       return {
-        id: crypto.randomUUID(),
+        id: row.id,
         imageUrl,
+        thumbUrl,
         prompt,
         model,
         size,
@@ -143,12 +180,33 @@ export async function generateImage(opts: {
 }
 
 export async function listImageHistory(userId: string, limit = 50) {
-  return db
+  const rows = await db
     .select()
     .from(imageGenerations)
     .where(eq(imageGenerations.userId, userId))
     .orderBy(desc(imageGenerations.createdAt))
     .limit(limit);
+
+  // 为已有缩略图的记录附加 thumbUrl（历史图片无缩略图时回落原图）
+  const thumbDir = path.join(process.cwd(), "public", "images", "thumbs");
+  return Promise.all(
+    rows.map(async (row) => {
+      const base = row.imageUrl.replace(/^\//, "");
+      const thumbFile = path.join(
+        thumbDir,
+        base.replace(/\.png$/i, ".webp").replace(/^images\//, ""),
+      );
+      try {
+        await access(thumbFile);
+        return {
+          ...row,
+          thumbUrl: `/images/thumbs/${base.replace(/\.png$/i, ".webp").replace(/^images\//, "")}`,
+        };
+      } catch {
+        return row;
+      }
+    }),
+  );
 }
 
 export async function deleteImageRecord(userId: string, id: string) {
@@ -166,6 +224,19 @@ export async function deleteImageRecord(userId: string, id: string) {
     await unlink(filePath);
   } catch {
     /* file may already be gone */
+  }
+  // 同步删除缩略图（存在才删）
+  try {
+    const thumbPath = path.join(
+      process.cwd(),
+      "public",
+      "images",
+      "thumbs",
+      record.imageUrl.split("/").pop()!.replace(/\.png$/i, ".webp"),
+    );
+    await unlink(thumbPath);
+  } catch {
+    /* thumbnail may not exist */
   }
 
   await db.delete(imageGenerations).where(eq(imageGenerations.id, id));

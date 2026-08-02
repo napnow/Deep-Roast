@@ -36,6 +36,13 @@
       "when": 1785600000000,
       "tag": "0004_drop_gemini_reverse_default",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785644093845,
+      "tag": "0005_sparkling_professor_monster",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/server/auth";
+import { requireActiveAdmin } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 import { adminResetPassword } from "@/server/services/auth-password";
 
@@ -6,7 +6,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 // POST /api/admin/users/[id]/reset-password
 export const POST = handleRoute(async (req, ctx: Ctx) => {
-  requireAdmin(req);
+  await requireActiveAdmin(req);
   const { id } = await ctx.params;
   if (!id) throw new ApiError("缺少用户 id", 400);
 

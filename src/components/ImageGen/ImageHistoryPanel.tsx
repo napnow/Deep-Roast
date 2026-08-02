@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ImageRecord } from "@/types";
+import { thumbSrc } from "./imageUtils";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
 interface ImageHistoryPanelProps {
@@ -57,7 +58,7 @@ export default function ImageHistoryPanel({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={item.imageUrl}
+                src={thumbSrc(item)}
                 alt={item.prompt}
                 className="w-full h-32 object-cover"
                 loading="lazy"

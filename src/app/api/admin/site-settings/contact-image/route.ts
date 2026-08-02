@@ -1,9 +1,9 @@
-import { requireAdmin } from "@/server/auth";
+import { requireActiveAdmin } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/http";
 import { saveAdminContactImage } from "@/server/services/site-settings";
 
 export const POST = handleRoute(async (req) => {
-  requireAdmin(req);
+  await requireActiveAdmin(req);
   const form = await req.formData();
   const file = form.get("file");
   if (!file || !(file instanceof File)) {

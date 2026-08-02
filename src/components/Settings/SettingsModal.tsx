@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Config } from "@/types";
-import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
+import { DEFAULT_IMAGE_MODELS } from "@/types";
 import ModelManager from "@/components/Settings/ModelManager";
 import ReversePromptModelPicker from "@/components/Settings/ReversePromptModelPicker";
 
@@ -13,6 +13,7 @@ interface SettingsModalProps {
   onSave: (config: Record<string, unknown>) => Promise<void>;
 }
 
+/** 管理员专属：生图配置（API Key / 模型 / 系统提示词） */
 export default function SettingsModal({
   open,
   onClose,
@@ -21,16 +22,12 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
-  const [textModel, setTextModel] = useState(config.textModel);
   const [imageModel, setImageModel] = useState(config.imageModel);
   const [imageSystemPrompt, setImageSystemPrompt] = useState(
     config.imageSystemPrompt || "",
   );
   const [reversePromptModel, setReversePromptModel] = useState(
     config.reversePromptModel || "",
-  );
-  const [enabledText, setEnabledText] = useState<string[]>(
-    config.enabledTextModels || DEFAULT_TEXT_MODELS.map((m) => m.id),
   );
   const [enabledImage, setEnabledImage] = useState<string[]>(
     config.enabledImageModels || DEFAULT_IMAGE_MODELS.map((m) => m.id),
@@ -43,15 +40,9 @@ export default function SettingsModal({
     if (open && !wasOpen.current) {
       setApiKey("");
       setBaseUrl(config.baseUrl);
-      setTextModel(config.textModel);
       setImageModel(config.imageModel);
       setImageSystemPrompt(config.imageSystemPrompt || "");
       setReversePromptModel(config.reversePromptModel || "");
-      setEnabledText(
-        config.enabledTextModels?.length
-          ? config.enabledTextModels
-          : DEFAULT_TEXT_MODELS.map((m) => m.id),
-      );
       setEnabledImage(
         config.enabledImageModels?.length
           ? config.enabledImageModels
@@ -68,12 +59,10 @@ export default function SettingsModal({
     try {
       const payload: Record<string, unknown> = {
         baseUrl,
-        textModel,
         imageModel,
         imageSystemPrompt,
-        // 允许留空：运行时回落 textModel；若填写则必须非空字符串
+        // 允许留空：运行时回落默认视觉模型
         reversePromptModel: reversePromptModel.trim(),
-        enabledTextModels: enabledText,
         enabledImageModels: enabledImage,
       };
       if (apiKey.trim()) {
@@ -121,12 +110,20 @@ export default function SettingsModal({
           className="px-5 py-4 border-b flex items-center justify-between shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
-          <h2
-            className="text-sm font-semibold"
-            style={{ color: "var(--text-primary)" }}
-          >
-            ⚙️ 设置
-          </h2>
+          <div>
+            <h2
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              ⚙️ 管理员配置
+            </h2>
+            <p
+              className="text-[10.5px] mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              仅管理员可见 · 生图模型与上游设置
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110"
@@ -165,17 +162,6 @@ export default function SettingsModal({
               style={inputStyle}
             />
           </Field>
-
-          <ModelManager
-            kind="text"
-            enabled={enabledText}
-            onChange={setEnabledText}
-            defaultModel={textModel}
-            onDefaultModelChange={setTextModel}
-            baseUrl={baseUrl}
-            apiKey={apiKey}
-            hasSavedApiKey={!!config.hasApiKey}
-          />
 
           <ModelManager
             kind="image"

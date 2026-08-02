@@ -1,9 +1,8 @@
 import { db } from "@/db";
 import { llmConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
+import { DEFAULT_IMAGE_MODELS } from "@/types";
 
-const DEFAULT_TEXT_IDS = DEFAULT_TEXT_MODELS.map((m) => m.id);
 const DEFAULT_IMAGE_IDS = DEFAULT_IMAGE_MODELS.map((m) => m.id);
 
 /**
@@ -53,10 +52,6 @@ export function parseEnabledModels(
   }
   // 去重保序
   return [...new Set(ids)];
-}
-
-export function defaultTextModelIds() {
-  return [...DEFAULT_TEXT_IDS];
 }
 
 export function defaultImageModelIds() {

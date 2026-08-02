@@ -72,7 +72,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("user"), // 'user' | 'admin'
-  credits: integer("credits").notNull().default(100), // 积分余额
+  credits: integer("credits").notNull().default(50), // 积分余额（新用户注册赠送 50）
   /** active | banned */
   status: text("status").notNull().default("active"),
   /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
@@ -88,6 +88,15 @@ export const announcements = pgTable("announcements", {
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
   }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── 注册 IP 记录：单 IP 限注册一个账号（防批量注册） ──
+export const registrationRecords = pgTable("registration_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** 注册时客户端 IP（nginx 反代时应配置 X-Forwarded-For 覆盖为真实地址） */
+  ip: text("ip").notNull().unique(),
+  username: text("username").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

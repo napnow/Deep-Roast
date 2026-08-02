@@ -1,7 +1,7 @@
 "use client";
 
 import type { ImageRecord } from "@/types";
-import { downloadImage, formatTime } from "./imageUtils";
+import { downloadImage, formatTime, thumbSrc } from "./imageUtils";
 
 interface ImageResultPanelProps {
   activeImage: ImageRecord | null;
@@ -30,7 +30,7 @@ export default function ImageResultPanel({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={activeImage.imageUrl}
+              src={thumbSrc(activeImage)}
               alt={activeImage.prompt}
               className="w-full max-h-[60vh] object-contain"
               style={{ background: "var(--bg-root)" }}
@@ -150,7 +150,10 @@ export default function ImageResultPanel({
             焙
           </p>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            左侧写下提示词，舞台在此出图
+            <span className="md:hidden">底部输入提示词，舞台在此出图</span>
+            <span className="hidden md:inline">
+              左侧写下提示词，舞台在此出图
+            </span>
           </p>
         </div>
       )}

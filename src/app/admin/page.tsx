@@ -5,14 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import type {
   AdminUser,
-  Conversation,
-  Message,
   ImageRecord,
   CreditTransaction,
 } from "@/types";
 import AdminUserList from "@/components/Admin/AdminUserList";
 import AdminDashboard from "@/components/Admin/AdminDashboard";
-import AdminConversationsTab from "@/components/Admin/AdminConversationsTab";
 import AdminImagesTab from "@/components/Admin/AdminImagesTab";
 import AdminCreditsTab from "@/components/Admin/AdminCreditsTab";
 import AdminImageDetailModal from "@/components/Admin/AdminImageDetailModal";
@@ -26,10 +23,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [images, setImages] = useState<ImageRecord[]>([]);
-  const [expandedConv, setExpandedConv] = useState<string | null>(null);
-  const [convMessages, setConvMessages] = useState<Message[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [imageDetail, setImageDetail] = useState<ImageRecord | null>(null);
@@ -37,9 +31,7 @@ export default function AdminPage() {
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustNote, setAdjustNote] = useState("");
   const [adjustLoading, setAdjustLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "conversations" | "images" | "credits"
-  >("conversations");
+  const [activeTab, setActiveTab] = useState<"images" | "credits">("images");
   const [globalStats, setGlobalStats] = useState<{
     totalCheckinAmount: number;
     totalConsumeAmount: number;
@@ -50,6 +42,9 @@ export default function AdminPage() {
   const [userActionLoading, setUserActionLoading] = useState(false);
   /** 右侧主面板：总览 或 用户详情（选用户时自动切到 detail） */
   const [mainView, setMainView] = useState<"overview" | "detail">("overview");
+  /** 手动刷新状态与最近刷新时间 */
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -92,6 +87,55 @@ export default function AdminPage() {
     const d = await fetch("/api/admin/users").then((r) => r.json());
     if (Array.isArray(d)) setUsers(d);
     return d as AdminUser[];
+  }
+
+  /** 手动刷新：用户列表 + 运营统计 + 当前选中用户的详情 */
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const [userData, statsData, detailData] = await Promise.all([
+        fetch("/api/admin/users").then((r) => r.json()),
+        fetch("/api/admin/credits").then((r) => r.json()),
+        selectedUser
+          ? Promise.all([
+              fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
+                r.json(),
+              ),
+              fetch(`/api/admin/credits?userId=${selectedUser.id}`).then((r) =>
+                r.json(),
+              ),
+            ])
+          : Promise.resolve(null),
+      ]);
+      if (Array.isArray(userData)) {
+        setUsers(userData);
+        if (statsData?.stats) {
+          setGlobalStats({
+            totalCheckinAmount: statsData.stats.totalCheckinAmount || 0,
+            totalConsumeAmount: statsData.stats.totalConsumeAmount || 0,
+            totalUsers: userData.length,
+            totalImages: userData.reduce(
+              (sum, u) => sum + (u.imageCount || 0),
+              0,
+            ),
+            bannedUsers: userData.filter((u) => u.status === "banned").length,
+          });
+        }
+      }
+      if (detailData) {
+        const [imgs, credData] = detailData;
+        if (Array.isArray(imgs)) setImages(imgs);
+        if (credData?.transactions) setCreditTx(credData.transactions);
+      }
+      setLastRefreshed(
+        new Date().toLocaleTimeString("zh-CN", { hour12: false }),
+      );
+    } catch {
+      // 静默失败，数据保持原样
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function handleToggleBan() {
@@ -153,19 +197,13 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!selectedUser) {
-      setConversations([]);
       setImages([]);
       return;
     }
     setLoadingDetail(true);
-    setExpandedConv(null);
-    setConvMessages([]);
-    setActiveTab("conversations");
+    setActiveTab("images");
 
     Promise.all([
-      fetch(`/api/admin/users/${selectedUser.id}/conversations`).then((r) =>
-        r.json(),
-      ),
       fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
         r.json(),
       ),
@@ -173,32 +211,13 @@ export default function AdminPage() {
         r.json(),
       ),
     ])
-      .then(([convs, imgs, credData]) => {
-        if (Array.isArray(convs)) setConversations(convs);
+      .then(([imgs, credData]) => {
         if (Array.isArray(imgs)) setImages(imgs);
         if (credData?.transactions) setCreditTx(credData.transactions);
       })
       .catch(console.error)
       .finally(() => setLoadingDetail(false));
   }, [selectedUser]);
-
-  async function loadMessages(conversationId: string) {
-    if (expandedConv === conversationId) {
-      setExpandedConv(null);
-      setConvMessages([]);
-      return;
-    }
-    setExpandedConv(conversationId);
-    try {
-      const res = await fetch(
-        `/api/admin/users/${selectedUser!.id}/messages?conversationId=${conversationId}`,
-      );
-      const data = await res.json();
-      if (Array.isArray(data)) setConvMessages(data);
-    } catch {
-      console.error("Failed to load messages");
-    }
-  }
 
   async function handleCreditsAdjust() {
     if (!selectedUser || !adjustAmount || adjustLoading) return;
@@ -268,7 +287,12 @@ export default function AdminPage() {
 
       <div className="admin-main">
         {mainView === "overview" || !selectedUser ? (
-          <AdminDashboard globalStats={globalStats} />
+          <AdminDashboard
+            globalStats={globalStats}
+            refreshing={refreshing}
+            lastRefreshed={lastRefreshed}
+            onRefresh={handleRefresh}
+          />
         ) : (
           <div className="max-w-5xl mx-auto space-y-5 animate-fade-up">
             {/* User dossier header */}
@@ -374,6 +398,29 @@ export default function AdminPage() {
                   <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       type="button"
+                      disabled={refreshing}
+                      onClick={handleRefresh}
+                      className="admin-btn admin-btn--ghost"
+                      title="重新拉取用户列表与该用户的最新数据"
+                    >
+                      <span
+                        aria-hidden
+                        className="inline-block mr-1.5"
+                        style={
+                          refreshing
+                            ? {
+                                display: "inline-block",
+                                animation: "spin 0.8s linear infinite",
+                              }
+                            : undefined
+                        }
+                      >
+                        ⟳
+                      </span>
+                      {refreshing ? "刷新中…" : "刷新"}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setResetOpen(true)}
                       className="admin-btn admin-btn--ghost"
                     >
@@ -420,11 +467,6 @@ export default function AdminPage() {
             >
               {(
                 [
-                  {
-                    key: "conversations" as const,
-                    label: "对话",
-                    count: conversations.length,
-                  },
                   {
                     key: "images" as const,
                     label: "图片",
@@ -473,14 +515,6 @@ export default function AdminPage() {
               </p>
             ) : (
               <>
-                {activeTab === "conversations" && (
-                  <AdminConversationsTab
-                    conversations={conversations}
-                    expandedConv={expandedConv}
-                    convMessages={convMessages}
-                    onToggle={loadMessages}
-                  />
-                )}
                 {activeTab === "images" && (
                   <AdminImagesTab images={images} onSelect={setImageDetail} />
                 )}

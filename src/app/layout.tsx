@@ -16,7 +16,7 @@ const body = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "深焙 — 文生文 · 文生图",
+  title: "深焙",
   description: "深焙 — 深度思考，慢工出好答案",
   manifest: "/manifest.json",
   appleWebApp: {

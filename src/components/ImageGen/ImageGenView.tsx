@@ -6,6 +6,13 @@ import { getSizeOptions } from "./imageUtils";
 import ImageInputColumn from "./ImageInputColumn";
 import ImageResultPanel from "./ImageResultPanel";
 import ImageHistoryPanel from "./ImageHistoryPanel";
+import ImageMobileBar from "./ImageMobileBar";
+import GalleryTab from "./GalleryTab";
+import AnnouncementTab from "./AnnouncementTab";
+import ImagePreviewModal from "./ImagePreviewModal";
+import MobileDrawer from "./MobileDrawer";
+
+type MobileTab = "generate" | "gallery" | "announcements";
 
 interface ImageGenViewProps {
   model: string;
@@ -13,6 +20,8 @@ interface ImageGenViewProps {
   onStopGenerate: () => void;
   generating: boolean;
   history: ImageRecord[];
+  activeImage: ImageRecord | null;
+  onActiveImageChange: (item: ImageRecord | null) => void;
   onDeleteImage: (id: string) => void;
   credits: number;
   isAdmin?: boolean;
@@ -20,6 +29,12 @@ interface ImageGenViewProps {
   todayChecked?: boolean;
   onCheckinClick?: () => void;
   onWalletClick?: () => void;
+  /** 手机端：当前 Tab（生成/图库/公告） */
+  mobileTab: MobileTab;
+  onMobileTabChange: (tab: MobileTab) => void;
+  /** 手机端：抽屉侧栏开关 */
+  drawerOpen: boolean;
+  onDrawerClose: () => void;
 }
 
 export default function ImageGenView({
@@ -28,6 +43,8 @@ export default function ImageGenView({
   onStopGenerate,
   generating,
   history,
+  activeImage,
+  onActiveImageChange,
   onDeleteImage,
   credits,
   isAdmin,
@@ -35,14 +52,20 @@ export default function ImageGenView({
   todayChecked,
   onCheckinClick,
   onWalletClick,
+  mobileTab,
+  onMobileTabChange,
+  drawerOpen,
+  onDrawerClose,
 }: ImageGenViewProps) {
   const sizeOptions = getSizeOptions(model);
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(sizeOptions[0]?.value || "1024x1024");
-  const [activeImage, setActiveImage] = useState<ImageRecord | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
+  // 固定输入条的高度（结果区预留，避免被遮挡）
+  const [barHeight, setBarHeight] = useState(120);
 
   useEffect(() => {
     const opts = getSizeOptions(model);
@@ -77,19 +100,25 @@ export default function ImageGenView({
   const prevGenerating = useRef(generating);
   useEffect(() => {
     if (prevGenerating.current && !generating && history.length > 0) {
-      setActiveImage(history[0]);
+      onActiveImageChange(history[0]);
     }
     prevGenerating.current = generating;
-  }, [generating, history]);
+  }, [generating, history, onActiveImageChange]);
 
   function handleGenerate(p: string, s: string) {
-    setActiveImage(null);
+    onActiveImageChange(null);
     onGenerate(p, s);
+  }
+
+  function handleSelectHistory(item: ImageRecord) {
+    onActiveImageChange(item);
+    setLastGenTime(null);
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
-      <div className="flex-1 flex flex-col md:flex-row min-h-0 min-w-0">
+      {/* 桌面端：三栏布局（md+） */}
+      <div className="hidden md:flex flex-1 min-h-0 min-w-0">
         <ImageInputColumn
           prompt={prompt}
           setPrompt={setPrompt}
@@ -117,13 +146,73 @@ export default function ImageGenView({
         <ImageHistoryPanel
           history={history}
           activeImage={activeImage}
-          onSelect={(item) => {
-            setActiveImage(item);
-            setLastGenTime(null);
-          }}
+          onSelect={handleSelectHistory}
           onDelete={onDeleteImage}
         />
       </div>
+
+      {/* 手机端：内容区 + 固定输入条（Tab 切换在抽屉侧栏） */}
+      <div className="md:hidden flex-1 flex min-h-0 min-w-0">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {mobileTab === "generate" ? (
+            <div
+              className="flex-1 min-h-0 flex flex-col"
+              style={{ paddingBottom: barHeight }}
+            >
+              <ImageResultPanel
+                activeImage={activeImage}
+                generating={generating}
+                elapsedSeconds={elapsedSeconds}
+                lastGenTime={lastGenTime}
+              />
+            </div>
+          ) : mobileTab === "gallery" ? (
+            <GalleryTab
+              history={history}
+              onPreview={setPreviewImage}
+              onDelete={onDeleteImage}
+            />
+          ) : (
+            <AnnouncementTab />
+          )}
+        </div>
+      </div>
+
+      {/* 固定输入条（仅手机端「生成」页） */}
+      {mobileTab === "generate" && (
+        <ImageMobileBar
+          prompt={prompt}
+          setPrompt={setPrompt}
+          size={size}
+          setSize={setSize}
+          sizeOptions={sizeOptions}
+          generating={generating}
+          credits={credits}
+          isAdmin={isAdmin}
+          onGenerate={handleGenerate}
+          onStopGenerate={onStopGenerate}
+          onHeightChange={setBarHeight}
+        />
+      )}
+
+      {/* 手机端抽屉侧栏（汉堡唤起） */}
+      <MobileDrawer
+        open={drawerOpen}
+        tab={mobileTab}
+        historyCount={history.length}
+        onSelect={(tab) => {
+          onMobileTabChange(tab);
+          onDrawerClose();
+        }}
+        onClose={onDrawerClose}
+      />
+
+      {/* 大图预览（手机图库） */}
+      <ImagePreviewModal
+        image={previewImage}
+        onClose={() => setPreviewImage(null)}
+        onDelete={onDeleteImage}
+      />
     </div>
   );
 }

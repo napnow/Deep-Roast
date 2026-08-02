@@ -50,7 +50,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* Toast Container */}
       <div
-        className="fixed bottom-6 right-6 z-[100] flex flex-col-reverse gap-2.5 pointer-events-none"
+        className="fixed bottom-4 inset-x-4 sm:inset-x-auto sm:right-6 sm:bottom-6 z-[100] flex flex-col-reverse gap-2.5 pointer-events-none items-stretch sm:items-end"
         aria-live="polite"
       >
         {toasts.map((t) => (

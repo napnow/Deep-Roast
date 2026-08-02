@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { login, register } from "@/lib/auth-client";
 import { useAuth } from "@/components/AuthProvider";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
+import LoginIntro from "@/components/LoginIntro";
+import Magnetic from "@/components/Magnetic";
 import type { Announcement } from "@/types";
 
 const TITLE = "Deep Roast";
 
 export default function LoginPage() {
-  const { refresh } = useAuth();
+  const { user, loading: authLoading, refresh } = useAuth();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -19,11 +21,17 @@ export default function LoginPage() {
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [focusField, setFocusField] = useState<"username" | "password" | null>(null);
+  // 开屏初始化完成（以挂载时刻为基准编排标题/口号/按钮入场）
+  const [introDone, setIntroDone] = useState(false);
+  // 开屏被跳过（reduced-motion / 会话内已播过）→ 内容应立即出现
+  const [introSkipped, setIntroSkipped] = useState(false);
+  // 是否已点击「开始使用」：直接切换到登录表单视图（不再滚动分屏）
+  const [showForm, setShowForm] = useState(false);
 
   const heroRef = useRef<HTMLDivElement>(null);
-  const spotRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // useLayoutEffect：在浏览器绘制前同步加 dark class，避免主题切换闪屏
+  useLayoutEffect(() => {
     const html = document.documentElement;
     const hadDark = html.classList.contains("dark");
     if (!hadDark) html.classList.add("dark");
@@ -59,55 +67,6 @@ export default function LoginPage() {
       .catch(() => {});
   }, []);
 
-  // 聚光逐字点燃
-  useEffect(() => {
-    const hero = heroRef.current;
-    const spot = spotRef.current;
-    if (!hero || !spot) return;
-    const letters = Array.from(
-      hero.querySelectorAll<HTMLSpanElement>("[data-letter]")
-    );
-
-    function onMove(e: MouseEvent) {
-      const rc = hero!.getBoundingClientRect();
-      const x = e.clientX - rc.left;
-      const y = e.clientY - rc.top;
-      spot!.style.left = x + "px";
-      spot!.style.top = y + "px";
-      for (const sp of letters) {
-        const sr = sp.getBoundingClientRect();
-        const lx = sr.left + sr.width / 2 - rc.left;
-        const ly = sr.top + sr.height / 2 - rc.top;
-        const dx = lx - x;
-        const dy = ly - y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < 180) {
-          const t = 1 - d / 180;
-          sp.style.color =
-            t > 0.65
-              ? "#f5e6d3"
-              : t > 0.35
-                ? "#d4894a"
-                : "#b86a35";
-          sp.style.transform =
-            "translateY(" +
-            (-t * 5).toFixed(1) +
-            "px) scale(" +
-            (1 + t * 0.06).toFixed(3) +
-            ")";
-          sp.style.textShadow = t > 0.5 ? "0 0 20px rgba(212,137,74,0.6)" : "none";
-        } else {
-          sp.style.color = "rgba(245,230,211,0.35)";
-          sp.style.transform = "none";
-          sp.style.textShadow = "none";
-        }
-      }
-    }
-
-    hero.addEventListener("mousemove", onMove);
-    return () => hero.removeEventListener("mousemove", onMove);
-  }, []);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -140,173 +99,175 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="snap-scroll relative"
-      style={{
-        background: "#0c0b0a",
-        color: "#ede6dc",
-        minHeight: "100vh",
-      }}
-    >
-      {/* 深层动态光斑背景 */}
+    <>
+      {/* auth 状态确认前用同色占位层遮挡，避免登录页闪现后再被开屏盖住 */}
+      {authLoading && <div className="login-intro-placeholder" aria-hidden />}
+      {/* 已登录用户会被 AuthProvider 重定向到工作台，无需播开屏 */}
+      {!user &&
+        !authLoading && (
+          <LoginIntro
+            onReady={() => setIntroDone(true)}
+            onSkipped={() => {
+              setIntroDone(true);
+              setIntroSkipped(true);
+            }}
+          />
+        )}
+      <div
+        className="snap-scroll relative"
+        style={{
+          background:
+            "linear-gradient(170deg, #201a14 0%, #181310 50%, #120e0b 100%)",
+          color: "#ede6dc",
+          minHeight: "100vh",
+        }}
+      >
+      {/* 静态光斑背景（无动画，不闪屏）：毛玻璃的「背后光源」，玻璃感的关键 */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div
-          className="glow-drift absolute rounded-full"
           style={{
+            position: "absolute",
             width: "clamp(400px, 60vw, 800px)",
             height: "clamp(400px, 60vw, 800px)",
-            background: "radial-gradient(circle, rgba(212,137,74,0.12) 0%, rgba(184,106,53,0.06) 35%, transparent 70%)",
+            background:
+              "radial-gradient(circle, rgba(212,137,74,0.10) 0%, rgba(184,106,53,0.05) 35%, transparent 70%)",
             filter: "blur(60px)",
             top: "8%",
             left: "12%",
           }}
         />
         <div
-          className="glow-drift-slow absolute rounded-full"
           style={{
+            position: "absolute",
             width: "clamp(350px, 50vw, 700px)",
             height: "clamp(350px, 50vw, 700px)",
-            background: "radial-gradient(circle, rgba(184,106,53,0.10) 0%, rgba(138,78,35,0.05) 40%, transparent 75%)",
+            background:
+              "radial-gradient(circle, rgba(184,106,53,0.08) 0%, rgba(138,78,35,0.04) 40%, transparent 75%)",
             filter: "blur(70px)",
             bottom: "2%",
             right: "8%",
           }}
         />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: "clamp(500px, 80vw, 1000px)",
-            height: "400px",
-            background: "radial-gradient(ellipse, rgba(245,230,211,0.06) 0%, transparent 60%)",
-            top: "-100px",
-            left: "50%",
-            transform: "translateX(-50%)",
-          }}
-        />
       </div>
 
-      {/* 噪声纹理层 */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-          backgroundSize: "200px 200px",
-          mixBlendMode: "overlay",
-        }}
-        aria-hidden
-      />
-
-      {/* 屏 1 · 品牌首屏（聚光逐字点燃） */}
-      <section
-        id="hero"
-        ref={heroRef}
-        className="snap-section flex items-center justify-center px-8"
-        style={{ cursor: "none" }}
-      >
-        <div
-          className="hero-breathe pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(700px 500px at 50% 45%, rgba(212,137,74,0.08), transparent 65%)",
-          }}
-          aria-hidden
-        />
-        <div
-          ref={spotRef}
-          className="pointer-events-none absolute rounded-full"
-          style={{
-            width: "clamp(260px, 40vw, 380px)",
-            height: "clamp(260px, 40vw, 380px)",
-            background:
-              "radial-gradient(circle, rgba(245,230,211,0.12), rgba(212,137,74,0.08) 40%, transparent 65%)",
-            transform: "translate(-50%,-50%)",
-            left: "50%",
-            top: "45%",
-            transition:
-              "left 0.28s cubic-bezier(0.16,1,0.3,1), top 0.28s cubic-bezier(0.16,1,0.3,1)",
-          }}
-          aria-hidden
-        />
-
-        <div className="relative text-center max-w-5xl">
-          {/* 大标题：BlurText 逐词模糊浮现 + 逐字点燃 */}
-          <h1
-            className="font-display italic font-normal tracking-[-0.02em] inline-flex items-baseline"
-            style={{
-              fontSize: "clamp(2.5rem, 11vw, 7rem)",
-              color: "rgba(245,230,211,0.35)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {TITLE.split(" ").map((word, wi) => (
-              <span
-                key={wi}
-                className="blur-word inline-block"
-                style={{
-                  filter: "blur(10px)",
-                  opacity: 0,
-                  transform: "translateY(50px)",
-                  animation:
-                    "blur-in 0.7s cubic-bezier(0.16,1,0.3,1) " +
-                    (0.4 + wi * 0.1) +
-                    "s forwards",
-                  marginRight: "0.28em",
-                  flexShrink: 0,
-                }}
-              >
-                {word.split("").map((ch, ci) => (
-                  <span
-                    key={ci}
-                    data-letter
-                    className="inline-block"
-                    style={{
-                      transition: "color 0.5s ease, transform 0.5s ease, text-shadow 0.5s ease",
-                    }}
-                  >
-                    {ch}
-                  </span>
-                ))}
-              </span>
-            ))}
-          </h1>
-
-          {/* slogan 遮罩揭示 */}
-          <div className="overflow-hidden mt-3">
-            <p
-              className="hero-rise text-base sm:text-lg md:text-xl leading-relaxed"
+      {/* 屏 1 · 品牌首屏（字母自动点燃）；点击「开始使用」后隐藏，直接切到表单 */}
+      {!showForm && (
+        <section
+          id="hero"
+          ref={heroRef}
+          className="snap-section flex items-center justify-center px-8"
+        >
+          <div className="relative text-center max-w-5xl">
+            {/* 大标题：字母自动从左到右点燃（玻璃渐变文字） */}
+            <h1
+              className="font-display italic font-normal tracking-[-0.02em] inline-flex items-baseline"
               style={{
-                color: "#a89a8a",
-                transform: "translateY(110%)",
-                animation:
-                  "hero-rise 1.2s cubic-bezier(0.16,1,0.3,1) 1.1s forwards",
+                fontSize: "clamp(2.5rem, 11vw, 7rem)",
+                color: "rgba(237,230,220,0.4)",
+                whiteSpace: "nowrap",
               }}
             >
-              深度思考，慢工出好答案。
-            </p>
+              {(() => {
+                let charIndex = 0;
+                // 阶段一：全部字母雾气浮现成暗字（公共延迟）
+                const blurDelay = introDone
+                  ? introSkipped
+                    ? 0.05
+                    : 2.6
+                  : 60;
+                // 阶段二：从左到右依序点燃（逐字递增，间隔拉大让波次清晰）
+                const igniteDelayOf = (i: number) =>
+                  introDone
+                    ? introSkipped
+                      ? 0.4 + i * 0.12
+                      : 3.3 + i * 0.13
+                    : 60;
+                return TITLE.split(" ").map((word, wi) => (
+                  <span
+                    key={wi}
+                    className="inline-block"
+                    style={{ marginRight: "0.28em" }}
+                  >
+                    {word.split("").map((ch) => {
+                      const idx = charIndex++;
+                      return (
+                        <span
+                          key={idx}
+                          className="hero-char"
+                          style={
+                            {
+                              "--blur-delay": `${blurDelay}s`,
+                              "--char-delay": `${igniteDelayOf(idx)}s`,
+                            } as React.CSSProperties
+                          }
+                        >
+                          {ch}
+                        </span>
+                      );
+                    })}
+                  </span>
+                ));
+              })()}
+            </h1>
+
+            {/* slogan 遮罩揭示 */}
+            <div className="overflow-hidden mt-3">
+              <p
+                className="hero-rise text-base sm:text-lg md:text-xl leading-relaxed"
+                style={{
+                  color: "#a89a8a",
+                  animation:
+                    "hero-rise 1.5s cubic-bezier(0.16,1,0.3,1) " +
+                    (introDone ? (introSkipped ? 0.6 : 5.0) : 60) +
+                    "s both",
+                }}
+              >
+                深度思考，慢工出好答案。
+              </p>
+            </div>
+
+            <Magnetic className="mt-10 sm:mt-14">
+              <a
+                href="#start"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowForm(true);
+                }}
+                className="hero-fade hero-cta"
+                style={{
+                  animation:
+                    "hero-fade 1.1s ease " +
+                    (introDone ? (introSkipped ? 0.8 : 5.4) : 60) +
+                    "s both",
+                }}
+              >
+                <span>开始使用</span>
+                <span className="hero-cta-arrow" aria-hidden>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
+              </a>
+            </Magnetic>
           </div>
+        </section>
+      )}
 
-          <a
-            href="#start"
-            className="hero-fade inline-block mt-10 sm:mt-14 px-8 py-3 sm:px-10 sm:py-3.5 rounded-full text-xs sm:text-sm font-medium transition-all hover:scale-[1.03] active:scale-[0.98]"
-            style={{
-              background: "linear-gradient(135deg, #d4894a 0%, #b86a35 100%)",
-              color: "#f5e6d3",
-              boxShadow: "0 8px 32px rgba(212,137,74,0.25)",
-              opacity: 0,
-              animation: "hero-fade 1s ease 1.6s forwards",
-            }}
-          >
-            开始使用
-          </a>
-        </div>
-      </section>
-
-      {/* 屏 2 · 登录/注册 */}
-      <section
-        id="start"
-        className="snap-section relative flex items-center justify-center px-4 sm:px-6 pt-8 pb-12 sm:pt-0 sm:pb-0"
-      >
+      {/* 屏 2 · 登录/注册（点击「开始使用」后直接显示，无滚动切换） */}
+      {showForm && (
+        <section
+          id="start"
+          className="snap-section relative flex items-center justify-center px-4 sm:px-6 pt-8 pb-12 sm:pt-0 sm:pb-0"
+        >
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -317,16 +278,7 @@ export default function LoginPage() {
         />
 
         <div
-          className="relative w-full max-w-[22rem] sm:max-w-[24rem] animate-fade-rise-delay-2 rounded-[1.5rem] sm:rounded-[2rem] px-6 py-8 sm:px-8 sm:py-10 md:px-10 md:py-11"
-          style={{
-            background:
-              "linear-gradient(165deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow:
-              "0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-          }}
+          className="relative w-full max-w-[22rem] sm:max-w-[24rem] animate-fade-rise-delay-2 login-card-glass rounded-[1.5rem] sm:rounded-[2rem] px-6 py-8 sm:px-8 sm:py-10 md:px-10 md:py-11"
         >
           {/* 顶部焦糖细线 */}
           <div
@@ -394,8 +346,8 @@ export default function LoginPage() {
             <div
               className="mb-6 max-h-24 space-y-2 overflow-y-auto rounded-xl px-4 py-3"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
               }}
             >
               <p
@@ -542,7 +494,9 @@ export default function LoginPage() {
             </>
           )}
         </div>
-      </section>
-    </div>
+        </section>
+      )}
+      </div>
+    </>
   );
 }

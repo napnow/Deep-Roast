@@ -14,20 +14,67 @@ interface GlobalStats {
 
 interface AdminDashboardProps {
   globalStats: GlobalStats | null;
+  refreshing?: boolean;
+  lastRefreshed?: string | null;
+  onRefresh?: () => void;
 }
 
-export default function AdminDashboard({ globalStats }: AdminDashboardProps) {
+export default function AdminDashboard({
+  globalStats,
+  refreshing = false,
+  lastRefreshed = null,
+  onRefresh,
+}: AdminDashboardProps) {
   return (
     <div className="max-w-5xl mx-auto">
       <header className="mb-7 animate-fade-up">
-        <p className="admin-kicker">Operations</p>
-        <h1 className="admin-title text-[1.85rem] mt-1.5">运营总览</h1>
-        <p
-          className="text-sm mt-2 max-w-xl leading-relaxed"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          签到与消耗、站点开关与公告。左侧选择用户可审计对话、图片与积分流水。
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="admin-kicker">Operations</p>
+            <h1 className="admin-title text-[1.85rem] mt-1.5">运营总览</h1>
+            <p
+              className="text-sm mt-2 max-w-xl leading-relaxed"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              签到与消耗、站点开关与公告。左侧选择用户可审计对话、图片与积分流水。
+            </p>
+          </div>
+          {onRefresh && (
+            <div className="flex items-center gap-2.5 shrink-0">
+              {lastRefreshed && (
+                <span
+                  className="text-[11px] tabular-nums"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  更新于 {lastRefreshed}
+                </span>
+              )}
+              <button
+                type="button"
+                disabled={refreshing}
+                onClick={onRefresh}
+                className="admin-btn admin-btn--ghost"
+                title="重新拉取用户、统计与图片数据"
+              >
+                <span
+                  aria-hidden
+                  className="inline-block mr-1.5"
+                  style={
+                    refreshing
+                      ? {
+                          display: "inline-block",
+                          animation: "spin 0.8s linear infinite",
+                        }
+                      : undefined
+                  }
+                >
+                  ⟳
+                </span>
+                {refreshing ? "刷新中…" : "刷新"}
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {!globalStats ? (

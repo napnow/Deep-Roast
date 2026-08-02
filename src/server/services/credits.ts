@@ -39,28 +39,33 @@ export async function consumeCredits(
   amount: number,
   note: string,
 ): Promise<number> {
-  const [user] = await db
-    .select({ credits: users.credits })
-    .from(users)
-    .where(eq(users.id, userId));
-  if (!user) throw new ApiError("用户不存在", 404);
-
-  const newBalance = user.credits - amount;
-  await db
+  // 原子扣减：UPDATE ... SET credits = credits - amount WHERE credits >= amount。
+  // 避免并发请求 check-then-act 绕过余额限制（超扣 / 负余额）。
+  const rows = await db
     .update(users)
-    .set({ credits: newBalance, updatedAt: new Date() })
-    .where(eq(users.id, userId));
+    .set({
+      credits: sql`${users.credits} - ${amount}`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(users.id, userId), sql`${users.credits} >= ${amount}`))
+    .returning({ id: users.id, credits: users.credits });
+
+  const row = rows[0];
+  if (!row) {
+    throw new ApiError("积分不足，请先签到或联系管理员", 402, "INSUFFICIENT_CREDITS");
+  }
+
   await db.insert(creditTransactions).values({
     userId,
     type: "consume",
     amount: -amount,
-    balanceAfter: newBalance,
+    balanceAfter: row.credits,
     note,
   });
-  return newBalance;
+  return row.credits;
 }
 
-/** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +CHECKIN_REWARD */
+/** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +CHECKIN_REWARD（原子防并发双签） */
 export async function performCheckin(userId: string) {
   const user = await getUserRow(userId);
 
@@ -72,30 +77,38 @@ export async function performCheckin(userId: string) {
   }
 
   const today = shanghaiToday();
-  if (user.lastCheckinOn === today) {
-    throw new ApiError("今日已签到", 409);
-  }
 
-  const newBalance = user.credits + CHECKIN_REWARD;
-  await db
+  const rows = await db
     .update(users)
     .set({
-      credits: newBalance,
+      credits: sql`${users.credits} + ${CHECKIN_REWARD}`,
       lastCheckinOn: today,
       updatedAt: new Date(),
     })
-    .where(eq(users.id, userId));
+    .where(
+      and(
+        eq(users.id, userId),
+        sql`COALESCE(${users.lastCheckinOn}, '') <> ${today}`,
+      ),
+    )
+    .returning({ id: users.id, credits: users.credits });
+
+  const row = rows[0];
+  if (!row) {
+    // 已被并发请求抢先签到，或今日已签
+    throw new ApiError("今日已签到", 409);
+  }
 
   await db.insert(creditTransactions).values({
     userId,
     type: "checkin",
     amount: CHECKIN_REWARD,
-    balanceAfter: newBalance,
+    balanceAfter: row.credits,
     note: `每日签到 ${today}`,
   });
 
   return {
-    credits: newBalance,
+    credits: row.credits,
     checkinOn: today,
     reward: CHECKIN_REWARD,
     todayChecked: true,
@@ -125,19 +138,25 @@ export async function adjustCredits(
   if (!amount || amount === 0) throw new ApiError("参数不完整", 400);
 
   const type = amount > 0 ? "admin_grant" : "admin_deduct";
-  const [user] = await db
-    .select({ credits: users.credits })
-    .from(users)
-    .where(eq(users.id, userId));
-  if (!user) throw new ApiError("用户不存在", 404);
 
-  const newBalance = user.credits + amount;
-  if (newBalance < 0) throw new ApiError("积分不足，无法扣减", 400);
-
-  await db
+  // 原子增减：余额不允许扣成负数
+  const rows = await db
     .update(users)
-    .set({ credits: newBalance, updatedAt: new Date() })
-    .where(eq(users.id, userId));
+    .set({
+      credits: sql`${users.credits} + ${amount}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(users.id, userId), sql`${users.credits} + ${amount} >= 0`),
+    )
+    .returning({ id: users.id, credits: users.credits });
+
+  const row = rows[0];
+  if (!row) {
+    const exists = await getUserRow(userId).catch(() => null);
+    if (!exists) throw new ApiError("用户不存在", 404);
+    throw new ApiError("积分不足，无法扣减", 400);
+  }
 
   const [tx] = await db
     .insert(creditTransactions)
@@ -145,12 +164,12 @@ export async function adjustCredits(
       userId,
       type,
       amount,
-      balanceAfter: newBalance,
+      balanceAfter: row.credits,
       note: note || "",
     })
     .returning();
 
-  return { balance: newBalance, transaction: tx };
+  return { balance: row.credits, transaction: tx };
 }
 
 export async function listUserTransactions(userId: string, limit = 50) {

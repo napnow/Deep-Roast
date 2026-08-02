@@ -13,24 +13,29 @@ export default function AdminImageDetailModal({
 }: AdminImageDetailModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-6 animate-fade-in"
       style={{ background: "rgba(18, 14, 10, 0.55)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
     >
       <div
-        className="rounded-[var(--radius-xl)] border max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
+        className="rounded-[var(--radius-xl)] border w-full max-w-2xl my-auto overflow-hidden animate-fade-up"
         style={{
           background: "var(--bg-surface)",
           borderColor: "var(--border-strong)",
           boxShadow: "var(--shadow-lg)",
+          maxHeight: "calc(100vh - 1.5rem)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: "calc(100vh - 1.5rem)" }}
+        >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image.imageUrl}
           alt={image.prompt}
-          className="w-full max-h-[60vh] object-contain"
+          className="w-full max-h-[62vh] object-contain"
           style={{ background: "var(--bg-root)" }}
         />
         <div className="p-5 space-y-4">
@@ -87,6 +92,7 @@ export default function AdminImageDetailModal({
               复制提示词
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

@@ -1,26 +1,12 @@
 // ── Shared types for doubao-app ──
 
-export interface Message {
-  id?: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  reasoning?: string; // 豆包模型的思考过程
-}
-
-export interface Conversation {
-  id: string;
-  title: string;
-  model: string;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-}
-
 export interface ImageRecord {
   id: string;
   prompt: string;
   model: string;
   imageUrl: string;
+  /** webp 缩略图（列表/历史用，预览/下载仍用原图）；旧记录可能没有 */
+  thumbUrl?: string;
   size: string;
   createdAt: string;
 }
@@ -76,7 +62,6 @@ export interface Announcement {
 export interface Config {
   arkApiKey: string;
   baseUrl: string;
-  textModel: string;
   imageModel: string;
   imageSystemPrompt: string;
   /** 图推 / 反推提示词使用的视觉模型 */
@@ -84,8 +69,7 @@ export interface Config {
   hasApiKey?: boolean;
   /** 已配置 key 的脱敏提示，如 g2a_****xxxx；不用于回传保存 */
   apiKeyHint?: string;
-  /** 用户启用的模型（顶栏选择器只显示这些） */
-  enabledTextModels?: string[];
+  /** 管理员启用的生图模型（顶栏选择器只显示这些） */
   enabledImageModels?: string[];
 }
 
