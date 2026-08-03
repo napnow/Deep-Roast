@@ -18,6 +18,8 @@ interface ImageInputColumnProps {
   checkinEligible?: boolean;
   todayChecked?: boolean;
   onGenerate: (prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑 */
+  onEditImage?: (image: string, prompt: string, size: string) => void;
   onStopGenerate: () => void;
   onCheckinClick?: () => void;
   onWalletClick?: () => void;
@@ -38,6 +40,7 @@ export default function ImageInputColumn({
   checkinEligible = false,
   todayChecked = false,
   onGenerate,
+  onEditImage,
   onStopGenerate,
   onCheckinClick,
   onWalletClick,
@@ -133,6 +136,7 @@ export default function ImageInputColumn({
               size={size}
               generating={generating}
               onGenerate={onGenerate}
+              onEditImage={onEditImage}
               onStopGenerate={onStopGenerate}
             />
           )}

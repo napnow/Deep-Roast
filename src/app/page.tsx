@@ -123,6 +123,7 @@ export default function Home() {
         <ImageGenView
           model={config.imageModel}
           onGenerate={actions.handleGenerateImage}
+          onEditImage={actions.handleEditImage}
           onStopGenerate={actions.handleStopGenerateImage}
           generating={generating}
           history={imageHistory}

@@ -179,6 +179,160 @@ export async function generateImage(opts: {
   throw new ApiError(`图片生成出错: ${msg}`, 500);
 }
 
+/**
+ * 图生图（原图直传编辑）：参考图 + 修改描述 → 上游 /v1/images/edits。
+ * 与文生图共享落盘/缩略图/积分/历史逻辑。
+ */
+export async function editImage(opts: {
+  userId: string;
+  role?: string;
+  /** data URL（data:image/...;base64,...）或 http(s) 图片 URL */
+  image: string;
+  prompt: string;
+  modelOverride?: string;
+  size?: string;
+}) {
+  const {
+    userId,
+    role = "user",
+    image,
+    prompt,
+    modelOverride,
+    size = "1024x1024",
+  } = opts;
+  if (!image?.trim()) throw new ApiError("image 为必填项", 400);
+  if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    throw new ApiError(`提示词不能超过 ${MAX_PROMPT_LENGTH} 字`, 400);
+  }
+
+  const config = await getConfig();
+  const model =
+    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+
+  // 越权防护：模型必须属于管理员启用的列表
+  const enabledModels = parseEnabledModels(
+    config?.enabledImageModels,
+    defaultImageModelIds(),
+    config?.imageModel,
+  );
+  if (!enabledModels.includes(model)) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+
+  const chargeCredits = role !== "admin";
+  if (userId && chargeCredits) {
+    await assertEnoughCredits(userId, CREDIT_PER_IMAGE);
+  }
+
+  const { apiKey, baseUrl, maxRetries } = resolveImageEndpoint(
+    model,
+    config || {},
+  );
+  if (!apiKey) throw new ApiError("请先在设置中配置 API Key", 400);
+  if (!baseUrl) throw new ApiError("未配置 API Base URL", 400);
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${baseUrl}/images/edits`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          prompt,
+          size,
+          n: 1,
+          // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）
+          image,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`${res.status} ${errText}`);
+      }
+
+      const result = await res.json();
+      const item = result.data?.[0];
+
+      let buffer: Buffer;
+      if (item?.b64_json) {
+        buffer = Buffer.from(item.b64_json, "base64");
+      } else if (item?.url) {
+        const imageRes = await fetch(item.url);
+        buffer = Buffer.from(await imageRes.arrayBuffer());
+      } else {
+        throw new Error("未能生成图片");
+      }
+
+      const imagesDir = path.join(process.cwd(), "public", "images");
+      await mkdir(imagesDir, { recursive: true });
+      const filename = `${crypto.randomUUID()}.png`;
+      await writeFile(path.join(imagesDir, filename), buffer);
+      const imageUrl = `/images/${filename}`;
+
+      let thumbUrl = imageUrl;
+      try {
+        const { default: sharp } = await import("sharp");
+        const thumbDir = path.join(imagesDir, "thumbs");
+        await mkdir(thumbDir, { recursive: true });
+        const thumbName = filename.replace(/\.png$/i, ".webp");
+        await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
+        thumbUrl = `/images/thumbs/${thumbName}`;
+      } catch {
+        /* 缩略图失败不影响主流程 */
+      }
+
+      const [row] = await db
+        .insert(imageGenerations)
+        .values({
+          prompt,
+          model,
+          imageUrl,
+          size,
+          userId,
+        })
+        .returning({ id: imageGenerations.id });
+
+      if (userId && chargeCredits) {
+        await consumeCredits(
+          userId,
+          CREDIT_PER_IMAGE,
+          `图生图: ${prompt.slice(0, 50)}`,
+        );
+      }
+
+      console.log(
+        `Image edit success (attempt ${attempt}/${maxRetries}): ${model}`,
+      );
+      return {
+        id: row.id,
+        imageUrl,
+        thumbUrl,
+        prompt,
+        model,
+        size,
+      };
+    } catch (err) {
+      lastError = err;
+      console.error(
+        `Image edit error (attempt ${attempt}/${maxRetries}):`,
+        err instanceof Error ? err.message : err,
+      );
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  }
+
+  const msg = lastError instanceof Error ? lastError.message : "未知错误";
+  throw new ApiError(`图生图失败: ${msg}`, 500);
+}
+
 export async function listImageHistory(userId: string, limit = 50) {
   const rows = await db
     .select()

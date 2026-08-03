@@ -7,6 +7,8 @@ interface Img2ImgPanelProps {
   size: string;
   generating: boolean;
   onGenerate: (prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑；提供时优先使用 */
+  onEditImage?: (image: string, prompt: string, size: string) => void;
   onStopGenerate: () => void;
 }
 
@@ -14,6 +16,7 @@ export default function Img2ImgPanel({
   size,
   generating,
   onGenerate,
+  onEditImage,
   onStopGenerate,
 }: Img2ImgPanelProps) {
   const [preview, setPreview] = useState<string | null>(null);
@@ -75,10 +78,18 @@ export default function Img2ImgPanel({
     if (!base64 || generating) return;
     setError("");
     setProcessing(true);
-    setAnalyzing(true);
+    setAnalyzing(false);
+
+    if (onEditImage) {
+      // 新链路：原图直传编辑（保留构图/主体，只按描述修改）
+      onEditImage(base64, edit.trim() || "生成这张图的变体", size);
+      setProcessing(false);
+      return;
+    }
+
+    // 兜底：无 onEditImage 时走旧反推链路（正常情况下不会到这里）
     const abort = new AbortController();
     abortRef.current = abort;
-
     try {
       const res = await fetch("/api/reverse-prompt", {
         method: "POST",
@@ -93,13 +104,11 @@ export default function Img2ImgPanel({
         const err = await res.json();
         setError(err.error || "分析失败");
         setProcessing(false);
-        setAnalyzing(false);
         return;
       }
       const data = await res.json();
-      setAnalyzing(false);
-      genRef.current = true;
       onGenerate(data.prompt, size);
+      setProcessing(false);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
         setError("已停止");
@@ -107,7 +116,6 @@ export default function Img2ImgPanel({
         setError("网络错误");
       }
       setProcessing(false);
-      setAnalyzing(false);
     }
   }
 

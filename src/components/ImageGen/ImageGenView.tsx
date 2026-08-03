@@ -17,6 +17,8 @@ type MobileTab = "generate" | "gallery" | "announcements";
 interface ImageGenViewProps {
   model: string;
   onGenerate: (prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑（返回编辑结果并入历史） */
+  onEditImage?: (image: string, prompt: string, size: string) => void;
   onStopGenerate: () => void;
   generating: boolean;
   history: ImageRecord[];
@@ -40,6 +42,7 @@ interface ImageGenViewProps {
 export default function ImageGenView({
   model,
   onGenerate,
+  onEditImage,
   onStopGenerate,
   generating,
   history,
@@ -131,6 +134,7 @@ export default function ImageGenView({
           checkinEligible={checkinEligible}
           todayChecked={todayChecked}
           onGenerate={handleGenerate}
+          onEditImage={onEditImage}
           onStopGenerate={onStopGenerate}
           onCheckinClick={onCheckinClick}
           onWalletClick={onWalletClick}
@@ -190,6 +194,7 @@ export default function ImageGenView({
           credits={credits}
           isAdmin={isAdmin}
           onGenerate={handleGenerate}
+          onEditImage={onEditImage}
           onStopGenerate={onStopGenerate}
           onHeightChange={setBarHeight}
         />

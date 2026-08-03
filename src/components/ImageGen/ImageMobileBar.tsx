@@ -15,6 +15,8 @@ interface ImageMobileBarProps {
   credits: number;
   isAdmin?: boolean;
   onGenerate: (prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑 */
+  onEditImage?: (image: string, prompt: string, size: string) => void;
   onStopGenerate: () => void;
   /** 输入条实际高度（结果区预留底部空间） */
   onHeightChange?: (height: number) => void;
@@ -57,6 +59,7 @@ export default function ImageMobileBar({
   credits,
   isAdmin = false,
   onGenerate,
+  onEditImage,
   onStopGenerate,
   onHeightChange,
 }: ImageMobileBarProps) {
@@ -137,6 +140,7 @@ export default function ImageMobileBar({
                 size={size}
                 generating={generating}
                 onGenerate={onGenerate}
+                onEditImage={onEditImage}
                 onStopGenerate={onStopGenerate}
               />
             )}
