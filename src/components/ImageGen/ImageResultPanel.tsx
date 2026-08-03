@@ -9,6 +9,8 @@ interface ImageResultPanelProps {
   generating: boolean;
   elapsedSeconds: number;
   lastGenTime: number | null;
+  /** 清除结果区（回到空状态） */
+  onClear?: () => void;
 }
 
 export default function ImageResultPanel({
@@ -16,11 +18,29 @@ export default function ImageResultPanel({
   generating,
   elapsedSeconds,
   lastGenTime,
+  onClear,
 }: ImageResultPanelProps) {
   return (
     <div className="dr-canvas flex-1 md:flex-[2] overflow-y-auto p-4 md:p-6 flex items-center justify-center min-h-0">
       {activeImage ? (
-        <div className="w-full max-w-xl max-h-full overflow-auto animate-bake-done">
+        <div className="relative w-full max-w-xl max-h-full overflow-auto animate-bake-done">
+          {/* 关闭按钮：清除结果区，不影响历史记录 */}
+          {onClear && (
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label="关闭预览"
+              className="absolute top-2.5 right-2.5 z-10 w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-all duration-150 hover:scale-110 active:scale-95"
+              style={{
+                background: "rgba(0,0,0,0.55)",
+                color: "#f5e6d3",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+              }}
+            >
+              ✕
+            </button>
+          )}
           <div
             className="rounded-xl overflow-hidden border"
             style={{
