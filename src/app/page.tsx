@@ -88,7 +88,14 @@ export default function Home() {
   );
 
   return (
-    <div className="h-dvh flex flex-col" style={{ background: "var(--bg-root)" }}>
+    <div
+      className="flex flex-col"
+      style={{
+        background: "var(--bg-root)",
+        // svh：键盘弹出时高度不收缩，页面不跳动（dvh 会随键盘变化导致整体上顶）
+        height: "100svh",
+      }}
+    >
       <Header
         currentModel={currentModel}
         onSettingsClick={() => setSettingsOpen(true)}

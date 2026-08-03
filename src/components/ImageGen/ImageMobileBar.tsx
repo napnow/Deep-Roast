@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CREDIT_PER_IMAGE } from "@/types";
+import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
 
@@ -186,7 +187,8 @@ export default function ImageMobileBar({
         </select>
       </div>
 
-      {/* 输入行 */}
+      {/* 输入行：工具面板展开时隐藏（面板内有自己的输入框，避免双输入框） */}
+      {!toolbarOpen && (
       <div className="flex items-end gap-2 px-3 pb-3">
         <div
           className="flex-1 min-w-0 flex items-end rounded-2xl border transition-colors duration-200"
@@ -204,7 +206,11 @@ export default function ImageMobileBar({
               setPrompt(e.target.value);
               autoResize();
             }}
-            onFocus={autoResize}
+            onFocus={() => {
+              autoResize();
+              lockPageScroll();
+            }}
+            onBlur={unlockPageScroll}
             placeholder="描述你想要生成的图片…"
             rows={1}
             disabled={generating}
@@ -251,6 +257,7 @@ export default function ImageMobileBar({
           )}
         </button>
       </div>
+      )}
     </div>
   );
 }

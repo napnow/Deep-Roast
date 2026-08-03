@@ -116,6 +116,7 @@ export default function ImageInputColumn({
         </button>
       </div>
 
+      {/* 工具面板：展开时隐藏文生图输入区，保证页面上只有一个输入框 */}
       <div
         className="overflow-hidden border-b shrink-0 transition-all duration-300 ease-in-out"
         style={{
@@ -143,6 +144,8 @@ export default function ImageInputColumn({
         </div>
       </div>
 
+      {/* 文生图输入区：工具面板展开时隐藏（模式互斥，避免双输入框） */}
+      {!toolbarOpen && (
       <div className="p-5 space-y-4">
         <label
           className="text-[11px] font-semibold tracking-widest uppercase"
@@ -270,6 +273,7 @@ export default function ImageInputColumn({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

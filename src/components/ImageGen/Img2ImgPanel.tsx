@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { formatTime } from "./imageUtils";
+import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
+import {
+  EDIT_STYLE_PRESETS,
+  DEFAULT_EDIT_STYLE,
+  type EditStylePreset,
+} from "./editStyles";
 
 interface Img2ImgPanelProps {
   size: string;
@@ -26,10 +32,35 @@ export default function Img2ImgPanel({
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  // 风格预设：默认极简 Zine；null = 不套风格（普通图生图）
+  const [styleId, setStyleId] = useState<string>(DEFAULT_EDIT_STYLE);
+  const [styleColor, setStyleColor] = useState<string>("");
+  const [styleTexture, setStyleTexture] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
+
+  const activeStyle: EditStylePreset | undefined = EDIT_STYLE_PRESETS.find(
+    (s) => s.id === styleId,
+  );
+
+  /** 编译最终编辑 prompt：风格前缀（填槽） + 用户描述 */
+  function compileEditPrompt(): string {
+    const userDesc = edit.trim() || "生成这张图的变体";
+    if (!activeStyle) return userDesc;
+    let prefix = activeStyle.prefix;
+    const color =
+      styleColor ||
+      activeStyle.colors?.[0] ||
+      "fully saturated cobalt-blue";
+    const texture =
+      styleTexture ||
+      activeStyle.textures?.[0] ||
+      "risograph grain";
+    prefix = prefix.replace("{color}", color).replace("{texture}", texture);
+    return `${prefix}\n\n用户的修改要求：${userDesc}`;
+  }
 
   useEffect(() => {
     if (processing) {
@@ -62,6 +93,9 @@ export default function Img2ImgPanel({
     setProcessing(false);
     setAnalyzing(false);
     setBase64(null);
+    // 新上传时重置风格色/纹理（保留风格选择）
+    setStyleColor("");
+    setStyleTexture("");
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -81,8 +115,8 @@ export default function Img2ImgPanel({
     setAnalyzing(false);
 
     if (onEditImage) {
-      // 新链路：原图直传编辑（保留构图/主体，只按描述修改）
-      onEditImage(base64, edit.trim() || "生成这张图的变体", size);
+      // 新链路：原图直传编辑（保留构图/主体，风格前缀 + 用户描述）
+      onEditImage(base64, compileEditPrompt(), size);
       setProcessing(false);
       return;
     }
@@ -195,7 +229,9 @@ export default function Img2ImgPanel({
           <textarea
             value={edit}
             onChange={(e) => setEdit(e.target.value)}
-            placeholder="描述你想要的改动，例如：改成赛博朋克风格、换成油画风格、把背景变成海边日落…"
+            onFocus={lockPageScroll}
+            onBlur={unlockPageScroll}
+            placeholder="描述你想要的改动（可选），例如：改成赛博朋克风格、把背景变成海边日落…"
             rows={2}
             disabled={processing}
             className="w-full rounded-xl px-3.5 py-2.5 text-xs resize-none transition-all duration-200 disabled:opacity-40"
@@ -205,6 +241,103 @@ export default function Img2ImgPanel({
               color: "var(--text-primary)",
             }}
           />
+
+          {/* 风格预设 */}
+          <div className="rounded-xl px-3 py-2.5 space-y-2.5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
+                风格
+              </span>
+              <button
+                type="button"
+                onClick={() => setStyleId(styleId === "" ? DEFAULT_EDIT_STYLE : "")}
+                className="text-[10px] transition-colors hover:opacity-80"
+                style={{ color: styleId === "" ? "var(--accent)" : "var(--text-muted)" }}
+              >
+                {styleId === "" ? "开启风格" : "不使用风格"}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {EDIT_STYLE_PRESETS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setStyleId(s.id)}
+                  disabled={processing}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
+                  style={{
+                    background: styleId === s.id ? "var(--accent-surface)" : "var(--bg-root)",
+                    border: `1px solid ${styleId === s.id ? "var(--accent)" : "var(--border)"}`,
+                    color: styleId === s.id ? "var(--accent)" : "var(--text-secondary)",
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {activeStyle?.colors && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
+                  主色
+                </span>
+                {activeStyle.colors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setStyleColor(c)}
+                    disabled={processing}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40"
+                    style={{
+                      background:
+                        styleColor === c || (!styleColor && c === activeStyle.colors?.[0])
+                          ? "var(--accent-surface)"
+                          : "var(--bg-root)",
+                      border: `1px solid ${
+                        styleColor === c || (!styleColor && c === activeStyle.colors?.[0])
+                          ? "var(--accent)"
+                          : "var(--border)"
+                      }`,
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {c.replace("fully saturated ", "").replace("opaque ", "").replace("vivid ", "").replace("clean ", "").replace("pear-", "梨").replace("magenta-pink", "品红").replace("cobalt-blue", "钴蓝").replace("ultramarine", "群青").replace("lemon-yellow", "柠檬黄").replace("tomato-red", "番茄红")}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeStyle?.textures && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
+                  纹理
+                </span>
+                {activeStyle.textures.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setStyleTexture(t)}
+                    disabled={processing}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40"
+                    style={{
+                      background:
+                        styleTexture === t || (!styleTexture && t === activeStyle.textures?.[0])
+                          ? "var(--accent-surface)"
+                          : "var(--bg-root)",
+                      border: `1px solid ${
+                        styleTexture === t || (!styleTexture && t === activeStyle.textures?.[0])
+                          ? "var(--accent)"
+                          : "var(--border)"
+                      }`,
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {t.replace("risograph grain", "Riso 颗粒").replace("xerox softness", "复印柔化").replace("letterpress ink bleed", "铅印洇墨").replace("halftone degradation", "半调失真").replace("aged paper mottling", "旧纸斑驳")}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2.5">
             {processing ? (
