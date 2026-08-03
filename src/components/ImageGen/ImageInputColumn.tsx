@@ -20,13 +20,17 @@ interface ImageInputColumnProps {
   onGenerate: (prompt: string, size: string) => void;
   /** 图生图：原图直传编辑 */
   onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图批量：最多 5 张 */
+  onEditImageBatch?: (
+    image: string,
+    prompt: string,
+    size: string,
+    count: number,
+  ) => void;
   onStopGenerate: () => void;
   onCheckinClick?: () => void;
   onWalletClick?: () => void;
 }
-
-const toolbarBtn =
-  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95";
 
 export default function ImageInputColumn({
   prompt,
@@ -41,6 +45,7 @@ export default function ImageInputColumn({
   todayChecked = false,
   onGenerate,
   onEditImage,
+  onEditImageBatch,
   onStopGenerate,
   onCheckinClick,
   onWalletClick,
@@ -50,7 +55,7 @@ export default function ImageInputColumn({
     null,
   );
 
-  function toggleToolbar(panel: "reverse" | "img2img") {
+  function toggleToolbar(panel: "reverse" | "img2img" | null) {
     setToolbarOpen((prev) => (prev === panel ? null : panel));
   }
 
@@ -63,64 +68,51 @@ export default function ImageInputColumn({
 
   return (
     <div
-      className="w-full md:w-1/4 md:min-w-[260px] border-b md:border-b-0 md:border-r overflow-y-auto flex flex-col shrink-0"
+      className="w-full md:w-[30%] md:min-w-[300px] lg:w-[28%] border-b md:border-b-0 md:border-r overflow-y-auto flex flex-col shrink-0"
       style={{
         borderColor: "var(--border)",
         background: "var(--bg-root)",
       }}
     >
-      <div className="flex items-center gap-2 px-5 pt-4 pb-2 shrink-0 flex-wrap">
-        <span
-          className="text-[10px] font-semibold tracking-widest uppercase mr-0.5"
-          style={{ color: "var(--text-muted)" }}
-        >
-          工具
-        </span>
-        <button
-          onClick={() => toggleToolbar("reverse")}
-          className={toolbarBtn}
-          style={{
-            background:
-              toolbarOpen === "reverse"
-                ? "var(--accent-surface)"
-                : "var(--bg-surface)",
-            border: `1px solid ${
-              toolbarOpen === "reverse" ? "var(--accent)" : "var(--border)"
-            }`,
-            color:
-              toolbarOpen === "reverse"
-                ? "var(--accent)"
-                : "var(--text-secondary)",
-          }}
-        >
-          反推
-        </button>
-        <button
-          onClick={() => toggleToolbar("img2img")}
-          className={toolbarBtn}
-          style={{
-            background:
-              toolbarOpen === "img2img"
-                ? "var(--accent-surface)"
-                : "var(--bg-surface)",
-            border: `1px solid ${
-              toolbarOpen === "img2img" ? "var(--accent)" : "var(--border)"
-            }`,
-            color:
-              toolbarOpen === "img2img"
-                ? "var(--accent)"
-                : "var(--text-secondary)",
-          }}
-        >
-          图生图
-        </button>
+      {/* 模式切换：文生图 / 图生图 / 反推 三 Tab 互斥 */}
+      <div className="flex items-center gap-1 px-4 pt-4 pb-3 shrink-0">
+        {(
+          [
+            { key: null as null, label: "文生图" },
+            { key: "img2img" as const, label: "图生图" },
+            { key: "reverse" as const, label: "反推" },
+          ] as const
+        ).map((tab) => {
+          const active =
+            tab.key === null ? toolbarOpen === null : toolbarOpen === tab.key;
+          return (
+            <button
+              key={tab.label}
+              type="button"
+              onClick={() => toggleToolbar(tab.key)}
+              className="flex-1 px-2 py-2 rounded-xl text-[12px] font-semibold transition-all duration-200 active:scale-[0.98] whitespace-nowrap"
+              style={{
+                background: active
+                  ? "var(--accent-surface)"
+                  : "var(--bg-surface)",
+                border: `1px solid ${
+                  active ? "var(--accent)" : "var(--border)"
+                }`,
+                color: active ? "var(--accent)" : "var(--text-muted)",
+                boxShadow: active ? "var(--shadow-sm)" : "none",
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* 工具面板：展开时隐藏文生图输入区，保证页面上只有一个输入框 */}
       <div
-        className="overflow-hidden border-b shrink-0 transition-all duration-300 ease-in-out"
+        className="overflow-y-auto border-b shrink-0 transition-all duration-300 ease-in-out"
         style={{
-          maxHeight: toolbarOpen ? "400px" : "0px",
+          maxHeight: toolbarOpen ? "min(70vh, 640px)" : "0px",
           borderColor: toolbarOpen ? "var(--border)" : "transparent",
           background: "var(--bg-surface)",
         }}
@@ -130,14 +122,17 @@ export default function ImageInputColumn({
             <ReversePromptPanel
               disabled={generating}
               onPrompt={setPrompt}
+              onCloseToolbar={() => setToolbarOpen(null)}
             />
           )}
           {toolbarOpen === "img2img" && (
             <Img2ImgPanel
               size={size}
+              sizeOptions={sizeOptions}
               generating={generating}
               onGenerate={onGenerate}
               onEditImage={onEditImage}
+              onEditImageBatch={onEditImageBatch}
               onStopGenerate={onStopGenerate}
             />
           )}
@@ -146,7 +141,7 @@ export default function ImageInputColumn({
 
       {/* 文生图输入区：工具面板展开时隐藏（模式互斥，避免双输入框） */}
       {!toolbarOpen && (
-      <div className="p-5 space-y-4">
+      <div className="px-5 pt-4 pb-6 space-y-5">
         <label
           className="text-[11px] font-semibold tracking-widest uppercase"
           style={{ color: "var(--text-muted)" }}

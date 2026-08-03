@@ -16,6 +16,67 @@ import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
 
 const MAX_PROMPT_LENGTH = 2000;
 
+/**
+ * gpt-image-2 等 OpenAI 兼容模型的原生支持尺寸。
+ * 标准比例（9:16 等）用最近原生尺寸生成，再由 sharp 精确裁切。
+ */
+const NATIVE_SIZES = [
+  "1024x1024",
+  "1024x1536",
+  "1536x1024",
+  "1024x1792",
+  "1792x1024",
+];
+
+/** 需要走「原生尺寸 + 精确裁切」的模型（其他模型直接用请求 size） */
+const CROP_MODELS = new Set(["gpt-image-2"]);
+
+function parseSize(size: string): { w: number; h: number } | null {
+  const m = /^(\d+)x(\d+)$/.exec(size.trim());
+  if (!m) return null;
+  return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
+}
+
+/** 取最接近目标比例的原生请求尺寸（优先同方向且面积接近） */
+function nearestNativeSize(target: string): string {
+  const t = parseSize(target);
+  if (!t) return "1024x1024";
+  const targetRatio = t.w / t.h;
+  let best = NATIVE_SIZES[0]!;
+  let bestScore = Infinity;
+  for (const s of NATIVE_SIZES) {
+    const ns = parseSize(s)!;
+    const ratio = ns.w / ns.h;
+    // 比例接近度优先，其次面积差异小
+    const score =
+      Math.abs(ratio - targetRatio) * 10 +
+      Math.abs(Math.log(ns.w * ns.h) - Math.log(t.w * t.h));
+    if (score < bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  }
+  return best;
+}
+
+/** 把生成的 buffer 精确裁切到目标尺寸（fit cover 居中），返回新 buffer */
+async function cropToSize(
+  buffer: Buffer,
+  target: string,
+): Promise<{ buffer: Buffer; size: string }> {
+  const t = parseSize(target);
+  if (!t) return { buffer, size: target };
+  try {
+    const { default: sharp } = await import("sharp");
+    const out = await sharp(buffer)
+      .resize(t.w, t.h, { fit: "cover", position: "centre" })
+      .toBuffer();
+    return { buffer: out, size: target };
+  } catch {
+    return { buffer, size: target };
+  }
+}
+
 export async function generateImage(opts: {
   userId: string;
   /** admin 生图不扣积分 */
@@ -84,6 +145,10 @@ export async function generateImage(opts: {
   }
 
   let lastError: unknown;
+  // 仅 gpt-image-2：标准比例映射到最近原生尺寸生成，落盘前精确裁切；
+  // 其他模型（seedream/grok 等）直接用请求 size，不裁切
+  const needsCrop = CROP_MODELS.has(model);
+  const requestSize = needsCrop ? nearestNativeSize(size) : size;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(`${baseUrl}/images/generations`, {
@@ -96,7 +161,7 @@ export async function generateImage(opts: {
           model,
           prompt: finalPrompt,
           n: 1,
-          size,
+          size: requestSize,
           quality: "high",
         }),
       });
@@ -117,6 +182,12 @@ export async function generateImage(opts: {
         buffer = Buffer.from(await imageRes.arrayBuffer());
       } else {
         throw new Error("未能生成图片");
+      }
+
+      // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
+      if (needsCrop) {
+        const cropped = await cropToSize(buffer, size);
+        buffer = cropped.buffer;
       }
 
       const imagesDir = path.join(process.cwd(), "public", "images");
@@ -239,6 +310,9 @@ export async function editImage(opts: {
   if (!baseUrl) throw new ApiError("未配置 API Base URL", 400);
 
   let lastError: unknown;
+  // 仅 gpt-image-2：标准比例映射到最近原生尺寸，落盘前精确裁切
+  const needsCrop = CROP_MODELS.has(model);
+  const requestSize = needsCrop ? nearestNativeSize(size) : size;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(`${baseUrl}/images/edits`, {
@@ -250,7 +324,7 @@ export async function editImage(opts: {
         body: JSON.stringify({
           model,
           prompt,
-          size,
+          size: requestSize,
           n: 1,
           quality: "high",
           // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）
@@ -274,6 +348,12 @@ export async function editImage(opts: {
         buffer = Buffer.from(await imageRes.arrayBuffer());
       } else {
         throw new Error("未能生成图片");
+      }
+
+      // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
+      if (needsCrop) {
+        const cropped = await cropToSize(buffer, size);
+        buffer = cropped.buffer;
       }
 
       const imagesDir = path.join(process.cwd(), "public", "images");
@@ -402,4 +482,74 @@ export async function deleteImageRecord(userId: string, id: string) {
 
   await db.delete(imageGenerations).where(eq(imageGenerations.id, id));
   return { success: true };
+}
+
+/**
+ * 批量图生图（同参考图 + 描述，生成 N 张变体，最大 5 张）。
+ * 积分策略（无竞态）：
+ * 1. 生成前一次性校验余额 >= 5 × n，不足直接拒绝（不扣款）
+ * 2. 逐张生成，成功一张原子扣 5 积分（consumeCredits 自带 WHERE credits>=amount）
+ * 3. 单张失败跳过继续，返回成功/失败计数；已扣积分 = 成功张数，与单张生成一致
+ */
+export async function editImageBatch(opts: {
+  userId: string;
+  role?: string;
+  image: string;
+  prompt: string;
+  modelOverride?: string;
+  size?: string;
+  count?: number;
+}) {
+  const {
+    userId,
+    role = "user",
+    image,
+    prompt,
+    modelOverride,
+    size = "1024x1024",
+    count = 1,
+  } = opts;
+
+  if (!image?.trim()) throw new ApiError("image 为必填项", 400);
+  if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
+  const n = Math.min(Math.max(Math.floor(count) || 1, 1), 5);
+  if (n > 1 && prompt.length > MAX_PROMPT_LENGTH) {
+    throw new ApiError(`提示词不能超过 ${MAX_PROMPT_LENGTH} 字`, 400);
+  }
+
+  const chargeCredits = role !== "admin";
+  // 预校验总额度（不足直接拒绝，不扣款）
+  if (userId && chargeCredits) {
+    await assertEnoughCredits(userId, CREDIT_PER_IMAGE * n);
+  }
+
+  const results: Awaited<ReturnType<typeof editImage>>[] = [];
+  let failed = 0;
+  let lastError: string | null = null;
+
+  // 串行生成：避免并发打爆上游配额；每张独立原子扣款
+  for (let i = 0; i < n; i++) {
+    try {
+      const r = await editImage({
+        userId,
+        role,
+        image,
+        prompt,
+        modelOverride,
+        size,
+      });
+      results.push(r);
+    } catch (err) {
+      failed += 1;
+      lastError = err instanceof Error ? err.message : "生成失败";
+    }
+  }
+
+  return {
+    images: results,
+    total: n,
+    succeeded: results.length,
+    failed,
+    lastError,
+  };
 }

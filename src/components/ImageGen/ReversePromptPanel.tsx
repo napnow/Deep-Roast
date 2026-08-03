@@ -2,16 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useDeepRoastStore } from "@/lib/store";
-import { formatTime } from "./imageUtils";
+import { formatTime, compressImageFile } from "./imageUtils";
 
 interface ReversePromptPanelProps {
   disabled?: boolean;
   onPrompt: (prompt: string) => void;
+  /** 回填后关闭工具面板（返回文生图视图） */
+  onCloseToolbar?: () => void;
 }
 
 export default function ReversePromptPanel({
   disabled,
   onPrompt,
+  onCloseToolbar,
 }: ReversePromptPanelProps) {
   const config = useDeepRoastStore((s) => s.config);
   const reverseModel = config.reversePromptModel?.trim() || "";
@@ -20,9 +23,22 @@ export default function ReversePromptPanel({
   const [prompting, setPrompting] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  // 反推结果：面板内展示，可编辑后回填文生图
+  const [result, setResult] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // 分析完成：自动滚动到结果卡片（面板内可能被折叠在下方）
+  useEffect(() => {
+    if (result && !prompting) {
+      resultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [result, prompting]);
 
   useEffect(() => {
     if (prompting) {
@@ -45,14 +61,15 @@ export default function ReversePromptPanel({
     setPrompting(false);
     setBase64(null);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const data = reader.result as string;
-      setPreview(data);
-      setBase64(data);
-    };
-    reader.onerror = () => setError("读取图片失败");
-    reader.readAsDataURL(file);
+    // 压缩后用于分析（避免大图撞 body 限制；预览用原图）
+    compressImageFile(file)
+      .then((data) => {
+        setBase64(data);
+        const reader = new FileReader();
+        reader.onload = () => setPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      })
+      .catch(() => setError("读取图片失败"));
     e.target.value = "";
   }
 
@@ -77,6 +94,7 @@ export default function ReversePromptPanel({
         return;
       }
       const data = await res.json();
+      setResult(data.prompt || "");
       onPrompt(data.prompt);
       setPrompting(false);
     } catch (err: unknown) {
@@ -100,6 +118,7 @@ export default function ReversePromptPanel({
     setBase64(null);
     setError("");
     setPrompting(false);
+    setResult("");
   }
 
   return (
@@ -225,6 +244,76 @@ export default function ReversePromptPanel({
         <p className="text-[11px] animate-fade-in" style={{ color: "var(--danger)" }}>
           ✗ {error}
         </p>
+      )}
+
+      {/* 反推结果：面板内展示，可编辑后一键回填文生图 */}
+      {result && !prompting && (
+        <div
+          ref={resultRef}
+          className="rounded-xl p-3 space-y-2 animate-fade-in"
+          style={{
+            background: "var(--bg-root)",
+            border: "1px solid var(--accent)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <span
+              className="text-[10px] font-semibold tracking-widest uppercase"
+              style={{ color: "var(--accent)" }}
+            >
+              反推结果
+            </span>
+            <button
+              type="button"
+              onClick={() => setResult("")}
+              className="text-[10px] transition-colors hover:opacity-80"
+              style={{ color: "var(--text-muted)" }}
+            >
+              清除 ✕
+            </button>
+          </div>
+          <textarea
+            value={result}
+            onChange={(e) => setResult(e.target.value)}
+            rows={4}
+            className="w-full rounded-lg px-2.5 py-2 text-xs resize-none"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onPrompt(result);
+                onCloseToolbar?.();
+              }}
+              className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 active:scale-95"
+              style={{
+                background: "var(--accent)",
+                color: "var(--accent-on)",
+              }}
+            >
+              使用此提示词生成
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(result);
+              }}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              复制
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

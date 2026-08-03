@@ -22,6 +22,11 @@ export default function SmartResultImage({
   const fullRef = useRef<HTMLImageElement>(null);
   const thumb = record.thumbUrl || record.imageUrl;
 
+  // 切换图片时重置：先显示缩略图，原图加载完再淡入
+  useEffect(() => {
+    setShowFull(false);
+  }, [record.imageUrl]);
+
   useEffect(() => {
     // 原图加载完成后再替换
     const img = fullRef.current;

@@ -19,6 +19,13 @@ interface ImageGenViewProps {
   onGenerate: (prompt: string, size: string) => void;
   /** 图生图：原图直传编辑（返回编辑结果并入历史） */
   onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图批量：同参考图生成 N 张变体（最多 5） */
+  onEditImageBatch?: (
+    image: string,
+    prompt: string,
+    size: string,
+    count: number,
+  ) => void;
   onStopGenerate: () => void;
   generating: boolean;
   history: ImageRecord[];
@@ -43,6 +50,7 @@ export default function ImageGenView({
   model,
   onGenerate,
   onEditImage,
+  onEditImageBatch,
   onStopGenerate,
   generating,
   history,
@@ -135,6 +143,7 @@ export default function ImageGenView({
           todayChecked={todayChecked}
           onGenerate={handleGenerate}
           onEditImage={onEditImage}
+          onEditImageBatch={onEditImageBatch}
           onStopGenerate={onStopGenerate}
           onCheckinClick={onCheckinClick}
           onWalletClick={onWalletClick}
@@ -145,6 +154,7 @@ export default function ImageGenView({
           generating={generating}
           elapsedSeconds={elapsedSeconds}
           lastGenTime={lastGenTime}
+          onClear={() => onActiveImageChange(null)}
         />
 
         <ImageHistoryPanel
@@ -168,6 +178,7 @@ export default function ImageGenView({
                 generating={generating}
                 elapsedSeconds={elapsedSeconds}
                 lastGenTime={lastGenTime}
+                onClear={() => onActiveImageChange(null)}
               />
             </div>
           ) : mobileTab === "gallery" ? (
@@ -195,6 +206,7 @@ export default function ImageGenView({
           isAdmin={isAdmin}
           onGenerate={handleGenerate}
           onEditImage={onEditImage}
+          onEditImageBatch={onEditImageBatch}
           onStopGenerate={onStopGenerate}
           onHeightChange={setBarHeight}
         />

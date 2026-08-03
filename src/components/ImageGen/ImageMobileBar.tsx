@@ -18,6 +18,13 @@ interface ImageMobileBarProps {
   onGenerate: (prompt: string, size: string) => void;
   /** 图生图：原图直传编辑 */
   onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图批量：最多 5 张 */
+  onEditImageBatch?: (
+    image: string,
+    prompt: string,
+    size: string,
+    count: number,
+  ) => void;
   onStopGenerate: () => void;
   /** 输入条实际高度（结果区预留底部空间） */
   onHeightChange?: (height: number) => void;
@@ -61,6 +68,7 @@ export default function ImageMobileBar({
   isAdmin = false,
   onGenerate,
   onEditImage,
+  onEditImageBatch,
   onStopGenerate,
   onHeightChange,
 }: ImageMobileBarProps) {
@@ -128,20 +136,23 @@ export default function ImageMobileBar({
         <div className="relative border-b" style={{ borderColor: "var(--border)" }}>
           <div
             className="overflow-y-auto overflow-x-hidden px-4 py-3"
-            style={{ maxHeight: "40vh", background: "var(--bg-surface)" }}
+            style={{ maxHeight: "60vh", background: "var(--bg-surface)" }}
           >
             {toolbarOpen === "reverse" && (
               <ReversePromptPanel
                 disabled={generating}
                 onPrompt={setPrompt}
+                onCloseToolbar={() => setToolbarOpen(null)}
               />
             )}
             {toolbarOpen === "img2img" && (
               <Img2ImgPanel
                 size={size}
+                sizeOptions={sizeOptions}
                 generating={generating}
                 onGenerate={onGenerate}
                 onEditImage={onEditImage}
+                onEditImageBatch={onEditImageBatch}
                 onStopGenerate={onStopGenerate}
               />
             )}

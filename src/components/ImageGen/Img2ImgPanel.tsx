@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { formatTime } from "./imageUtils";
+import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import {
   EDIT_STYLE_PRESETS,
@@ -11,18 +11,29 @@ import {
 
 interface Img2ImgPanelProps {
   size: string;
+  /** 可选比例列表（与文生图一致：1:1 / 9:16 / 16:9 等） */
+  sizeOptions?: { value: string; label: string }[];
   generating: boolean;
   onGenerate: (prompt: string, size: string) => void;
   /** 图生图：原图直传编辑；提供时优先使用 */
   onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图批量：最多 5 张 */
+  onEditImageBatch?: (
+    image: string,
+    prompt: string,
+    size: string,
+    count: number,
+  ) => void;
   onStopGenerate: () => void;
 }
 
 export default function Img2ImgPanel({
   size,
+  sizeOptions,
   generating,
   onGenerate,
   onEditImage,
+  onEditImageBatch,
   onStopGenerate,
 }: Img2ImgPanelProps) {
   const [preview, setPreview] = useState<string | null>(null);
@@ -32,8 +43,12 @@ export default function Img2ImgPanel({
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
-  // 风格预设：默认极简 Zine；null = 不套风格（普通图生图）
-  const [styleId, setStyleId] = useState<string>(DEFAULT_EDIT_STYLE);
+  // 图生图独立比例（默认与父级一致，面板内可单独切换）
+  const [editSize, setEditSize] = useState(size);
+  // 批量数量（1 = 单张；2-5 = 批量变体）
+  const [batchCount, setBatchCount] = useState(1);
+  // 风格预设：默认不开启，用户自行选择
+  const [styleId, setStyleId] = useState<string>("");
   const [styleColor, setStyleColor] = useState<string>("");
   const [styleTexture, setStyleTexture] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -97,13 +112,14 @@ export default function Img2ImgPanel({
     setStyleColor("");
     setStyleTexture("");
 
+    // 压缩后用于编辑请求（避免大图撞 body 限制；预览用原图）
+    compressImageFile(file, 1536, 0.9)
+      .then((data) => setBase64(data))
+      .catch(() => setError("读取图片失败"));
     const reader = new FileReader();
     reader.onload = () => {
-      const data = reader.result as string;
-      setPreview(data);
-      setBase64(data);
+      setPreview(reader.result as string);
     };
-    reader.onerror = () => setError("读取图片失败");
     reader.readAsDataURL(file);
     e.target.value = "";
   }
@@ -116,8 +132,16 @@ export default function Img2ImgPanel({
 
     if (onEditImage) {
       // 新链路：原图直传编辑（保留构图/主体，风格前缀 + 用户描述）
-      onEditImage(base64, compileEditPrompt(), size);
-      setProcessing(false);
+      // 标记已提交：等 generating 结束由 useEffect 清理面板
+      genRef.current = true;
+      // 注意：这里不 setProcessing(false)！让 processing 保持 true，
+      // 禁用按钮直到父级 generating 接管（防重复点击生成多张）
+      if (batchCount > 1 && onEditImageBatch) {
+        // 批量：同参考图生成多张变体
+        onEditImageBatch(base64, compileEditPrompt(), editSize, batchCount);
+      } else {
+        onEditImage(base64, compileEditPrompt(), editSize);
+      }
       return;
     }
 
@@ -141,7 +165,7 @@ export default function Img2ImgPanel({
         return;
       }
       const data = await res.json();
-      onGenerate(data.prompt, size);
+      onGenerate(data.prompt, editSize);
       setProcessing(false);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -224,9 +248,9 @@ export default function Img2ImgPanel({
         )}
       </div>
 
-      {preview && (
-        <>
-          <textarea
+      {/* 描述/风格/比例/生成：始终显示（上传图片只是填充参考图） */}
+      <>
+        <textarea
             value={edit}
             onChange={(e) => setEdit(e.target.value)}
             onFocus={lockPageScroll}
@@ -301,7 +325,35 @@ export default function Img2ImgPanel({
                       color: "var(--text-secondary)",
                     }}
                   >
-                    {c.replace("fully saturated ", "").replace("opaque ", "").replace("vivid ", "").replace("clean ", "").replace("pear-", "梨").replace("magenta-pink", "品红").replace("cobalt-blue", "钴蓝").replace("ultramarine", "群青").replace("lemon-yellow", "柠檬黄").replace("tomato-red", "番茄红")}
+                    {c
+                      .replace("fully saturated ", "")
+                      .replace("opaque ", "")
+                      .replace("vivid ", "")
+                      .replace("clean ", "")
+                      .replace("electric ", "")
+                      .replace("vibrant ", "")
+                      .replace("crimson ", "")
+                      .replace("golden ", "")
+                      .replace("emerald ", "")
+                      .replace("hot ", "")
+                      .replace("pear-", "梨")
+                      .replace("magenta-pink", "品红")
+                      .replace("cobalt-blue", "钴蓝")
+                      .replace("ultramarine", "群青")
+                      .replace("lemon-yellow", "柠檬黄")
+                      .replace("tomato-red", "番茄红")
+                      .replace("orange-red", "橙红")
+                      .replace("electric blue", "电光蓝")
+                      .replace("crimson red", "绯红")
+                      .replace("golden yellow", "金黄")
+                      .replace("emerald green", "祖母绿")
+                      .replace("hot pink", "亮粉")
+                      .replace("warm rice paper white", "暖米宣纸")
+                      .replace("cool porcelain white", "冷瓷白")
+                      .replace("mist gray paper", "雾灰")
+                      .replace("muted celadon paper", "青瓷")
+                      .replace("moonlit pale indigo paper", "月夜靛蓝")
+                      .replace("light ochre paper", "浅赭")}
                   </button>
                 ))}
               </div>
@@ -332,11 +384,116 @@ export default function Img2ImgPanel({
                       color: "var(--text-secondary)",
                     }}
                   >
-                    {t.replace("risograph grain", "Riso 颗粒").replace("xerox softness", "复印柔化").replace("letterpress ink bleed", "铅印洇墨").replace("halftone degradation", "半调失真").replace("aged paper mottling", "旧纸斑驳")}
+                    {t
+                      .replace("risograph grain", "Riso 颗粒")
+                      .replace("xerox softness", "复印柔化")
+                      .replace("letterpress ink bleed", "铅印洇墨")
+                      .replace("halftone degradation", "半调失真")
+                      .replace("aged paper mottling", "旧纸斑驳")
+                      .replace("dry-brush fracture", "飞白破墨")
+                      .replace("wet wash bloom", "湿墨晕染")
+                      .replace("diluted transparent ink layers", "淡墨层叠")
+                      .replace("pooled pigment edge", "墨渍边缘")
+                      .replace("ink-absorbed photo fragment", "墨吸照片")
+                      .replace("soft photocopy grain", "柔复印颗粒")}
                   </button>
                 ))}
               </div>
             )}
+          </div>
+
+          {/* 图片比例（面板内独立选择） */}
+          {sizeOptions && sizeOptions.length > 0 && (
+            <div
+              className="rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap"
+              style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span
+                className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              >
+                比例
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {sizeOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEditSize(opt.value)}
+                    disabled={processing}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
+                    style={{
+                      background:
+                        editSize === opt.value
+                          ? "var(--accent-surface)"
+                          : "var(--bg-root)",
+                      border: `1px solid ${
+                        editSize === opt.value
+                          ? "var(--accent)"
+                          : "var(--border)"
+                      }`,
+                      color:
+                        editSize === opt.value
+                          ? "var(--accent)"
+                          : "var(--text-secondary)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 批量数量：1 = 单张，2-5 = 批量变体（每张 5 积分） */}
+          <div
+            className="rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <span
+              className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              数量
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setBatchCount(n)}
+                  disabled={processing}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
+                  style={{
+                    background:
+                      batchCount === n
+                        ? "var(--accent-surface)"
+                        : "var(--bg-root)",
+                    border: `1px solid ${
+                      batchCount === n ? "var(--accent)" : "var(--border)"
+                    }`,
+                    color:
+                      batchCount === n
+                        ? "var(--accent)"
+                        : "var(--text-secondary)",
+                  }}
+                >
+                  {n === 1 ? "1 张" : `${n} 张`}
+                </button>
+              ))}
+            </div>
+            <span
+              className="text-[10px] shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {batchCount > 1 ? `共 ${batchCount * 5} 积分` : "每张 5 积分"}
+            </span>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -374,7 +531,7 @@ export default function Img2ImgPanel({
             ) : (
               <button
                 onClick={handleGenerate}
-                disabled={!base64 || generating}
+                disabled={!base64 || generating || processing}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:scale-100"
                 style={{
                   background: "var(--accent-surface)",
@@ -386,8 +543,7 @@ export default function Img2ImgPanel({
               </button>
             )}
           </div>
-        </>
-      )}
+      </>
 
       {error && (
         <p className="text-[11px] animate-fade-in" style={{ color: "var(--danger)" }}>

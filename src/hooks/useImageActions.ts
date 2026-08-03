@@ -119,6 +119,71 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     [setGenerating, setImageHistory, toast, loadCredits, setWalletOpen],
   );
 
+  /** 图生图批量：同参考图生成 N 张变体（最多 5），结果并入历史 */
+  const handleEditImageBatch = useCallback(
+    async (image: string, prompt: string, size: string, count: number) => {
+      setGenerating(true);
+      const abort = new AbortController();
+      imageAbortRef.current = abort;
+      try {
+        const data = await apiJson<{
+          images: {
+            id: string;
+            prompt: string;
+            model: string;
+            imageUrl: string;
+            thumbUrl?: string;
+            size: string;
+          }[];
+          total: number;
+          succeeded: number;
+          failed: number;
+          lastError?: string | null;
+        }>("/api/image-edit/batch", {
+          method: "POST",
+          ...jsonBody({ image, prompt, size, count }),
+          signal: abort.signal,
+        });
+        const list = (data.images || []).map((img) => ({
+          id: img.id,
+          prompt: img.prompt,
+          model: img.model,
+          imageUrl: img.imageUrl,
+          thumbUrl: img.thumbUrl,
+          size: img.size,
+          createdAt: new Date().toISOString(),
+        }));
+        setImageHistory((prev) => [...list, ...prev]);
+        if (data.succeeded > 0) {
+          toast(
+            data.failed > 0
+              ? `生成成功 ${data.succeeded} 张，失败 ${data.failed} 张`
+              : `生成成功 ${data.succeeded} 张`,
+            "success",
+          );
+        } else {
+          toast(data.lastError || "批量生成失败", "error");
+        }
+        loadCredits();
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          // stopped
+        } else if (err instanceof ApiError) {
+          if (err.code === "INSUFFICIENT_CREDITS") {
+            toast("积分不足，请先签到或联系管理员", "error");
+            setWalletOpen(true);
+          } else {
+            toast(err.message || "批量生成失败", "error");
+          }
+        } else {
+          toast("网络错误", "error");
+        }
+      }
+      setGenerating(false);
+    },
+    [setGenerating, setImageHistory, toast, loadCredits, setWalletOpen],
+  );
+
   const handleDeleteImage = useCallback(
     async (id: string) => {
       try {
@@ -135,6 +200,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
   return {
     handleGenerateImage,
     handleEditImage,
+    handleEditImageBatch,
     handleStopGenerateImage,
     handleDeleteImage,
   };

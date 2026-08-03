@@ -131,6 +131,7 @@ export default function Home() {
           model={config.imageModel}
           onGenerate={actions.handleGenerateImage}
           onEditImage={actions.handleEditImage}
+          onEditImageBatch={actions.handleEditImageBatch}
           onStopGenerate={actions.handleStopGenerateImage}
           generating={generating}
           history={imageHistory}
