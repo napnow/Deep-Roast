@@ -8,7 +8,7 @@ import {
   parseEnabledModels,
   serializeModelIds,
 } from "@/lib/config";
-import { requireAdmin } from "@/server/auth";
+import { requireAdmin, requireActiveUser } from "@/server/auth";
 import { normalizeBaseUrl } from "@/server/providers/llm";
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 
@@ -60,7 +60,9 @@ function asStringArray(value: unknown): string[] | undefined {
 }
 
 // GET /api/config
-export const GET = handleRoute(async () => {
+export const GET = handleRoute(async (req) => {
+  // 配置含上游 Base URL 与 key 掩码，仅登录用户可读
+  await requireActiveUser(req);
   const config = await getConfig();
   if (!config) throw new ApiError("未找到配置", 404);
   return jsonOk(publicConfig(config));
