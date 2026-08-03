@@ -92,7 +92,13 @@ export async function generateImage(opts: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ model, prompt: finalPrompt, n: 1, size }),
+        body: JSON.stringify({
+          model,
+          prompt: finalPrompt,
+          n: 1,
+          size,
+          quality: "high",
+        }),
       });
 
       if (!res.ok) {
@@ -246,6 +252,7 @@ export async function editImage(opts: {
           prompt,
           size,
           n: 1,
+          quality: "high",
           // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）
           image,
         }),

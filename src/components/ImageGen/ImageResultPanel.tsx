@@ -1,7 +1,8 @@
 "use client";
 
 import type { ImageRecord } from "@/types";
-import { downloadImage, formatTime, thumbSrc } from "./imageUtils";
+import { downloadImage, formatTime } from "./imageUtils";
+import SmartResultImage from "./SmartResultImage";
 
 interface ImageResultPanelProps {
   activeImage: ImageRecord | null;
@@ -28,12 +29,10 @@ export default function ImageResultPanel({
               boxShadow: "var(--shadow-lg)",
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={thumbSrc(activeImage)}
-              alt={activeImage.prompt}
-              className="w-full max-h-[60vh] object-contain"
-              style={{ background: "var(--bg-root)" }}
+            <SmartResultImage
+              record={activeImage}
+              className="w-full"
+              style={{ background: "var(--bg-root)", height: "auto" }}
             />
             <div className="p-4 space-y-2">
               <p
