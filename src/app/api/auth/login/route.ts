@@ -58,6 +58,12 @@ export async function POST(req: Request) {
 
     await clearLoginFailures(user.username);
 
+    // 记录最近活跃时间（管理后台「最近使用」排序用）
+    await db
+      .update(users)
+      .set({ updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
     const token = await signToken({
       userId: user.id,
       username: user.username,

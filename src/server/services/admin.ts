@@ -19,6 +19,7 @@ export async function listUsersWithStats() {
       credits: users.credits,
       status: users.status,
       createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
     })
     .from(users)
     .orderBy(desc(users.createdAt));
@@ -52,10 +53,13 @@ export async function listUsersWithStats() {
       let lastActive: string | null = null;
       const convTime = latestConvs[0]?.updatedAt;
       const imgTime = latestImages[0]?.createdAt;
-      if (convTime || imgTime) {
-        const a = convTime ? new Date(convTime).getTime() : 0;
-        const b = imgTime ? new Date(imgTime).getTime() : 0;
-        lastActive = new Date(Math.max(a, b)).toISOString();
+      // 登录时间（users.updatedAt）也计入最近使用
+      const loginTime = user.updatedAt;
+      if (convTime || imgTime || loginTime) {
+        const a = convTime ? new Date(String(convTime)).getTime() : 0;
+        const b = imgTime ? new Date(String(imgTime)).getTime() : 0;
+        const c = loginTime ? new Date(String(loginTime)).getTime() : 0;
+        lastActive = new Date(Math.max(a, b, c)).toISOString();
       }
 
       return {
@@ -69,6 +73,17 @@ export async function listUsersWithStats() {
         createdAt: user.createdAt,
         lastActive,
       };
+    }),
+  ).then((rows) =>
+    // 按最近使用排序（lastActive 为空 = 从未使用，按注册时间排最后）
+    rows.sort((a, b) => {
+      const ta = a.lastActive ? new Date(String(a.lastActive)).getTime() : 0;
+      const tb = b.lastActive ? new Date(String(b.lastActive)).getTime() : 0;
+      if (ta !== tb) return tb - ta;
+      return (
+        new Date(String(b.createdAt)).getTime() -
+        new Date(String(a.createdAt)).getTime()
+      );
     }),
   );
 }
