@@ -66,6 +66,62 @@ export const EDIT_STYLE_PRESETS: EditStylePreset[] = [
       "平涂色块与木纹纸质感，海浪/云纹装饰元素，传统和风配色（靛蓝、朱红、米白），" +
       "扁平化构图。避免：写实透视、现代数码感、过多暗部细节。",
   },
+  {
+    id: "gathered-zine",
+    label: "拾景纸刊",
+    prefix:
+      "把这张照片改造成「拾景纸刊」风格：竖版 3:5 暖米色纸海报，" +
+      "照片保持真实并占画面 30%-50%（真景为锚，核心主体与空间关系必须可辨认），" +
+      "照片与纸面交界处保留清晰可见的手撕毛边（不规则撕口、露出的纸纤维、暖纸色），" +
+      "其余部分转为大面积抽象插画场（约 45%-70% 画面，内部 55%+ 留白呼吸），" +
+      "简化复杂细节：树叶/人群/纹理压缩为少数大块剪影与方向性笔势，不要逐片描绘，" +
+      "使用 {color} 作为源自照片的唯一高饱和结构色（延续照片轮廓，参与构图而非装饰），" +
+      "{texture} 印刷纹理，加一行不超过 5 个英文单词或 8 个汉字的微文字（打字机/铅笔质感，安静置于留白处）。" +
+      "避免：整图描摹、逐叶逐枝细节、装饰性色块、干净数码剪裁、贴纸白边、3D、霓虹、卡通、商业海报。",
+    colors: [
+      "fully saturated cobalt-blue",
+      "opaque ultramarine",
+      "clean tomato-red",
+      "vivid pear-green",
+      "lemon-yellow",
+      "saturated magenta-pink",
+    ],
+    textures: [
+      "risograph grain",
+      "letterpress ink bleed",
+      "xerox softness",
+      "halftone degradation",
+      "aged paper mottling",
+    ],
+  },
+  {
+    id: "ink-wash",
+    label: "水墨海报",
+    prefix:
+      "把这张照片改造成当代极简水墨编辑海报（Contemporary Ink-Wash Editorial）：" +
+      "竖版 4:5 宣纸/纸面画布，保留照片的主体与构图可辨认（约 35%-65% 画面为墨色主图），" +
+      "其余为大量安静留白（约 35%-65% 空白纸面呼吸），主体边缘用不规则墨晕/淡墨稀释溶解进纸面，不要贴图式矩形，" +
+      "墨法使用 {texture}（飞白/湿墨晕染/稀释层叠/墨渍边缘），墨色随纸色调整（暖纸用中性黑，冷纸用蓝黑/烟墨），" +
+      "纸色为 {color}（低饱和宣纸色系），整体墨色+纸色+至多一个克制点缀色，" +
+      "如有小字使用细 serif/打字机字号安静置于留白处（≤2行，避免大字标题与仿古印章）," +
+      "避免：整页传统山水大场景、大字书法标题、仿古年号日期、饱和数码渐变背景、统一灰色水彩滤镜、3D、霓虹。",
+    colors: [
+      "warm rice paper white",
+      "cool porcelain white",
+      "mist gray paper",
+      "muted celadon paper",
+      "moonlit pale indigo paper",
+      "light ochre paper",
+    ],
+    textures: [
+      "dry-brush fracture",
+      "wet wash bloom",
+      "diluted transparent ink layers",
+      "pooled pigment edge",
+      "ink-absorbed photo fragment",
+      "soft photocopy grain",
+    ],
+  },
 ];
 
 /** 默认风格 id */

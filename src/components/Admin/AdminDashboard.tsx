@@ -2,6 +2,7 @@
 
 import AdminSiteSettingsCard from "@/components/Admin/AdminSiteSettingsCard";
 import AdminAnnouncementsCard from "@/components/Admin/AdminAnnouncementsCard";
+import AdminStyleTestCard from "@/components/Admin/AdminStyleTestCard";
 import { CREDIT_PER_IMAGE } from "@/types";
 
 interface GlobalStats {
@@ -125,6 +126,11 @@ export default function AdminDashboard({
       <div className="grid lg:grid-cols-2 gap-4 items-start admin-stagger">
         <AdminSiteSettingsCard />
         <AdminAnnouncementsCard />
+      </div>
+
+      {/* 风格测试：管理员验证生图风格后再开放给用户 */}
+      <div className="mt-4 admin-stagger">
+        <AdminStyleTestCard />
       </div>
     </div>
   );
