@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -432,18 +433,57 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onFocus={() => setFocusField("password")}
                   onBlur={() => setFocusField(null)}
-                  className="w-full bg-transparent pt-0.5 pb-2.5 text-base sm:text-sm outline-none placeholder:text-[#6b635c]"
+                  className="w-full bg-transparent pt-0.5 pb-2.5 pr-9 text-base sm:text-sm outline-none placeholder:text-[#6b635c]"
                   style={{ color: "#ede6dc" }}
                   placeholder="请输入密码"
                   autoComplete={
                     tab === "login" ? "current-password" : "new-password"
                   }
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors duration-150 hover:opacity-80 active:scale-90"
+                  style={{ color: showPassword ? "#d4894a" : "#8a827a" }}
+                >
+                  {showPassword ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3.5 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                      <line x1="2" x2="22" y1="2" y2="22" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
                 <span
                   className="absolute bottom-0 left-0 block h-px w-full transition-all duration-300"
                   style={{
