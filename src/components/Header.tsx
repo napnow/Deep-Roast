@@ -1,10 +1,17 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import UserMenu from "@/components/Header/UserMenu";
 
 interface HeaderProps {
-  /** 当前生图模型（静态展示，不提供切换） */
+  /** 当前模式：image=文生图 chat=对话 */
+  activeMode: "image" | "chat";
+  onModeChange: (mode: "image" | "chat") => void;
+  /** 当前生图模型 */
   currentModel: string;
+  /** 可切换的模型列表（管理员启用） */
+  modelOptions: string[];
+  onModelChange: (model: string) => void;
   onSettingsClick: () => void;
   username: string;
   role: string;
@@ -20,7 +27,11 @@ interface HeaderProps {
 }
 
 export default function Header({
+  activeMode,
+  onModeChange,
   currentModel,
+  modelOptions,
+  onModelChange,
   onSettingsClick,
   username,
   role,
@@ -34,6 +45,29 @@ export default function Header({
   onMenuClick,
 }: HeaderProps) {
   const lowCredits = credits <= 40 && role !== "admin";
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const modelMenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 卸载时清理延迟关闭定时器
+  useEffect(
+    () => () => {
+      if (modelMenuTimer.current) clearTimeout(modelMenuTimer.current);
+    },
+    [],
+  );
+
+  function openModelMenu() {
+    if (modelMenuTimer.current) clearTimeout(modelMenuTimer.current);
+    setModelMenuOpen(true);
+  }
+  function closeModelMenu(delay = 0) {
+    if (modelMenuTimer.current) clearTimeout(modelMenuTimer.current);
+    if (delay > 0) {
+      modelMenuTimer.current = setTimeout(() => setModelMenuOpen(false), delay);
+    } else {
+      setModelMenuOpen(false);
+    }
+  }
 
   return (
     <header
@@ -65,32 +99,131 @@ export default function Header({
           </span>
         </h1>
 
-        <span
-          className="hidden md:inline-block px-3 py-1.5 rounded-[10px] text-[12.8px] font-semibold"
+        {/* 模式切换：文生图 / 对话 */}
+        <div
+          className="hidden md:inline-flex items-center gap-0.5 rounded-[10px] p-0.5"
           style={{
             background: "var(--bg-elevated)",
-            color: "var(--text-primary)",
-            boxShadow: "var(--shadow-sm)",
             border: "1px solid var(--border-strong)",
+            boxShadow: "var(--shadow-sm)",
           }}
         >
-          文生图
-        </span>
+          {(
+            [
+              { id: "image", label: "文生图" },
+              { id: "chat", label: "对话" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onModeChange(tab.id)}
+              className={`px-3.5 py-1.5 rounded-[8px] text-[12.8px] font-semibold transition-all duration-150 active:scale-95 ${
+                activeMode === tab.id ? "mode-tab-active" : ""
+              }`}
+              style={
+                activeMode === tab.id
+                  ? {
+                      background: "var(--accent)",
+                      color: "var(--accent-on)",
+                    }
+                  : {
+                      background: "transparent",
+                      color: "var(--text-secondary)",
+                    }
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-        {/* 当前模型静态展示 */}
+        {/* 模型切换下拉（仅文生图模式） */}
+        {activeMode === "image" && (
         <div
-          className="px-3 py-1.5 rounded-lg text-xs font-medium max-w-[110px] sm:max-w-[220px] truncate shrink-0"
-          title={currentModel || "未配置模型"}
-          style={{
-            background: "var(--bg-root)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-          }}
+          className="relative shrink-0"
+          onMouseEnter={openModelMenu}
+          onMouseLeave={() => closeModelMenu(200)}
         >
-          {currentModel || "未配置模型"}
+          <button
+            type="button"
+            onClick={() =>
+              modelMenuOpen ? closeModelMenu() : openModelMenu()
+            }
+            title={currentModel || "未配置模型"}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[110px] sm:max-w-[220px] transition-all duration-150 active:scale-95"
+            style={{
+              background: "var(--bg-root)",
+              border: "1px solid var(--border-strong)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span className="truncate">{currentModel || "未配置模型"}</span>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              style={{ transform: modelMenuOpen ? "rotate(180deg)" : "none", transition: "transform .15s", flexShrink: 0 }}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+
+          {modelMenuOpen && (
+            <div
+              className="absolute right-0 top-full mt-1.5 z-50 min-w-[220px] max-w-[280px] rounded-xl border shadow-xl py-1.5 animate-scale-in"
+              style={{
+                background: "var(--bg-surface)",
+                borderColor: "var(--border)",
+                boxShadow: "var(--shadow-lg)",
+              }}
+            >
+              <div
+                className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: "var(--text-muted)" }}
+              >
+                生图模型
+              </div>
+              {modelOptions.length === 0 && (
+                <div
+                  className="px-3 py-2 text-[11px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  暂无可用模型
+                </div>
+              )}
+              {modelOptions.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    onModelChange(id);
+                    closeModelMenu();
+                  }}
+                  className="w-full text-left px-3 py-2 text-[11px] font-mono truncate transition-colors duration-100 hover:opacity-90"
+                  style={{
+                    background:
+                      id === currentModel ? "var(--accent-surface)" : "transparent",
+                    color:
+                      id === currentModel ? "var(--accent)" : "var(--text-secondary)",
+                    fontWeight: id === currentModel ? 600 : 400,
+                  }}
+                  title={id}
+                >
+                  {id}
+                  {id === currentModel && " ✓"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+        )}
 
         {checkinEligible && !todayChecked && (
           <button
