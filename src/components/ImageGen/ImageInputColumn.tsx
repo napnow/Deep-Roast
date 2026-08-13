@@ -18,11 +18,11 @@ interface ImageInputColumnProps {
   checkinEligible?: boolean;
   todayChecked?: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑 */
-  onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
+  onEditImage?: (images: string[], prompt: string, size: string) => void;
   /** 图生图批量：最多 5 张 */
   onEditImageBatch?: (
-    image: string,
+    images: string[],
     prompt: string,
     size: string,
     count: number,

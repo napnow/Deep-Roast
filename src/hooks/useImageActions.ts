@@ -5,6 +5,21 @@ import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 
+/** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400 */
+function resolveRequestModel(): string {
+  const { config, selectedImageModel } = useDeepRoastStore.getState();
+  const enabled = config.enabledImageModels?.length
+    ? config.enabledImageModels
+    : null;
+  if (
+    selectedImageModel &&
+    (!enabled || enabled.includes(selectedImageModel))
+  ) {
+    return selectedImageModel;
+  }
+  return config.imageModel;
+}
+
 export function useImageActions(loadCredits: () => Promise<void>) {
   const { toast } = useToast();
   const imageAbortRef = useRef<AbortController | null>(null);
@@ -15,7 +30,6 @@ export function useImageActions(loadCredits: () => Promise<void>) {
       setGenerating(true);
       const abort = new AbortController();
       imageAbortRef.current = abort;
-      const { config: cfg } = useDeepRoastStore.getState();
       try {
         const data = await apiJson<{
           id: string;
@@ -26,7 +40,11 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           size: string;
         }>("/api/image", {
           method: "POST",
-          ...jsonBody({ prompt, size, model: cfg.imageModel }),
+          ...jsonBody({
+            prompt,
+            size,
+            model: resolveRequestModel(),
+          }),
           signal: abort.signal,
         });
         setImageHistory((prev) => [
@@ -67,9 +85,9 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     setGenerating(false);
   }, [setGenerating]);
 
-  /** 图生图：原图直传编辑（/api/image-edit），结果并入历史 */
+  /** 图生图：原图直传编辑（/api/image-edit），支持多张参考图，结果并入历史 */
   const handleEditImage = useCallback(
-    async (image: string, prompt: string, size: string) => {
+    async (images: string[], prompt: string, size: string) => {
       setGenerating(true);
       const abort = new AbortController();
       imageAbortRef.current = abort;
@@ -83,7 +101,12 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           size: string;
         }>("/api/image-edit", {
           method: "POST",
-          ...jsonBody({ image, prompt, size }),
+          ...jsonBody({
+            image: images,
+            prompt,
+            size,
+            model: resolveRequestModel(),
+          }),
           signal: abort.signal,
         });
         setImageHistory((prev) => [
@@ -119,9 +142,9 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     [setGenerating, setImageHistory, toast, loadCredits, setWalletOpen],
   );
 
-  /** 图生图批量：同参考图生成 N 张变体（最多 5），结果并入历史 */
+  /** 图生图批量：同参考图（支持多张）生成 N 张变体（最多 5），结果并入历史 */
   const handleEditImageBatch = useCallback(
-    async (image: string, prompt: string, size: string, count: number) => {
+    async (images: string[], prompt: string, size: string, count: number) => {
       setGenerating(true);
       const abort = new AbortController();
       imageAbortRef.current = abort;
@@ -141,7 +164,13 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           lastError?: string | null;
         }>("/api/image-edit/batch", {
           method: "POST",
-          ...jsonBody({ image, prompt, size, count }),
+          ...jsonBody({
+            image: images,
+            prompt,
+            size,
+            count,
+            model: resolveRequestModel(),
+          }),
           signal: abort.signal,
         });
         const list = (data.images || []).map((img) => ({

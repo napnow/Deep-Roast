@@ -17,7 +17,7 @@ export const POST = handleRoute(async (req) => {
     BATCH_WINDOW,
   );
   const body = await readJson<{
-    image?: string;
+    image?: string | string[];
     prompt?: string;
     model?: string;
     size?: string;
@@ -27,7 +27,7 @@ export const POST = handleRoute(async (req) => {
   const result = await editImageBatch({
     userId: user.userId,
     role: user.role,
-    image: body.image || "",
+    image: body.image || [],
     prompt: body.prompt || "",
     modelOverride: body.model,
     size: body.size,

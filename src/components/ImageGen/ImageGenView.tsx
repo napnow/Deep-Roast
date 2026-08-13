@@ -10,18 +10,17 @@ import ImageMobileBar from "./ImageMobileBar";
 import GalleryTab from "./GalleryTab";
 import AnnouncementTab from "./AnnouncementTab";
 import ImagePreviewModal from "./ImagePreviewModal";
-import MobileDrawer from "./MobileDrawer";
 
 type MobileTab = "generate" | "gallery" | "announcements";
 
 interface ImageGenViewProps {
   model: string;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑（返回编辑结果并入历史） */
-  onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
+  onEditImage?: (images: string[], prompt: string, size: string) => void;
   /** 图生图批量：同参考图生成 N 张变体（最多 5） */
   onEditImageBatch?: (
-    image: string,
+    images: string[],
     prompt: string,
     size: string,
     count: number,
@@ -40,10 +39,6 @@ interface ImageGenViewProps {
   onWalletClick?: () => void;
   /** 手机端：当前 Tab（生成/图库/公告） */
   mobileTab: MobileTab;
-  onMobileTabChange: (tab: MobileTab) => void;
-  /** 手机端：抽屉侧栏开关 */
-  drawerOpen: boolean;
-  onDrawerClose: () => void;
 }
 
 export default function ImageGenView({
@@ -64,9 +59,6 @@ export default function ImageGenView({
   onCheckinClick,
   onWalletClick,
   mobileTab,
-  onMobileTabChange,
-  drawerOpen,
-  onDrawerClose,
 }: ImageGenViewProps) {
   const sizeOptions = getSizeOptions(model);
   const [prompt, setPrompt] = useState("");
@@ -155,6 +147,7 @@ export default function ImageGenView({
           elapsedSeconds={elapsedSeconds}
           lastGenTime={lastGenTime}
           onClear={() => onActiveImageChange(null)}
+          onPreview={setPreviewImage}
         />
 
         <ImageHistoryPanel
@@ -179,6 +172,7 @@ export default function ImageGenView({
                 elapsedSeconds={elapsedSeconds}
                 lastGenTime={lastGenTime}
                 onClear={() => onActiveImageChange(null)}
+                onPreview={setPreviewImage}
               />
             </div>
           ) : mobileTab === "gallery" ? (
@@ -211,18 +205,6 @@ export default function ImageGenView({
           onHeightChange={setBarHeight}
         />
       )}
-
-      {/* 手机端抽屉侧栏（汉堡唤起） */}
-      <MobileDrawer
-        open={drawerOpen}
-        tab={mobileTab}
-        historyCount={history.length}
-        onSelect={(tab) => {
-          onMobileTabChange(tab);
-          onDrawerClose();
-        }}
-        onClose={onDrawerClose}
-      />
 
       {/* 大图预览（手机图库） */}
       <ImagePreviewModal

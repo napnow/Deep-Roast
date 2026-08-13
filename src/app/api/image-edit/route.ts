@@ -12,7 +12,7 @@ export const POST = handleRoute(async (req) => {
   const user = await requireActiveUser(req);
   await enforceRateLimit("image-user", user.userId, IMAGE_LIMIT, IMAGE_WINDOW);
   const body = await readJson<{
-    image?: string;
+    image?: string | string[];
     prompt?: string;
     model?: string;
     size?: string;
@@ -21,7 +21,7 @@ export const POST = handleRoute(async (req) => {
   const result = await editImage({
     userId: user.userId,
     role: user.role,
-    image: body.image || "",
+    image: body.image || [],
     prompt: body.prompt || "",
     modelOverride: body.model,
     size: body.size,

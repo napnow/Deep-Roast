@@ -77,6 +77,41 @@ async function cropToSize(
   }
 }
 
+/**
+ * 归一化上游返回的图片 URL。
+ * grok2api 等容器化上游可能返回容器内地址（如 http://127.0.0.1:8000/...），
+ * 宿主机无法访问；此时用实际请求的 baseUrl 的 origin 替换（含协议/主机/端口）。
+ */
+function normalizeUpstreamImageUrl(url: string, baseUrl: string): string {
+  try {
+    const parsed = new URL(url);
+    const hostIsContainer = /127\.0\.0\.1|localhost/.test(parsed.hostname);
+    if (hostIsContainer && parsed.port && baseUrl) {
+      const upstream = new URL(baseUrl);
+      parsed.protocol = upstream.protocol;
+      parsed.hostname = upstream.hostname;
+      parsed.port = upstream.port;
+      return parsed.toString();
+    }
+  } catch {
+    /* 非法 URL 原样返回 */
+  }
+  return url;
+}
+
+/** 根据图片 buffer 头字节推断扩展名（grok 返回 JPEG，gpt 返回 PNG） */
+function detectImageExt(buffer: Buffer): ".png" | ".jpg" {
+  if (
+    buffer.length > 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return ".jpg";
+  }
+  return ".png";
+}
+
 export async function generateImage(opts: {
   userId: string;
   /** admin 生图不扣积分 */
@@ -178,7 +213,9 @@ export async function generateImage(opts: {
       if (item?.b64_json) {
         buffer = Buffer.from(item.b64_json, "base64");
       } else if (item?.url) {
-        const imageRes = await fetch(item.url);
+        const imageRes = await fetch(
+          normalizeUpstreamImageUrl(item.url, baseUrl),
+        );
         buffer = Buffer.from(await imageRes.arrayBuffer());
       } else {
         throw new Error("未能生成图片");
@@ -192,7 +229,8 @@ export async function generateImage(opts: {
 
       const imagesDir = path.join(process.cwd(), "public", "images");
       await mkdir(imagesDir, { recursive: true });
-      const filename = `${crypto.randomUUID()}.png`;
+      const ext = detectImageExt(buffer);
+      const filename = `${crypto.randomUUID()}${ext}`;
       await writeFile(path.join(imagesDir, filename), buffer);
       const imageUrl = `/images/${filename}`;
 
@@ -202,7 +240,7 @@ export async function generateImage(opts: {
         const { default: sharp } = await import("sharp");
         const thumbDir = path.join(imagesDir, "thumbs");
         await mkdir(thumbDir, { recursive: true });
-        const thumbName = filename.replace(/\.png$/i, ".webp");
+        const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
         await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
         thumbUrl = `/images/thumbs/${thumbName}`;
       } catch {
@@ -263,8 +301,8 @@ export async function generateImage(opts: {
 export async function editImage(opts: {
   userId: string;
   role?: string;
-  /** data URL（data:image/...;base64,...）或 http(s) 图片 URL */
-  image: string;
+  /** data URL（data:image/...;base64,...）或 http(s) 图片 URL，支持多张（最多 5 张） */
+  image: string | string[];
   prompt: string;
   modelOverride?: string;
   size?: string;
@@ -277,7 +315,13 @@ export async function editImage(opts: {
     modelOverride,
     size = "1024x1024",
   } = opts;
-  if (!image?.trim()) throw new ApiError("image 为必填项", 400);
+  const images = Array.isArray(image)
+    ? image.filter((s) => s?.trim())
+    : image?.trim()
+      ? [image]
+      : [];
+  if (images.length === 0) throw new ApiError("image 为必填项", 400);
+  if (images.length > 5) throw new ApiError("参考图最多 5 张", 400);
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
   if (prompt.length > MAX_PROMPT_LENGTH) {
     throw new ApiError(`提示词不能超过 ${MAX_PROMPT_LENGTH} 字`, 400);
@@ -313,6 +357,30 @@ export async function editImage(opts: {
   // 仅 gpt-image-2：标准比例映射到最近原生尺寸，落盘前精确裁切
   const needsCrop = CROP_MODELS.has(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
+  // grok2api /v1/images/edits 要求 image 为 {url: dataURL} 对象（不接受裸字符串/URL），
+  // 且当前 grok 代理不支持多参考图 → 多图时明确报错
+  const isGrok = model.startsWith("grok-");
+  if (isGrok && images.length > 1) {
+    throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
+  }
+  const editPayload = isGrok
+    ? {
+        model,
+        prompt,
+        size: requestSize,
+        n: 1,
+        image: { url: images[0] },
+      }
+    : {
+        model,
+        prompt,
+        size: requestSize,
+        n: 1,
+        quality: "high",
+        // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）；
+        // 多参考图时按 OpenAI 规范传 image 数组（gpt-image-2 / seedream 原生支持）
+        image: images.length === 1 ? images[0] : images,
+      };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(`${baseUrl}/images/edits`, {
@@ -321,15 +389,7 @@ export async function editImage(opts: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          prompt,
-          size: requestSize,
-          n: 1,
-          quality: "high",
-          // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）
-          image,
-        }),
+        body: JSON.stringify(editPayload),
       });
 
       if (!res.ok) {
@@ -344,7 +404,9 @@ export async function editImage(opts: {
       if (item?.b64_json) {
         buffer = Buffer.from(item.b64_json, "base64");
       } else if (item?.url) {
-        const imageRes = await fetch(item.url);
+        const imageRes = await fetch(
+          normalizeUpstreamImageUrl(item.url, baseUrl),
+        );
         buffer = Buffer.from(await imageRes.arrayBuffer());
       } else {
         throw new Error("未能生成图片");
@@ -358,7 +420,8 @@ export async function editImage(opts: {
 
       const imagesDir = path.join(process.cwd(), "public", "images");
       await mkdir(imagesDir, { recursive: true });
-      const filename = `${crypto.randomUUID()}.png`;
+      const ext = detectImageExt(buffer);
+      const filename = `${crypto.randomUUID()}${ext}`;
       await writeFile(path.join(imagesDir, filename), buffer);
       const imageUrl = `/images/${filename}`;
 
@@ -367,11 +430,11 @@ export async function editImage(opts: {
         const { default: sharp } = await import("sharp");
         const thumbDir = path.join(imagesDir, "thumbs");
         await mkdir(thumbDir, { recursive: true });
-        const thumbName = filename.replace(/\.png$/i, ".webp");
+        const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
         await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
         thumbUrl = `/images/thumbs/${thumbName}`;
       } catch {
-        /* 缩略图失败不影响主流程 */
+        /* 缩略图失败不影响生图主流程 */
       }
 
       const [row] = await db
@@ -435,13 +498,13 @@ export async function listImageHistory(userId: string, limit = 50) {
       const base = row.imageUrl.replace(/^\//, "");
       const thumbFile = path.join(
         thumbDir,
-        base.replace(/\.png$/i, ".webp").replace(/^images\//, ""),
+        base.replace(/\.(png|jpe?g)$/i, ".webp").replace(/^images\//, ""),
       );
       try {
         await access(thumbFile);
         return {
           ...row,
-          thumbUrl: `/images/thumbs/${base.replace(/\.png$/i, ".webp").replace(/^images\//, "")}`,
+          thumbUrl: `/images/thumbs/${base.replace(/\.(png|jpe?g)$/i, ".webp").replace(/^images\//, "")}`,
         };
       } catch {
         return row;
@@ -473,7 +536,10 @@ export async function deleteImageRecord(userId: string, id: string) {
       "public",
       "images",
       "thumbs",
-      record.imageUrl.split("/").pop()!.replace(/\.png$/i, ".webp"),
+      record.imageUrl
+        .split("/")
+        .pop()!
+        .replace(/\.(png|jpe?g)$/i, ".webp"),
     );
     await unlink(thumbPath);
   } catch {
@@ -494,7 +560,7 @@ export async function deleteImageRecord(userId: string, id: string) {
 export async function editImageBatch(opts: {
   userId: string;
   role?: string;
-  image: string;
+  image: string | string[];
   prompt: string;
   modelOverride?: string;
   size?: string;
@@ -510,7 +576,13 @@ export async function editImageBatch(opts: {
     count = 1,
   } = opts;
 
-  if (!image?.trim()) throw new ApiError("image 为必填项", 400);
+  const images = Array.isArray(image)
+    ? image.filter((s) => s?.trim())
+    : image?.trim()
+      ? [image]
+      : [];
+  if (images.length === 0) throw new ApiError("image 为必填项", 400);
+  if (images.length > 5) throw new ApiError("参考图最多 5 张", 400);
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
   const n = Math.min(Math.max(Math.floor(count) || 1, 1), 5);
   if (n > 1 && prompt.length > MAX_PROMPT_LENGTH) {
@@ -533,7 +605,7 @@ export async function editImageBatch(opts: {
       const r = await editImage({
         userId,
         role,
-        image,
+        image: images,
         prompt,
         modelOverride,
         size,

@@ -3,9 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
+import type { EditStyle } from "@/types";
 import {
   EDIT_STYLE_PRESETS,
   DEFAULT_EDIT_STYLE,
+  friendlyStyleColor,
+  friendlyStyleTexture,
+  toEditStylePreset,
   type EditStylePreset,
 } from "./editStyles";
 
@@ -15,17 +19,25 @@ interface Img2ImgPanelProps {
   sizeOptions?: { value: string; label: string }[];
   generating: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑；提供时优先使用 */
-  onEditImage?: (image: string, prompt: string, size: string) => void;
+  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张）；提供时优先使用 */
+  onEditImage?: (images: string[], prompt: string, size: string) => void;
   /** 图生图批量：最多 5 张 */
   onEditImageBatch?: (
-    image: string,
+    images: string[],
     prompt: string,
     size: string,
     count: number,
   ) => void;
   onStopGenerate: () => void;
 }
+
+/** 单张参考图：preview 为原图（缩略图展示），base64 为压缩后提交数据 */
+interface RefImage {
+  preview: string;
+  base64: string;
+}
+
+const MAX_REFS = 5;
 
 export default function Img2ImgPanel({
   size,
@@ -36,8 +48,7 @@ export default function Img2ImgPanel({
   onEditImageBatch,
   onStopGenerate,
 }: Img2ImgPanelProps) {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [base64, setBase64] = useState<string | null>(null);
+  const [refs, setRefs] = useState<RefImage[]>([]);
   const [edit, setEdit] = useState("");
   const [processing, setProcessing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -51,12 +62,31 @@ export default function Img2ImgPanel({
   const [styleId, setStyleId] = useState<string>("");
   const [styleColor, setStyleColor] = useState<string>("");
   const [styleTexture, setStyleTexture] = useState<string>("");
+  // 风格列表：优先读数据库公开风格；加载失败时回落硬编码预设
+  const [styles, setStyles] = useState<EditStylePreset[]>(EDIT_STYLE_PRESETS);
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
 
-  const activeStyle: EditStylePreset | undefined = EDIT_STYLE_PRESETS.find(
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/public/styles")
+      .then((res) => res.json())
+      .then((data: { styles?: EditStyle[] }) => {
+        if (cancelled) return;
+        const rows = data.styles || [];
+        if (rows.length > 0) setStyles(rows.map(toEditStylePreset));
+      })
+      .catch(() => {
+        // 数据库不可用时沿用硬编码预设
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const activeStyle: EditStylePreset | undefined = styles.find(
     (s) => s.id === styleId,
   );
 
@@ -94,53 +124,73 @@ export default function Img2ImgPanel({
     if (genRef.current && !generating) {
       genRef.current = false;
       setProcessing(false);
-      setPreview(null);
-      setBase64(null);
+      setRefs([]);
       setEdit("");
     }
   }, [generating]);
 
   function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     abortRef.current?.abort();
     setError("");
     setProcessing(false);
     setAnalyzing(false);
-    setBase64(null);
     // 新上传时重置风格色/纹理（保留风格选择）
     setStyleColor("");
     setStyleTexture("");
 
-    // 压缩后用于编辑请求（避免大图撞 body 限制；预览用原图）
-    compressImageFile(file, 1536, 0.9)
-      .then((data) => setBase64(data))
-      .catch(() => setError("读取图片失败"));
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    const room = MAX_REFS - refs.length;
+    if (room <= 0) {
+      setError(`参考图最多 ${MAX_REFS} 张`);
+      e.target.value = "";
+      return;
+    }
+    const picked = files.slice(0, room);
+    if (picked.length < files.length) {
+      setError(`参考图最多 ${MAX_REFS} 张，已忽略多余的 ${files.length - picked.length} 张`);
+    }
+
+    picked.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const preview = reader.result as string;
+        // 压缩后用于编辑请求（避免大图撞 body 限制；预览用原图）
+        compressImageFile(file, 1536, 0.9)
+          .then((data) => {
+            setRefs((prev) =>
+              prev.length >= MAX_REFS ? prev : [...prev, { preview, base64: data }],
+            );
+          })
+          .catch(() => setError("读取图片失败"));
+      };
+      reader.readAsDataURL(file);
+    });
     e.target.value = "";
   }
 
+  function removeRef(idx: number) {
+    setRefs((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   async function handleGenerate() {
-    if (!base64 || generating) return;
+    if (refs.length === 0 || generating) return;
     setError("");
     setProcessing(true);
     setAnalyzing(false);
 
     if (onEditImage) {
-      // 新链路：原图直传编辑（保留构图/主体，风格前缀 + 用户描述）
+      // 新链路：原图直传编辑（支持多张参考图；保留构图/主体，风格前缀 + 用户描述）
       // 标记已提交：等 generating 结束由 useEffect 清理面板
       genRef.current = true;
       // 注意：这里不 setProcessing(false)！让 processing 保持 true，
       // 禁用按钮直到父级 generating 接管（防重复点击生成多张）
+      const imageData = refs.map((r) => r.base64 || r.preview);
       if (batchCount > 1 && onEditImageBatch) {
-        // 批量：同参考图生成多张变体
-        onEditImageBatch(base64, compileEditPrompt(), editSize, batchCount);
+        // 批量：同参考图（可多张）生成多张变体
+        onEditImageBatch(imageData, compileEditPrompt(), editSize, batchCount);
       } else {
-        onEditImage(base64, compileEditPrompt(), editSize);
+        onEditImage(imageData, compileEditPrompt(), editSize);
       }
       return;
     }
@@ -153,7 +203,7 @@ export default function Img2ImgPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: base64,
+          imageBase64: refs[0].base64 || refs[0].preview,
           editDescription: edit.trim() || "生成这张图的变体",
         }),
         signal: abort.signal,
@@ -189,8 +239,7 @@ export default function Img2ImgPanel({
 
   function clearAll() {
     abortRef.current?.abort();
-    setPreview(null);
-    setBase64(null);
+    setRefs([]);
     setEdit("");
     setError("");
     setProcessing(false);
@@ -206,17 +255,18 @@ export default function Img2ImgPanel({
         图生图
       </span>
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 flex-wrap">
         <input
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={handleSelect}
           className="hidden"
         />
         <button
           onClick={() => fileRef.current?.click()}
-          disabled={processing || generating}
+          disabled={processing || generating || refs.length >= MAX_REFS}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:scale-100"
           style={{
             background: "var(--accent-surface)",
@@ -224,27 +274,42 @@ export default function Img2ImgPanel({
             color: "var(--accent)",
           }}
         >
-          {preview ? "更换参考图" : "选择参考图"}
+          {refs.length > 0 ? "添加参考图" : "选择参考图"}
+          <span className="opacity-70">({refs.length}/{MAX_REFS})</span>
         </button>
 
-        {preview && (
-          <div className="relative shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={preview}
-              alt="参考图"
-              className="w-20 h-20 rounded-lg object-cover border"
-              style={{ borderColor: "var(--border)" }}
-            />
+        {refs.length > 0 && (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {refs.map((r, idx) => (
+                <div key={idx} className="relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={r.preview || r.base64}
+                    alt={`参考图 ${idx + 1}`}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover border"
+                    style={{ borderColor: "var(--border)" }}
+                  />
+                  <button
+                    onClick={() => removeRef(idx)}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] hover:scale-110 transition-transform"
+                    style={{ background: "var(--danger)", color: "#fff" }}
+                    title="删除此图"
+                    aria-label={`删除参考图 ${idx + 1}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
             <button
               onClick={clearAll}
-              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] hover:scale-110 transition-transform"
-              style={{ background: "var(--danger)", color: "#fff" }}
-              title="清除"
+              className="text-[11px] transition-colors hover:opacity-80"
+              style={{ color: "var(--text-muted)" }}
             >
-              ✕
+              清空全部
             </button>
-          </div>
+          </>
         )}
       </div>
 
@@ -256,13 +321,14 @@ export default function Img2ImgPanel({
             onFocus={lockPageScroll}
             onBlur={unlockPageScroll}
             placeholder="描述你想要的改动（可选），例如：改成赛博朋克风格、把背景变成海边日落…"
-            rows={2}
+            rows={5}
             disabled={processing}
-            className="w-full rounded-xl px-3.5 py-2.5 text-xs resize-none transition-all duration-200 disabled:opacity-40"
+            className="w-full rounded-xl px-3.5 py-2.5 text-xs resize-y transition-all duration-200 disabled:opacity-40"
             style={{
               background: "var(--bg-root)",
               border: "1px solid var(--border)",
               color: "var(--text-primary)",
+              minHeight: "6rem",
             }}
           />
 
@@ -282,7 +348,7 @@ export default function Img2ImgPanel({
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {EDIT_STYLE_PRESETS.map((s) => (
+              {styles.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -325,35 +391,7 @@ export default function Img2ImgPanel({
                       color: "var(--text-secondary)",
                     }}
                   >
-                    {c
-                      .replace("fully saturated ", "")
-                      .replace("opaque ", "")
-                      .replace("vivid ", "")
-                      .replace("clean ", "")
-                      .replace("electric ", "")
-                      .replace("vibrant ", "")
-                      .replace("crimson ", "")
-                      .replace("golden ", "")
-                      .replace("emerald ", "")
-                      .replace("hot ", "")
-                      .replace("pear-", "梨")
-                      .replace("magenta-pink", "品红")
-                      .replace("cobalt-blue", "钴蓝")
-                      .replace("ultramarine", "群青")
-                      .replace("lemon-yellow", "柠檬黄")
-                      .replace("tomato-red", "番茄红")
-                      .replace("orange-red", "橙红")
-                      .replace("electric blue", "电光蓝")
-                      .replace("crimson red", "绯红")
-                      .replace("golden yellow", "金黄")
-                      .replace("emerald green", "祖母绿")
-                      .replace("hot pink", "亮粉")
-                      .replace("warm rice paper white", "暖米宣纸")
-                      .replace("cool porcelain white", "冷瓷白")
-                      .replace("mist gray paper", "雾灰")
-                      .replace("muted celadon paper", "青瓷")
-                      .replace("moonlit pale indigo paper", "月夜靛蓝")
-                      .replace("light ochre paper", "浅赭")}
+                    {friendlyStyleColor(c)}
                   </button>
                 ))}
               </div>
@@ -384,18 +422,7 @@ export default function Img2ImgPanel({
                       color: "var(--text-secondary)",
                     }}
                   >
-                    {t
-                      .replace("risograph grain", "Riso 颗粒")
-                      .replace("xerox softness", "复印柔化")
-                      .replace("letterpress ink bleed", "铅印洇墨")
-                      .replace("halftone degradation", "半调失真")
-                      .replace("aged paper mottling", "旧纸斑驳")
-                      .replace("dry-brush fracture", "飞白破墨")
-                      .replace("wet wash bloom", "湿墨晕染")
-                      .replace("diluted transparent ink layers", "淡墨层叠")
-                      .replace("pooled pigment edge", "墨渍边缘")
-                      .replace("ink-absorbed photo fragment", "墨吸照片")
-                      .replace("soft photocopy grain", "柔复印颗粒")}
+                    {friendlyStyleTexture(t)}
                   </button>
                 ))}
               </div>
@@ -531,7 +558,7 @@ export default function Img2ImgPanel({
             ) : (
               <button
                 onClick={handleGenerate}
-                disabled={!base64 || generating || processing}
+                disabled={refs.length === 0 || generating || processing}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:scale-100"
                 style={{
                   background: "var(--accent-surface)",

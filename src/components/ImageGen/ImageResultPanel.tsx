@@ -11,6 +11,8 @@ interface ImageResultPanelProps {
   lastGenTime: number | null;
   /** 清除结果区（回到空状态） */
   onClear?: () => void;
+  /** 点击图片打开大图预览 */
+  onPreview?: (item: ImageRecord) => void;
 }
 
 export default function ImageResultPanel({
@@ -19,6 +21,7 @@ export default function ImageResultPanel({
   elapsedSeconds,
   lastGenTime,
   onClear,
+  onPreview,
 }: ImageResultPanelProps) {
   return (
     <div className="dr-canvas flex-1 md:flex-[2] overflow-y-auto p-4 md:p-6 flex items-center justify-center min-h-0">
@@ -49,11 +52,19 @@ export default function ImageResultPanel({
               boxShadow: "var(--shadow-lg)",
             }}
           >
-            <SmartResultImage
-              record={activeImage}
-              className="w-full"
-              style={{ background: "var(--bg-root)", height: "auto" }}
-            />
+            <button
+              type="button"
+              onClick={() => onPreview?.(activeImage)}
+              className="block w-full cursor-zoom-in"
+              title="点击查看大图"
+              aria-label="查看大图"
+            >
+              <SmartResultImage
+                record={activeImage}
+                className="w-full"
+                style={{ background: "var(--bg-root)", height: "auto" }}
+              />
+            </button>
             <div className="p-4 space-y-2">
               <p
                 className="text-xs leading-relaxed"
