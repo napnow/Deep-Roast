@@ -1,15 +1,25 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { EDIT_STYLE_PRESETS } from "@/components/ImageGen/editStyles";
+import { useEffect, useRef, useState } from "react";
+import {
+  EDIT_STYLE_PRESETS,
+  friendlyStyleColor,
+  toEditStylePreset,
+  type EditStylePreset,
+} from "@/components/ImageGen/editStyles";
 import { useToast } from "@/components/Toast";
+import { apiJson } from "@/lib/client-api";
+import type { EditStyle } from "@/types";
 
 /**
  * 管理后台「风格测试」：管理员上传参考图 → 选风格 → 生成预览。
- * 测试通过后可将风格开放给普通用户（风格列表在 editStyles.ts）。
+ * 风格列表来自数据库（含未发布，仅供管理端测试）；加载失败时回落硬编码预设。
+ * 测试通过后在「风格库」卡片中上架，普通用户即可看到。
  */
 export default function AdminStyleTestCard() {
   const { toast } = useToast();
+  const [styles, setStyles] = useState<EditStylePreset[]>(EDIT_STYLE_PRESETS);
+  const [unpublishedKeys, setUnpublishedKeys] = useState<Set<string>>(new Set());
   const [styleId, setStyleId] = useState(EDIT_STYLE_PRESETS[0]?.id || "");
   const [color, setColor] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -22,7 +32,26 @@ export default function AdminStyleTestCard() {
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const activeStyle = EDIT_STYLE_PRESETS.find((s) => s.id === styleId);
+  useEffect(() => {
+    let cancelled = false;
+    apiJson<{ styles: EditStyle[] }>("/api/admin/styles")
+      .then((data) => {
+        if (cancelled) return;
+        const rows = data.styles || [];
+        setStyles(rows.map(toEditStylePreset));
+        setUnpublishedKeys(
+          new Set(rows.filter((s) => !s.published).map((s) => s.styleKey)),
+        );
+      })
+      .catch(() => {
+        // 数据库不可用时沿用硬编码预设
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const activeStyle = styles.find((s) => s.id === styleId);
 
   function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -87,8 +116,7 @@ export default function AdminStyleTestCard() {
         <p className="admin-kicker">Style Lab</p>
         <h2 className="admin-title text-base mt-1">风格测试</h2>
         <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
-          上传参考图并选择风格，验证效果后再开放给普通用户（风格定义在
-          editStyles.ts）。
+          上传参考图并选择风格，验证效果后到「风格库」卡片上架即可开放给普通用户。
         </p>
 
         <div className="mt-4 space-y-4">
@@ -101,7 +129,7 @@ export default function AdminStyleTestCard() {
               风格
             </span>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {EDIT_STYLE_PRESETS.map((s) => (
+              {styles.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -122,6 +150,11 @@ export default function AdminStyleTestCard() {
                   }}
                 >
                   {s.label}
+                  {unpublishedKeys.has(s.id) && (
+                    <span className="ml-1 text-[9px]" style={{ color: "#f97316" }}>
+                      未发布
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -156,35 +189,7 @@ export default function AdminStyleTestCard() {
                       color: "var(--text-secondary)",
                     }}
                   >
-                    {c
-                      .replace("fully saturated ", "")
-                      .replace("opaque ", "")
-                      .replace("vivid ", "")
-                      .replace("clean ", "")
-                      .replace("electric ", "")
-                      .replace("vibrant ", "")
-                      .replace("crimson ", "")
-                      .replace("golden ", "")
-                      .replace("emerald ", "")
-                      .replace("hot ", "")
-                      .replace("pear-", "梨")
-                      .replace("magenta-pink", "品红")
-                      .replace("cobalt-blue", "钴蓝")
-                      .replace("ultramarine", "群青")
-                      .replace("lemon-yellow", "柠檬黄")
-                      .replace("tomato-red", "番茄红")
-                      .replace("orange-red", "橙红")
-                      .replace("electric blue", "电光蓝")
-                      .replace("crimson red", "绯红")
-                      .replace("golden yellow", "金黄")
-                      .replace("emerald green", "祖母绿")
-                      .replace("hot pink", "亮粉")
-                      .replace("warm rice paper white", "暖米宣纸")
-                      .replace("cool porcelain white", "冷瓷白")
-                      .replace("mist gray paper", "雾灰")
-                      .replace("muted celadon paper", "青瓷")
-                      .replace("moonlit pale indigo paper", "月夜靛蓝")
-                      .replace("light ochre paper", "浅赭")}
+                    {friendlyStyleColor(c)}
                   </button>
                 ))}
               </div>

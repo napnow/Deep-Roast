@@ -136,6 +136,25 @@ export const imageGenerations = pgTable("image_generations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ── 图生图风格预设（管理端维护，published=1 才对普通用户可见） ──
+export const styles = pgTable("styles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** 风格标识（英文小写连字符），前端用作风格 id，如 "zine" */
+  styleKey: text("style_key").notNull().unique(),
+  /** 显示名称，如 "极简 Zine 海报" */
+  label: text("label").notNull(),
+  /** 风格规则文本，拼接在用户描述前，含 {color}/{texture} 槽位 */
+  prefix: text("prefix").notNull(),
+  /** 可选强调色（JSON 数组字符串，如 ["cobalt-blue"]） */
+  colors: text("colors").notNull().default("[]"),
+  /** 可选纹理（JSON 数组字符串） */
+  textures: text("textures").notNull().default("[]"),
+  /** 1=对普通用户公开（上架） 0=仅管理端测试可见（下架） */
+  published: integer("published").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ── Credit Transactions ──
 export const creditTransactions = pgTable("credit_transactions", {
   id: uuid("id").defaultRandom().primaryKey(),

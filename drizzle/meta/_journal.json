@@ -43,6 +43,13 @@
       "when": 1785644093845,
       "tag": "0005_sparkling_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786106892282,
+      "tag": "0006_wild_captain_cross",
+      "breakpoints": true
     }
   ]
 }

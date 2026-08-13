@@ -1,5 +1,21 @@
 // ── Shared types for doubao-app ──
 
+export interface Message {
+  id?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  reasoning?: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
 export interface ImageRecord {
   id: string;
   prompt: string;
@@ -41,6 +57,8 @@ export const RECHARGE_PLANS: Array<{
 }> = [];
 
 export const CREDIT_PER_IMAGE = 5;
+/** 对话：每条用户消息扣分（回复成功才扣，失败不扣；管理员免费） */
+export const CREDIT_PER_CHAT = 2;
 export const CHECKIN_REWARD = 50;
 
 export const CREDIT_TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -59,9 +77,26 @@ export interface Announcement {
   createdBy?: string | null;
 }
 
+/** 图生图风格（styles 表；published=false 仅管理端可见） */
+export interface EditStyle {
+  id: string;
+  /** 风格标识（英文小写连字符），前端用作风格 id */
+  styleKey: string;
+  label: string;
+  /** 风格规则文本，含 {color}/{texture} 槽位 */
+  prefix: string;
+  colors: string[];
+  textures: string[];
+  /** true=已上架（普通用户可见） false=下架（仅管理端测试） */
+  published: boolean;
+  createdAt: string;
+}
+
 export interface Config {
   arkApiKey: string;
   baseUrl: string;
+  /** 对话（文生文）默认模型 */
+  textModel: string;
   imageModel: string;
   imageSystemPrompt: string;
   /** 图推 / 反推提示词使用的视觉模型 */
@@ -71,6 +106,8 @@ export interface Config {
   apiKeyHint?: string;
   /** 管理员启用的生图模型（顶栏选择器只显示这些） */
   enabledImageModels?: string[];
+  /** 管理员启用的对话模型 */
+  enabledTextModels?: string[];
 }
 
 /**

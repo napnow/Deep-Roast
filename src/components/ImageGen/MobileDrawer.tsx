@@ -1,33 +1,59 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
 
 interface MobileDrawerProps {
   open: boolean;
+  /** 当前模式：image=文生图 chat=对话 */
+  activeMode: "image" | "chat";
+  /** 文生图模式的子 Tab（高亮用） */
   tab: "generate" | "gallery" | "announcements";
   historyCount: number;
-  onSelect: (tab: "generate" | "gallery" | "announcements") => void;
+  /** 对话数量（badge 展示） */
+  chatCount: number;
+  /** 点击文生图类入口（生成/图库/公告） */
+  onSelectImageTab: (
+    tab: "generate" | "gallery" | "announcements",
+  ) => void;
+  /** 切换到对话模式 */
+  onSwitchChat: () => void;
   onClose: () => void;
 }
 
 /**
- * 手机端抽屉侧栏（ChatGPT 风格）：
- * - 由左上角汉堡按钮唤起，覆盖层遮罩 + 左侧滑出
- * - 生成 / 图库 / 公告 三个页面入口，选中后抽屉收回
+ * 手机端全局抽屉侧栏（汉堡唤起）：
+ * - 任何模式下均可打开：文生图模式显示 生成/图库/公告/对话；
+ *   对话模式同样显示全部入口，点击「生成/图库」即可回到文生图，不会迷路。
  */
 export default function MobileDrawer({
   open,
+  activeMode,
   tab,
   historyCount,
-  onSelect,
+  chatCount,
+  onSelectImageTab,
+  onSwitchChat,
   onClose,
 }: MobileDrawerProps) {
   const { user } = useAuth();
   const username = user?.username || "";
   const role = user?.role || "user";
   const ann = useAnnouncements();
+
+  // 主题切换（.dark class + localStorage「theme」；跟随 layout.tsx 的初始化脚本）
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, [open]);
+
+  function toggleTheme() {
+    const next = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+    setIsDark(next);
+  }
 
   // 打开抽屉时刷新公告红点
   useEffect(() => {
@@ -38,20 +64,32 @@ export default function MobileDrawer({
   if (!open) return null;
 
   const menuItems: Array<{
-    key: "generate" | "gallery" | "announcements";
+    key: "generate" | "gallery" | "chat" | "announcements";
     label: string;
     icon: string;
     desc: string;
     badge?: string;
     unread?: boolean;
   }> = [
-    { key: "generate", label: "生成", icon: "✦", desc: "提示词出图" },
+    {
+      key: "generate",
+      label: "文生图",
+      icon: "✦",
+      desc: "提示词出图",
+    },
     {
       key: "gallery",
       label: "图库",
       icon: "▦",
       desc: "查看历史图片",
       badge: historyCount > 0 ? String(historyCount) : undefined,
+    },
+    {
+      key: "chat",
+      label: "对话",
+      icon: "💬",
+      desc: "AI 对话",
+      badge: chatCount > 0 ? String(chatCount) : undefined,
     },
     {
       key: "announcements",
@@ -61,6 +99,11 @@ export default function MobileDrawer({
       unread: ann.unread,
     },
   ];
+
+  const isActive = (key: (typeof menuItems)[number]["key"]) => {
+    if (key === "chat") return activeMode === "chat";
+    return activeMode === "image" && tab === key;
+  };
 
   return (
     <>
@@ -139,11 +182,17 @@ export default function MobileDrawer({
         {/* 菜单项 */}
         <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1">
           {menuItems.map((item) => {
-            const active = tab === item.key;
+            const active = isActive(item.key);
             return (
               <button
                 key={item.key}
-                onClick={() => onSelect(item.key)}
+                onClick={() => {
+                  if (item.key === "chat") {
+                    onSwitchChat();
+                  } else {
+                    onSelectImageTab(item.key);
+                  }
+                }}
                 className="w-full flex items-center gap-3 px-3.5 py-3.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
                 style={{
                   background: active
@@ -216,12 +265,55 @@ export default function MobileDrawer({
           })}
         </div>
 
-        {/* 底部 */}
+        {/* 底部：主题切换 */}
         <div
-          className="px-4 py-3.5 border-t shrink-0"
+          className="px-3 py-3 border-t shrink-0 space-y-2"
           style={{ borderColor: "var(--border)" }}
         >
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
+            style={{
+              background: "var(--bg-root)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <span className="flex items-center gap-2.5 min-w-0">
+              <span
+                className="text-[15px] leading-none shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {isDark ? "🌙" : "☀️"}
+              </span>
+              <span
+                className="text-[13px] font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                深色模式
+              </span>
+            </span>
+            {/* 开关 */}
+            <span
+              className={`relative inline-flex h-[22px] w-[38px] items-center rounded-full transition-colors duration-200 shrink-0 ${
+                isDark ? "" : ""
+              }`}
+              style={{
+                background: isDark ? "var(--accent)" : "var(--bg-elevated)",
+                border: `1px solid ${
+                  isDark ? "var(--accent)" : "var(--border-strong)"
+                }`,
+              }}
+            >
+              <span
+                className="inline-block h-[16px] w-[16px] transform rounded-full bg-white shadow transition-transform duration-200"
+                style={{
+                  transform: isDark ? "translateX(17px)" : "translateX(2px)",
+                }}
+              />
+            </span>
+          </button>
+          <p className="text-[10px] px-1" style={{ color: "var(--text-muted)" }}>
             深焙 Deep Roast · 慢工出好图
           </p>
         </div>

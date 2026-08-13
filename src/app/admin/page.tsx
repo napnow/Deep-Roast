@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import type {
   AdminUser,
   ImageRecord,
   CreditTransaction,
+  Conversation,
+  Message,
 } from "@/types";
 import AdminUserList from "@/components/Admin/AdminUserList";
 import AdminDashboard from "@/components/Admin/AdminDashboard";
 import AdminImagesTab from "@/components/Admin/AdminImagesTab";
 import AdminCreditsTab from "@/components/Admin/AdminCreditsTab";
+import AdminConversationsTab from "@/components/Admin/AdminConversationsTab";
 import AdminImageDetailModal from "@/components/Admin/AdminImageDetailModal";
 import ResetPasswordModal from "@/components/Admin/ResetPasswordModal";
 import { softNavigate } from "@/lib/nav-transition";
@@ -31,7 +34,14 @@ export default function AdminPage() {
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustNote, setAdjustNote] = useState("");
   const [adjustLoading, setAdjustLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"images" | "credits">("images");
+  const [activeTab, setActiveTab] = useState<
+    "images" | "credits" | "conversations"
+  >("images");
+  const [convList, setConvList] = useState<Conversation[]>([]);
+  const [expandedConv, setExpandedConv] = useState<string | null>(null);
+  const [convMessages, setConvMessages] = useState<Message[]>([]);
+  /** 对话消息请求序号（防快速切换时旧响应覆盖） */
+  const convSeqRef = useRef(0);
   const [globalStats, setGlobalStats] = useState<{
     totalCheckinAmount: number;
     totalConsumeAmount: number;
@@ -105,6 +115,9 @@ export default function AdminPage() {
               fetch(`/api/admin/credits?userId=${selectedUser.id}`).then((r) =>
                 r.json(),
               ),
+              fetch(
+                `/api/admin/users/${selectedUser.id}/conversations`,
+              ).then((r) => r.json()),
             ])
           : Promise.resolve(null),
       ]);
@@ -124,9 +137,10 @@ export default function AdminPage() {
         }
       }
       if (detailData) {
-        const [imgs, credData] = detailData;
+        const [imgs, credData, convData] = detailData;
         if (Array.isArray(imgs)) setImages(imgs);
         if (credData?.transactions) setCreditTx(credData.transactions);
+        if (Array.isArray(convData)) setConvList(convData);
       }
       setLastRefreshed(
         new Date().toLocaleTimeString("zh-CN", { hour12: false }),
@@ -202,6 +216,8 @@ export default function AdminPage() {
     }
     setLoadingDetail(true);
     setActiveTab("images");
+    setExpandedConv(null);
+    setConvMessages([]);
 
     Promise.all([
       fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
@@ -210,14 +226,41 @@ export default function AdminPage() {
       fetch(`/api/admin/credits?userId=${selectedUser.id}`).then((r) =>
         r.json(),
       ),
+      fetch(`/api/admin/users/${selectedUser.id}/conversations`).then((r) =>
+        r.json(),
+      ),
     ])
-      .then(([imgs, credData]) => {
+      .then(([imgs, credData, convData]) => {
         if (Array.isArray(imgs)) setImages(imgs);
         if (credData?.transactions) setCreditTx(credData.transactions);
+        if (Array.isArray(convData)) setConvList(convData);
       })
       .catch(console.error)
       .finally(() => setLoadingDetail(false));
   }, [selectedUser]);
+
+  /** 展开对话：加载消息 */
+  async function handleToggleConv(conversationId: string) {
+    if (expandedConv === conversationId) {
+      setExpandedConv(null);
+      setConvMessages([]);
+      return;
+    }
+    const seq = ++convSeqRef.current;
+    setExpandedConv(conversationId);
+    setConvMessages([]);
+    try {
+      const data = await fetch(
+        `/api/admin/users/${selectedUser!.id}/messages?conversationId=${conversationId}`,
+      ).then((r) => r.json());
+      // 仅当仍是最新请求时应用，避免快速切换时旧响应覆盖
+      if (seq === convSeqRef.current && Array.isArray(data)) {
+        setConvMessages(data);
+      }
+    } catch {
+      if (seq === convSeqRef.current) setConvMessages([]);
+    }
+  }
 
   async function handleCreditsAdjust() {
     if (!selectedUser || !adjustAmount || adjustLoading) return;
@@ -465,12 +508,17 @@ export default function AdminPage() {
               }}
               role="tablist"
             >
-              {(
+              {              (
                 [
                   {
                     key: "images" as const,
                     label: "图片",
                     count: images.length,
+                  },
+                  {
+                    key: "conversations" as const,
+                    label: "对话",
+                    count: convList.length,
                   },
                   {
                     key: "credits" as const,
@@ -517,6 +565,14 @@ export default function AdminPage() {
               <>
                 {activeTab === "images" && (
                   <AdminImagesTab images={images} onSelect={setImageDetail} />
+                )}
+                {activeTab === "conversations" && (
+                  <AdminConversationsTab
+                    conversations={convList}
+                    expandedConv={expandedConv}
+                    convMessages={convMessages}
+                    onToggle={handleToggleConv}
+                  />
                 )}
                 {activeTab === "credits" && (
                   <AdminCreditsTab

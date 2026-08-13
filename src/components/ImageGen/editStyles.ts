@@ -1,9 +1,12 @@
 "use client";
 
+import type { EditStyle } from "@/types";
+
 /**
  * 图生图「风格预设」：
  * 把风格化规则编译成编辑 prompt 前缀，与用户描述合并后交给 /api/image-edit。
- * 规则灵感来自 gc-minimal-zine-poster skill（极简 zine 海报）。
+ * 风格已迁移到数据库（styles 表）由管理端维护；本文件保留硬编码作为
+ * 数据库加载失败/未 seed 时的兜底，及公共工具函数。
  */
 
 export interface EditStylePreset {
@@ -15,6 +18,85 @@ export interface EditStylePreset {
   colors?: string[];
   /** 该风格可选的纹理（无则用默认） */
   textures?: string[];
+}
+
+/** 数据库风格行 → 前端 preset（id 用 styleKey） */
+export function toEditStylePreset(s: EditStyle): EditStylePreset {
+  return {
+    id: s.styleKey,
+    label: s.label,
+    prefix: s.prefix,
+    colors: s.colors,
+    textures: s.textures,
+  };
+}
+
+/** 颜色选项的中文展示名 */
+export function friendlyStyleColor(c: string): string {
+  return c
+    .replace("fully saturated ", "")
+    .replace("opaque ", "")
+    .replace("vivid ", "")
+    .replace("clean ", "")
+    .replace("electric ", "")
+    .replace("vibrant ", "")
+    .replace("crimson ", "")
+    .replace("golden ", "")
+    .replace("emerald ", "")
+    .replace("hot ", "")
+    .replace("pear-", "梨")
+    .replace("magenta-pink", "品红")
+    .replace("cobalt-blue", "钴蓝")
+    .replace("ultramarine", "群青")
+    .replace("lemon-yellow", "柠檬黄")
+    .replace("tomato-red", "番茄红")
+    .replace("orange-red", "橙红")
+    .replace("electric blue", "电光蓝")
+    .replace("crimson red", "绯红")
+    .replace("golden yellow", "金黄")
+    .replace("emerald green", "祖母绿")
+    .replace("hot pink", "亮粉")
+    .replace("warm rice paper white", "暖米宣纸")
+    .replace("cool porcelain white", "冷瓷白")
+    .replace("mist gray paper", "雾灰")
+    .replace("muted celadon paper", "青瓷")
+    .replace("moonlit pale indigo paper", "月夜靛蓝")
+    .replace("light ochre paper", "浅赭")
+    .replace("deep navy blue", "深靛蓝")
+    .replace("deep navy", "深海军蓝")
+    .replace("burnt orange / amber", "琥珀橙")
+    .replace("burnt orange", "焦橙")
+    .replace("olive-yellow", "橄榄黄绿")
+    .replace("warm ivory", "暖象牙白")
+    .replace("muted sand", "哑沙")
+    .replace("muted olive", "哑橄榄绿")
+    .replace("soft slate blue", "柔板岩蓝");
+}
+
+/** 纹理选项的中文展示名 */
+export function friendlyStyleTexture(t: string): string {
+  return t
+    .replace("risograph grain", "Riso 颗粒")
+    .replace("xerox softness", "复印柔化")
+    .replace("letterpress ink bleed", "铅印洇墨")
+    .replace("halftone degradation", "半调失真")
+    .replace("aged paper mottling", "旧纸斑驳")
+    .replace("dry-brush fracture", "飞白破墨")
+    .replace("wet wash bloom", "湿墨晕染")
+    .replace("diluted transparent ink layers", "淡墨层叠")
+    .replace("pooled pigment edge", "墨渍边缘")
+    .replace("ink-absorbed photo fragment", "墨吸照片")
+    .replace("soft photocopy grain", "柔复印颗粒")
+    .replace("heavy paper grain", "重纸纹")
+    .replace("risograph texture", "Riso 纹理")
+    .replace("offset misregistration", "套印错位")
+    .replace("ink bleed", "洇墨")
+    .replace("halftone dots", "半调网点")
+    .replace("matte finish", "哑光")
+    .replace("heavy halftone dot texture", "重半调网点")
+    .replace("rough grainy paper noise", "粗纸纹噪点")
+    .replace("misregistered print offset look", "套色错位")
+    .replace("screen-print texture", "丝网印刷");
 }
 
 export const EDIT_STYLE_PRESETS: EditStylePreset[] = [

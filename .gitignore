@@ -62,6 +62,14 @@ docs/superpowers/
 # superseded internal design drafts (local only)
 docs/AI生图系统提示词-功能文档.md
 
+# server mirror / build-check / legacy backups (local only)
+.server-mirror/
+.server-mirror-src/
+.build-check-src/
+.old-chat-wt/
+_dev-test.err
+_dev-test.out
+
 # OS / editor
 .idea/
 .vscode/

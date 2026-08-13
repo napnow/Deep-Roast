@@ -3,6 +3,7 @@ import { llmConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   defaultImageModelIds,
+  defaultTextModelIds,
   getConfig,
   hasAnyApiCredential,
   parseEnabledModels,
@@ -24,6 +25,11 @@ function isMaskedKey(key: string | undefined): boolean {
 function publicConfig(
   config: NonNullable<Awaited<ReturnType<typeof getConfig>>>,
 ) {
+  const enabledTextModels = parseEnabledModels(
+    config.enabledTextModels,
+    defaultTextModelIds(),
+    config.textModel,
+  );
   const enabledImageModels = parseEnabledModels(
     config.enabledImageModels,
     defaultImageModelIds(),
@@ -33,6 +39,7 @@ function publicConfig(
   return {
     id: config.id,
     baseUrl: config.baseUrl,
+    textModel: config.textModel,
     imageModel: config.imageModel,
     imageSystemPrompt: config.imageSystemPrompt,
     reversePromptModel: config.reversePromptModel || "",
@@ -44,6 +51,7 @@ function publicConfig(
       : hasAnyApiCredential(config)
         ? "env"
         : "",
+    enabledTextModels,
     enabledImageModels,
   };
 }
@@ -90,6 +98,11 @@ export const PUT = handleRoute(async (req) => {
     if (!m) throw new ApiError("文生图模型不能为空", 400);
     updates.imageModel = m;
   }
+  if (body.textModel !== undefined) {
+    const m = String(body.textModel ?? "").trim();
+    if (!m) throw new ApiError("对话模型不能为空", 400);
+    updates.textModel = m;
+  }
   if (body.imageSystemPrompt !== undefined) {
     updates.imageSystemPrompt = String(body.imageSystemPrompt ?? "");
   }
@@ -103,6 +116,14 @@ export const PUT = handleRoute(async (req) => {
       throw new ApiError("至少保留一个文生图模型", 400);
     }
     updates.enabledImageModels = serializeModelIds(enabledImage);
+  }
+
+  const enabledText = asStringArray(body.enabledTextModels);
+  if (enabledText !== undefined) {
+    if (enabledText.length === 0) {
+      throw new ApiError("至少保留一个对话模型", 400);
+    }
+    updates.enabledTextModels = serializeModelIds(enabledText);
   }
 
   if (Object.keys(updates).length === 0) {
@@ -148,6 +169,16 @@ export const PUT = handleRoute(async (req) => {
       pinUpdates.enabledImageModels = serializeModelIds([
         latest.imageModel,
         ...imageEnabled,
+      ]);
+    }
+    const textEnabled = parseEnabledModels(
+      latest.enabledTextModels,
+      defaultTextModelIds(),
+    );
+    if (latest.textModel && !textEnabled.includes(latest.textModel)) {
+      pinUpdates.enabledTextModels = serializeModelIds([
+        latest.textModel,
+        ...textEnabled,
       ]);
     }
     if (Object.keys(pinUpdates).length) {
