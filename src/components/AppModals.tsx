@@ -2,6 +2,7 @@
 
 import SettingsModal from "@/components/Settings/SettingsModal";
 import CreditWalletModal from "@/components/CreditWalletModal";
+import ChangePasswordModal from "@/components/Auth/ChangePasswordModal";
 import { useDeepRoastStore } from "@/lib/store";
 import type { Config } from "@/types";
 
@@ -26,6 +27,8 @@ export default function AppModals({
     setSettingsOpen,
     walletOpen,
     setWalletOpen,
+    pwOpen,
+    setPwOpen,
     checkinEligible,
     todayChecked,
   } = useDeepRoastStore();
@@ -48,6 +51,11 @@ export default function AppModals({
         todayChecked={todayChecked}
         checkinLoading={checkinLoading}
         onCheckinClick={onCheckinClick}
+      />
+
+      <ChangePasswordModal
+        open={pwOpen}
+        onClose={() => setPwOpen(false)}
       />
     </>
   );

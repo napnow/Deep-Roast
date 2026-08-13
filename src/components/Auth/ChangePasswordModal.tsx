@@ -78,13 +78,15 @@ export default function ChangePasswordModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div
-        className="relative z-10 w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border shadow-2xl p-5"
+      <div className="relative z-10 h-full overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div
+            className="w-[22rem] max-w-full rounded-2xl border shadow-2xl p-5"
         style={{
           background: "var(--bg-surface)",
           borderColor: "var(--border)",
@@ -165,5 +167,7 @@ export default function ChangePasswordModal({
         </form>
       </div>
     </div>
+  </div>
+  </div>
   );
 }

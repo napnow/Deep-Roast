@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import ChangePasswordModal from "@/components/Auth/ChangePasswordModal";
 import AnnouncementList from "@/components/AnnouncementList";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
 import { softNavigate } from "@/lib/nav-transition";
+import { useDeepRoastStore } from "@/lib/store";
 
 interface UserMenuProps {
   username: string;
@@ -23,12 +23,12 @@ export default function UserMenu({
   onSettingsClick,
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
-  const [pwOpen, setPwOpen] = useState(false);
   const [annOpen, setAnnOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const annPanelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const ann = useAnnouncements();
+  const setPwOpen = useDeepRoastStore((s) => s.setPwOpen);
 
   useEffect(() => {
     ann.load();
@@ -204,7 +204,6 @@ export default function UserMenu({
         </div>
       )}
 
-      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   );
 }

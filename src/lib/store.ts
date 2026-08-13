@@ -1,7 +1,13 @@
 "use client";
 
 import { create } from "zustand";
-import type { ImageRecord, Config, ModelInfo } from "@/types";
+import type {
+  ImageRecord,
+  Config,
+  ModelInfo,
+  Conversation,
+  Message,
+} from "@/types";
 import { DEFAULT_IMAGE_MODELS } from "@/types";
 
 type Updater<T> = T | ((prev: T) => T);
@@ -11,9 +17,21 @@ function applyUpdater<T>(prev: T, next: Updater<T>): T {
 }
 
 export interface DeepRoastState {
+  // mode: 文生图 / 对话
+  activeMode: "image" | "chat";
+
   // config / models
   config: Config;
   imageModels: ModelInfo[];
+  /** 用户当前选择的生图模型（默认跟随 config.imageModel） */
+  selectedImageModel: string;
+
+  // chat
+  conversations: Conversation[];
+  activeConvId: string | null;
+  chatMessages: Message[];
+  streaming: boolean;
+  streamingText: string;
 
   // image
   imageHistory: ImageRecord[];
@@ -27,11 +45,19 @@ export interface DeepRoastState {
   // ui modals
   settingsOpen: boolean;
   walletOpen: boolean;
+  pwOpen: boolean;
 
   // setters
+  setActiveMode: (mode: "image" | "chat") => void;
   setConfig: (updates: Partial<Config> | ((prev: Config) => Config)) => void;
   replaceConfig: (config: Config) => void;
   setImageModels: (models: Updater<ModelInfo[]>) => void;
+  setSelectedImageModel: (model: string) => void;
+  setConversations: (conversations: Updater<Conversation[]>) => void;
+  setActiveConvId: (id: string | null) => void;
+  setChatMessages: (messages: Updater<Message[]>) => void;
+  setStreaming: (streaming: boolean) => void;
+  setStreamingText: (text: string) => void;
   setImageHistory: (history: Updater<ImageRecord[]>) => void;
   setGenerating: (generating: boolean) => void;
   setCredits: (credits: number) => void;
@@ -41,11 +67,14 @@ export interface DeepRoastState {
   }) => void;
   setSettingsOpen: (open: boolean) => void;
   setWalletOpen: (open: boolean) => void;
+  setPwOpen: (open: boolean) => void;
+  resetChatSession: () => void;
 }
 
 const initialConfig: Config = {
   arkApiKey: "",
   baseUrl: "",
+  textModel: "doubao-seed-2-0-pro-260215",
   imageModel: "doubao-seedream-4-5-251128",
   imageSystemPrompt: "",
   reversePromptModel: "",
@@ -55,8 +84,15 @@ const initialConfig: Config = {
 };
 
 export const useDeepRoastStore = create<DeepRoastState>((set) => ({
+  activeMode: "image",
   config: initialConfig,
   imageModels: DEFAULT_IMAGE_MODELS,
+  selectedImageModel: initialConfig.imageModel,
+  conversations: [],
+  activeConvId: null,
+  chatMessages: [],
+  streaming: false,
+  streamingText: "",
   imageHistory: [],
   generating: false,
   credits: 0,
@@ -64,7 +100,9 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   todayChecked: false,
   settingsOpen: false,
   walletOpen: false,
+  pwOpen: false,
 
+  setActiveMode: (mode) => set({ activeMode: mode }),
   setConfig: (updates) =>
     set((s) => ({
       config:
@@ -75,6 +113,16 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   replaceConfig: (config) => set({ config }),
   setImageModels: (models) =>
     set((s) => ({ imageModels: applyUpdater(s.imageModels, models) })),
+  setSelectedImageModel: (model) => set({ selectedImageModel: model }),
+  setConversations: (conversations) =>
+    set((s) => ({
+      conversations: applyUpdater(s.conversations, conversations),
+    })),
+  setActiveConvId: (id) => set({ activeConvId: id }),
+  setChatMessages: (messages) =>
+    set((s) => ({ chatMessages: applyUpdater(s.chatMessages, messages) })),
+  setStreaming: (streaming) => set({ streaming }),
+  setStreamingText: (text) => set({ streamingText: text }),
   setImageHistory: (history) =>
     set((s) => ({ imageHistory: applyUpdater(s.imageHistory, history) })),
   setGenerating: (generating) => set({ generating }),
@@ -90,4 +138,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
     })),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setWalletOpen: (open) => set({ walletOpen: open }),
+  setPwOpen: (open) => set({ pwOpen: open }),
+  resetChatSession: () =>
+    set({ chatMessages: [], streaming: false, streamingText: "" }),
 }));
