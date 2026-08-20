@@ -1395,3 +1395,71 @@ html.dark .liquid-glass-strong {
     color: rgba(245, 230, 211, 0.98) !important;
   }
 }
+
+/* ── Shared workspace primitives ── */
+.ui-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.ui-button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease,
+    transform 150ms ease;
+}
+
+.ui-button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+
+.ui-button--danger {
+  background: var(--danger-surface);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ui-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ui-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-icon-button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.ui-field {
+  min-height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.ui-kicker {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
