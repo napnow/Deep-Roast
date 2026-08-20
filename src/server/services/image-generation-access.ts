@@ -1,11 +1,7 @@
 import { ApiError } from "@/server/http";
+import { canUseImageGeneration } from "@/lib/image-generation-access";
 
-export function canUseImageGeneration(
-  role: string,
-  enabled: boolean,
-): boolean {
-  return role === "admin" || enabled;
-}
+export { canUseImageGeneration } from "@/lib/image-generation-access";
 
 export function assertImageGenerationPolicy(
   role: string,
