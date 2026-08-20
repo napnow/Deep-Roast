@@ -9,6 +9,11 @@ import type {
   Message,
 } from "@/types";
 import { DEFAULT_IMAGE_MODELS } from "@/types";
+import type {
+  ImageCreationMode,
+  InspectorTab,
+  WorkspaceMode,
+} from "@/lib/workspace-preferences";
 
 type Updater<T> = T | ((prev: T) => T);
 
@@ -18,7 +23,11 @@ function applyUpdater<T>(prev: T, next: Updater<T>): T {
 
 export interface DeepRoastState {
   // mode: 文生图 / 对话
-  activeMode: "image" | "chat";
+  activeMode: WorkspaceMode;
+  imageCreationMode: ImageCreationMode;
+  inspectorTab: InspectorTab;
+  inspectorCollapsed: boolean;
+  activeImageId: string | null;
 
   // config / models
   config: Config;
@@ -46,9 +55,14 @@ export interface DeepRoastState {
   settingsOpen: boolean;
   walletOpen: boolean;
   pwOpen: boolean;
+  apiOpen: boolean;
 
   // setters
-  setActiveMode: (mode: "image" | "chat") => void;
+  setActiveMode: (mode: WorkspaceMode) => void;
+  setImageCreationMode: (mode: ImageCreationMode) => void;
+  setInspectorTab: (tab: InspectorTab) => void;
+  setInspectorCollapsed: (collapsed: boolean) => void;
+  setActiveImageId: (id: string | null) => void;
   setConfig: (updates: Partial<Config> | ((prev: Config) => Config)) => void;
   replaceConfig: (config: Config) => void;
   setImageModels: (models: Updater<ModelInfo[]>) => void;
@@ -68,6 +82,7 @@ export interface DeepRoastState {
   setSettingsOpen: (open: boolean) => void;
   setWalletOpen: (open: boolean) => void;
   setPwOpen: (open: boolean) => void;
+  setApiOpen: (open: boolean) => void;
   resetChatSession: () => void;
 }
 
@@ -85,6 +100,10 @@ const initialConfig: Config = {
 
 export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   activeMode: "image",
+  imageCreationMode: "text",
+  inspectorTab: "history",
+  inspectorCollapsed: false,
+  activeImageId: null,
   config: initialConfig,
   imageModels: DEFAULT_IMAGE_MODELS,
   selectedImageModel: initialConfig.imageModel,
@@ -101,8 +120,13 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   settingsOpen: false,
   walletOpen: false,
   pwOpen: false,
+  apiOpen: false,
 
   setActiveMode: (mode) => set({ activeMode: mode }),
+  setImageCreationMode: (mode) => set({ imageCreationMode: mode }),
+  setInspectorTab: (tab) => set({ inspectorTab: tab }),
+  setInspectorCollapsed: (collapsed) => set({ inspectorCollapsed: collapsed }),
+  setActiveImageId: (id) => set({ activeImageId: id }),
   setConfig: (updates) =>
     set((s) => ({
       config:
@@ -139,6 +163,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setWalletOpen: (open) => set({ walletOpen: open }),
   setPwOpen: (open) => set({ pwOpen: open }),
+  setApiOpen: (open) => set({ apiOpen: open }),
   resetChatSession: () =>
     set({ chatMessages: [], streaming: false, streamingText: "" }),
 }));

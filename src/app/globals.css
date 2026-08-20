@@ -1463,3 +1463,63 @@ html.dark .liquid-glass-strong {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+
+/* ── Persistent image/chat workspace shell ── */
+.workspace-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100svh;
+  flex-direction: column;
+  background: var(--bg-root);
+}
+
+.workspace-main,
+.workspace-content,
+.workspace-stage,
+.workspace-view {
+  min-width: 0;
+  min-height: 0;
+}
+
+.workspace-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.workspace-topbar {
+  min-height: 56px;
+  border-bottom: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.workspace-stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace-view {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  visibility: hidden;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.workspace-view.is-active {
+  z-index: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
