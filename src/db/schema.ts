@@ -111,7 +111,7 @@ export const users = pgTable("users", {
 }, (table) => ({
   legacyInviteCodeUnique: uniqueIndex("users_legacy_invite_code_unique").on(
     table.legacyInviteCode,
-  ),
+  ).where(sql`${table.legacyInviteCode} IS NOT NULL`),
 }));
 
 // ── Site announcements ──

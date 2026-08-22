@@ -34,3 +34,11 @@ test("short invitation migration preserves old links", () => {
   assert.match(sql, /CREATE UNIQUE INDEX/);
   assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
 });
+
+test("short-code schema keeps the legacy index partial like the migration", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  assert.match(
+    schema,
+    /legacyInviteCodeUnique[\s\S]*?\.where\(sql`\$\{table\.legacyInviteCode\} IS NOT NULL`\)/,
+  );
+});

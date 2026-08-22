@@ -1,6 +1,6 @@
 {
-  "id": "1dfe4d86-d60b-4588-838b-029713ab4b07",
-  "prevId": "d226aca9-239a-4214-ae18-a0b1add1538b",
+  "id": "77f50ca2-f30b-441b-b628-bafdd37c11bd",
+  "prevId": "1dfe4d86-d60b-4588-838b-029713ab4b07",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1051,6 +1051,7 @@
             }
           ],
           "isUnique": true,
+          "where": "\"users\".\"legacy_invite_code\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
