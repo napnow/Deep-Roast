@@ -2287,3 +2287,15 @@ html.dark .liquid-glass-strong {
   background: var(--accent-surface);
   color: var(--accent);
 }
+
+@media (max-width: 640px) {
+  .announcement-bell__panel {
+    position: fixed;
+    top: calc(56px + 0.5rem);
+    left: 0.75rem;
+    right: 0.75rem;
+    z-index: 40;
+    width: auto;
+    max-height: min(28rem, calc(100svh - 5rem));
+  }
+}

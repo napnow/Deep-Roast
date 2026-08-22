@@ -83,7 +83,7 @@ export default function AnnouncementBell() {
           id="announcement-bell-dialog"
           role="dialog"
           aria-label="站点公告"
-          className="absolute right-0 top-[calc(100%+0.5rem)] z-30 flex max-h-[min(26rem,60vh)] w-[min(24rem,calc(100vw-1.5rem))] flex-col rounded-xl border shadow-lg animate-fade-in"
+          className="announcement-bell__panel absolute right-0 top-[calc(100%+0.5rem)] z-30 flex max-h-[min(26rem,60vh)] w-[min(24rem,calc(100vw-1.5rem))] flex-col rounded-xl border shadow-lg animate-fade-in"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border-strong)",
