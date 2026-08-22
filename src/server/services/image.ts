@@ -12,7 +12,22 @@ import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
 import { ApiError } from "@/server/http";
 import { resolveImageEndpoint } from "@/server/providers/llm";
-import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
+import {
+  assertEnoughCredits,
+  consumeCredits,
+  refundCredits,
+} from "@/server/services/credits";
+import { assertImageGenerationAllowed } from "@/server/services/site-settings";
+import type {
+  ImageEditRequest,
+  ImageEditTask,
+} from "@/lib/image-edit-contract";
+import {
+  calculateImageEditCost,
+  normalizeImageEditCount,
+  normalizeImageEditRequest,
+} from "./image-edit-tasks";
+import { executeImageEditTasks } from "./image-edit-runner";
 
 const MAX_PROMPT_LENGTH = 2000;
 
@@ -30,6 +45,26 @@ const NATIVE_SIZES = [
 
 /** 需要走「原生尺寸 + 精确裁切」的模型（其他模型直接用请求 size） */
 const CROP_MODELS = new Set(["gpt-image-2"]);
+const STANDARD_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024"]);
+
+export function assertImageSize(size: string, model: string): string {
+  const normalized = size.trim();
+  // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
+  if (CROP_MODELS.has(model)) {
+    if (!/^\d{2,4}x\d{2,4}$/.test(normalized)) {
+      throw new ApiError("不支持的图片尺寸", 400);
+    }
+    return normalized;
+  }
+  if (!STANDARD_IMAGE_SIZES.has(normalized)) {
+    throw new ApiError("不支持的图片尺寸", 400);
+  }
+  return normalized;
+}
+
+export function shouldRetryImageError(error: unknown): boolean {
+  return !(error instanceof ApiError);
+}
 
 function parseSize(size: string): { w: number; h: number } | null {
   const m = /^(\d+)x(\d+)$/.exec(size.trim());
@@ -125,8 +160,9 @@ export async function generateImage(opts: {
     role = "user",
     prompt,
     modelOverride,
-    size = "1024x1024",
+    size: requestedSize = "1024x1024",
   } = opts;
+  await assertImageGenerationAllowed(role);
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
   if (prompt.length > MAX_PROMPT_LENGTH) {
     throw new ApiError(`提示词不能超过 ${MAX_PROMPT_LENGTH} 字`, 400);
@@ -147,11 +183,9 @@ export async function generateImage(opts: {
   if (!enabledModels.includes(model)) {
     throw new ApiError("指定的模型不可用", 400);
   }
+  const size = assertImageSize(requestedSize, model);
 
   const chargeCredits = role !== "admin";
-  if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_IMAGE);
-  }
 
   const systemPrompt = config?.imageSystemPrompt || "";
   const finalPrompt = systemPrompt
@@ -179,11 +213,15 @@ export async function generateImage(opts: {
     throw new ApiError("未配置 API Base URL", 400);
   }
 
-  let lastError: unknown;
   // 仅 gpt-image-2：标准比例映射到最近原生尺寸生成，落盘前精确裁切；
   // 其他模型（seedream/grok 等）直接用请求 size，不裁切
   const needsCrop = CROP_MODELS.has(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
+  let creditsReserved = false;
+  if (userId && chargeCredits) {
+    await consumeCredits(userId, CREDIT_PER_IMAGE, `预扣生成图片: ${prompt.slice(0, 50)}`);
+    creditsReserved = true;
+  }
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(`${baseUrl}/images/generations`, {
@@ -202,8 +240,8 @@ export async function generateImage(opts: {
       });
 
       if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`${res.status} ${errText}`);
+        await res.text();
+        throw new Error(`上游图片服务返回 HTTP ${res.status}`);
       }
 
       const result = await res.json();
@@ -258,14 +296,6 @@ export async function generateImage(opts: {
         })
         .returning({ id: imageGenerations.id });
 
-      if (userId && chargeCredits) {
-        await consumeCredits(
-          userId,
-          CREDIT_PER_IMAGE,
-          `生成图片: ${prompt.slice(0, 50)}`,
-        );
-      }
-
       console.log(
         `Image gen success (attempt ${attempt}/${maxRetries}): ${model}`,
       );
@@ -278,27 +308,44 @@ export async function generateImage(opts: {
         size,
       };
     } catch (err) {
-      lastError = err;
       console.error(
         `Image gen error (attempt ${attempt}/${maxRetries}):`,
         err instanceof Error ? err.message : err,
       );
-      if (attempt < maxRetries) {
+      if (attempt < maxRetries && shouldRetryImageError(err)) {
         await new Promise((r) => setTimeout(r, 1000));
+      } else {
+        break;
       }
     }
   }
 
-  const msg =
-    lastError instanceof Error ? lastError.message : "未知错误";
-  throw new ApiError(`图片生成出错: ${msg}`, 500);
+  if (creditsReserved) {
+    try {
+      await refundCredits(userId, CREDIT_PER_IMAGE, `生成失败退回积分: ${prompt.slice(0, 50)}`);
+    } catch (refundError) {
+      console.error("图片生成退款失败", refundError);
+    }
+  }
+  throw new ApiError("图片生成失败，请稍后重试", 502, "UPSTREAM_IMAGE_ERROR");
 }
 
 /**
  * 图生图（原图直传编辑）：参考图 + 修改描述 → 上游 /v1/images/edits。
  * 与文生图共享落盘/缩略图/积分/历史逻辑。
  */
-export async function editImage(opts: {
+/** 单次图生图成功结果 */
+export type EditImageResult = {
+  id: string;
+  imageUrl: string;
+  thumbUrl?: string;
+  prompt: string;
+  model: string;
+  size: string;
+};
+
+/** 执行一次上游图像编辑请求并落盘一个结果。 */
+async function editImageOnce(opts: {
   userId: string;
   role?: string;
   /** data URL（data:image/...;base64,...）或 http(s) 图片 URL，支持多张（最多 5 张） */
@@ -306,7 +353,7 @@ export async function editImage(opts: {
   prompt: string;
   modelOverride?: string;
   size?: string;
-}) {
+}): Promise<EditImageResult> {
   const {
     userId,
     role = "user",
@@ -315,6 +362,7 @@ export async function editImage(opts: {
     modelOverride,
     size = "1024x1024",
   } = opts;
+  await assertImageGenerationAllowed(role);
   const images = Array.isArray(image)
     ? image.filter((s) => s?.trim())
     : image?.trim()
@@ -363,6 +411,7 @@ export async function editImage(opts: {
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
+
   const editPayload = isGrok
     ? {
         model,
@@ -377,8 +426,7 @@ export async function editImage(opts: {
         size: requestSize,
         n: 1,
         quality: "high",
-        // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）；
-        // 多参考图时按 OpenAI 规范传 image 数组（gpt-image-2 / seedream 原生支持）
+        // chatgpt2api /v1/images/edits 支持 JSON 单图或多图引用。
         image: images.length === 1 ? images[0] : images,
       };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -483,6 +531,107 @@ export async function editImage(opts: {
   throw new ApiError(`图生图失败: ${msg}`, 500);
 }
 
+/**
+ * 兼容旧调用方：数组图片仍然逐张独立生成。
+ * 参考模式由 runImageEditTasks 直接把多图数组交给 editImageOnce。
+ */
+export async function editImage(opts: {
+  userId: string;
+  role?: string;
+  image: string | string[];
+  prompt: string;
+  modelOverride?: string;
+  size?: string;
+}): Promise<EditImageResult | EditImageResult[]> {
+  const images = Array.isArray(opts.image)
+    ? opts.image.filter((value) => value?.trim())
+    : opts.image?.trim()
+      ? [opts.image]
+      : [];
+  if (images.length > 5) {
+    throw new ApiError("参考图最多 5 张", 400);
+  }
+  if (images.length <= 1) {
+    return editImageOnce(opts);
+  }
+
+  const results: EditImageResult[] = [];
+  for (const image of images) {
+    results.push(await editImageOnce({ ...opts, image }));
+  }
+  return results;
+}
+
+export async function runImageEditTasks(opts: {
+  userId: string;
+  role?: string;
+  request: ImageEditRequest;
+  modelOverride?: string;
+  size?: string;
+  count?: number;
+}) {
+  const {
+    userId,
+    role = "user",
+    request,
+    modelOverride,
+    size = "1024x1024",
+    count = 1,
+  } = opts;
+
+  await assertImageGenerationAllowed(role);
+  const config = await getConfig();
+  const model =
+    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+  const enabledModels = parseEnabledModels(
+    config?.enabledImageModels,
+    defaultImageModelIds(),
+    config?.imageModel,
+  );
+  if (!enabledModels.includes(model)) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+
+  const tasks = normalizeImageEditRequest(request, model);
+  const normalizedCount = normalizeImageEditCount(count);
+  const chargeCredits = role !== "admin";
+  if (userId && chargeCredits) {
+    await assertEnoughCredits(
+      userId,
+      CREDIT_PER_IMAGE * calculateImageEditCost(tasks, normalizedCount),
+    );
+  }
+
+  const execution = await executeImageEditTasks<EditImageResult>(
+    tasks,
+    normalizedCount,
+    async (task) =>
+      editImageOnce({
+        userId,
+        role,
+        image:
+          task.mode === "reference"
+            ? [task.targetImage, ...task.referenceImages]
+            : task.targetImage,
+        prompt: task.prompt,
+        modelOverride: model,
+        size,
+      }),
+  );
+
+  return {
+    images: execution.images.map(({ result, taskIndex, targetIndex }) => ({
+      ...result,
+      taskIndex,
+      targetIndex,
+    })),
+    total: execution.total,
+    succeeded: execution.succeeded,
+    failed: execution.failed,
+    lastError: execution.lastError,
+  };
+}
+
 export async function listImageHistory(userId: string, limit = 50) {
   const rows = await db
     .select()
@@ -576,6 +725,8 @@ export async function editImageBatch(opts: {
     count = 1,
   } = opts;
 
+  await assertImageGenerationAllowed(role);
+
   const images = Array.isArray(image)
     ? image.filter((s) => s?.trim())
     : image?.trim()
@@ -590,36 +741,39 @@ export async function editImageBatch(opts: {
   }
 
   const chargeCredits = role !== "admin";
-  // 预校验总额度（不足直接拒绝，不扣款）
+  // 预校验总额度（不足直接拒绝，不扣款）：参考图张数 × 每张变体数
   if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_IMAGE * n);
+    await assertEnoughCredits(userId, CREDIT_PER_IMAGE * n * images.length);
   }
 
   const results: Awaited<ReturnType<typeof editImage>>[] = [];
   let failed = 0;
   let lastError: string | null = null;
 
-  // 串行生成：避免并发打爆上游配额；每张独立原子扣款
-  for (let i = 0; i < n; i++) {
-    try {
-      const r = await editImage({
-        userId,
-        role,
-        image: images,
-        prompt,
-        modelOverride,
-        size,
-      });
-      results.push(r);
-    } catch (err) {
-      failed += 1;
-      lastError = err instanceof Error ? err.message : "生成失败";
+  // 串行生成：每张参考图独立生成 n 张变体（避免并发打爆上游配额；每张独立原子扣款）
+  for (const img of images) {
+    for (let i = 0; i < n; i++) {
+      try {
+        const r = await editImage({
+          userId,
+          role,
+          image: img,
+          prompt,
+          modelOverride,
+          size,
+        });
+        // 单图调用总是返回单个结果对象
+        results.push(r as EditImageResult);
+      } catch (err) {
+        failed += 1;
+        lastError = err instanceof Error ? err.message : "生成失败";
+      }
     }
   }
 
   return {
     images: results,
-    total: n,
+    total: n * images.length,
     succeeded: results.length,
     failed,
     lastError,
