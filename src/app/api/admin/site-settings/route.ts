@@ -4,6 +4,8 @@ import {
   clearAdminContactImage,
   clearDonationImage,
   getSiteSettings,
+  setInvitationEnabled,
+  setInvitationReward,
   setDonationEnabled,
   setImageGenerationEnabled,
   setRegistrationEnabled,
@@ -26,6 +28,8 @@ export const PUT = handleRoute(async (req) => {
     donationEnabled?: boolean;
     donationText?: string;
     clearDonationImage?: boolean;
+    invitationEnabled?: boolean;
+    invitationReward?: number | string;
   }>(req);
 
   if (body.clearImage === true) {
@@ -42,6 +46,12 @@ export const PUT = handleRoute(async (req) => {
   }
   if (typeof body.donationEnabled === "boolean") {
     await setDonationEnabled(body.donationEnabled);
+  }
+  if (typeof body.invitationEnabled === "boolean") {
+    await setInvitationEnabled(body.invitationEnabled);
+  }
+  if (body.invitationReward !== undefined) {
+    await setInvitationReward(body.invitationReward);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

@@ -8,6 +8,7 @@ import {
   check,
   uuid,
   jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { MessageMetadata } from "@/types";
 
@@ -75,10 +76,18 @@ export const siteSettings = pgTable(
     donationImagePath: text("donation_image_path").notNull().default(""),
     /** 打赏弹窗展示的自定义文案，空则显示默认文案 */
     donationText: text("donation_text").notNull().default(""),
+    /** 邀请功能开关（1=开 0=关） */
+    invitationEnabled: integer("invitation_enabled").notNull().default(1),
+    /** 每次成功邀请奖励积分，允许为 0 */
+    invitationReward: integer("invitation_reward").notNull().default(200),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
     singleRowCheck: check("site_settings_single_row", sql`${table.id} = 1`),
+    invitationRewardNonNegative: check(
+      "site_settings_invitation_reward_non_negative",
+      sql`${table.invitationReward} >= 0`,
+    ),
   }),
 );
 
@@ -91,6 +100,8 @@ export const users = pgTable("users", {
   credits: integer("credits").notNull().default(50), // 积分余额（新用户注册赠送 50）
   /** active | banned */
   status: text("status").notNull().default("active"),
+  /** 普通用户固定邀请代码；管理员保持 NULL */
+  inviteCode: text("invite_code").unique(),
   /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
   lastCheckinOn: text("last_checkin_on"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -116,6 +127,33 @@ export const registrationRecords = pgTable("registration_records", {
   username: text("username").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── 用户邀请关系：账号删除后保留用户名快照和奖励历史 ──
+export const userInvitations = pgTable(
+  "user_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    inviterId: uuid("inviter_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    inviteeId: uuid("invitee_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    inviterUsername: text("inviter_username").notNull(),
+    inviteeUsername: text("invitee_username").notNull(),
+    rewardAmount: integer("reward_amount").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    inviteeUnique: uniqueIndex("user_invitations_invitee_unique").on(
+      table.inviteeId,
+    ),
+    rewardNonNegative: check(
+      "user_invitations_reward_non_negative",
+      sql`${table.rewardAmount} >= 0`,
+    ),
+  }),
+);
 
 // ── Conversations ──
 export const conversations = pgTable("conversations", {
@@ -182,7 +220,7 @@ export const creditTransactions = pgTable("credit_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus'
+  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward'
   amount: integer("amount").notNull(), // 正=增加, 负=扣除
   balanceAfter: integer("balance_after").notNull(),
   planId: text("plan_id"), // 充值档位, 仅 type=recharge 时

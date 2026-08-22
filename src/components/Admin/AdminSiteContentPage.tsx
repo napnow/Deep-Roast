@@ -3,6 +3,7 @@
 import AdminAnnouncementsCard from "./AdminAnnouncementsCard";
 import AdminDonationCard from "./AdminDonationCard";
 import AdminSiteSettingsCard from "./AdminSiteSettingsCard";
+import AdminInvitationsCard from "./AdminInvitationsCard";
 
 export default function AdminSiteContentPage() {
   return (
@@ -18,6 +19,7 @@ export default function AdminSiteContentPage() {
         <AdminSiteSettingsCard />
         <AdminAnnouncementsCard />
       </div>
+      <AdminInvitationsCard />
       <AdminDonationCard />
     </div>
   );

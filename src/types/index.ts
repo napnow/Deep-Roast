@@ -55,7 +55,8 @@ export interface CreditTransaction {
     | "admin_grant"
     | "admin_deduct"
     | "consume"
-    | "signup_bonus";
+    | "signup_bonus"
+    | "invite_reward";
   amount: number;
   balanceAfter: number;
   planId?: string | null;
@@ -85,7 +86,23 @@ export const CREDIT_TYPE_LABELS: Record<string, { label: string; color: string }
   admin_deduct: { label: "管理扣积分", color: "#f97316" },
   consume: { label: "生成消耗", color: "#ef4444" },
   signup_bonus: { label: "注册赠送", color: "#6b7280" },
+  invite_reward: { label: "邀请奖励", color: "#d4894a" },
 };
+
+export interface UserInvitationData {
+  eligible: boolean;
+  enabled: boolean;
+  reward: number;
+  inviteCode: string | null;
+  inviteLink: string | null;
+  invitedCount: number;
+  totalReward: number;
+  invitations: Array<{
+    inviteeUsername: string;
+    rewardAmount: number;
+    createdAt: string | null;
+  }>;
+}
 
 export interface Announcement {
   id: string;

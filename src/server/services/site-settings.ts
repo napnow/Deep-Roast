@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { siteSettings } from "@/db/schema";
 import { ApiError } from "@/server/http";
 import { assertImageGenerationPolicy } from "./image-generation-access";
+import { parseInvitationReward } from "./invitations";
 
 const UPLOAD_DIR = path.join(
   process.cwd(),
@@ -49,6 +50,8 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     donationEnabled: (row.donationEnabled ?? 1) !== 0,
     donationImagePath: row.donationImagePath ?? "",
     donationText: row.donationText ?? "",
+    invitationEnabled: (row.invitationEnabled ?? 1) !== 0,
+    invitationReward: row.invitationReward ?? 200,
     updatedAt: row.updatedAt,
   };
 }
@@ -195,6 +198,30 @@ export async function setDonationEnabled(enabled: boolean) {
       donationEnabled: enabled ? 1 : 0,
       updatedAt: new Date(),
     })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function setInvitationEnabled(enabled: boolean) {
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({
+      invitationEnabled: enabled ? 1 : 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function setInvitationReward(value: unknown) {
+  const reward = parseInvitationReward(value);
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({ invitationReward: reward, updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
   return mapSettings(row!);

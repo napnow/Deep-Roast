@@ -37,12 +37,13 @@ export async function login(
 export async function register(
   username: string,
   password: string,
+  inviteCode?: string | null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, inviteCode }),
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || "注册失败" };
