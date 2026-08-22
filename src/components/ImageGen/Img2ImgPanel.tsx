@@ -10,6 +10,10 @@ import {
   type ImageEditUiState,
 } from "./image-edit-ui";
 import {
+  getActiveEditPrompt,
+  getCreationSettingsSummary,
+} from "./creation-workbench-ui";
+import {
   EDIT_STYLE_PRESETS,
   DEFAULT_EDIT_STYLE,
   friendlyStyleColor,
@@ -101,6 +105,17 @@ export default function Img2ImgPanel({
     (s) => s.id === styleId,
   );
   const activeTaskCount = editMode === "reference" ? 1 : refs.length;
+  const activeEditPrompt = getActiveEditPrompt(perImagePrompts, targetIndex);
+  const currentPrompt = editMode === "per-image" && refs.length > 0
+    ? activeEditPrompt
+    : edit;
+  const currentSizeLabel =
+    sizeOptions?.find((option) => option.value === editSize)?.label || editSize;
+  const settingsSummary = getCreationSettingsSummary({
+    styleLabel: activeStyle?.label,
+    sizeLabel: currentSizeLabel,
+    batchCount,
+  });
 
   /** 编译最终编辑 prompt：风格前缀（填槽） + 用户描述 */
   function compileEditPrompt(description = edit): string {
@@ -218,6 +233,18 @@ export default function Img2ImgPanel({
     );
   }
 
+  function updateCurrentPrompt(value: string) {
+    if (editMode === "per-image" && refs.length > 0) {
+      setPerImagePrompts((prev) => {
+        const next = [...prev];
+        next[targetIndex] = value;
+        return next;
+      });
+      return;
+    }
+    setEdit(value);
+  }
+
   async function handleGenerate() {
     if (disabled || refs.length === 0 || generating) return;
     setError("");
@@ -319,472 +346,429 @@ export default function Img2ImgPanel({
   }
 
   return (
-    <div className="max-w-2xl space-y-3">
-      <span
-        className="text-[11px] font-semibold tracking-widest uppercase"
-        style={{ color: "var(--text-muted)" }}
-      >
-        图生图
-      </span>
+    <div className="img2img-workbench">
+      <div className="img2img-workbench__heading">
+        <div>
+          <span className="ui-kicker">图生图</span>
+          <p className="img2img-workbench__subtitle">上传素材，选择目标后描述修改</p>
+        </div>
+        <span className="img2img-workbench__count">{refs.length}/{MAX_REFS}</span>
+      </div>
 
       {disabled ? (
-        <p
-          className="rounded-lg px-3 py-2 text-xs"
-          style={{
-            color: "var(--accent)",
-            background: "var(--accent-surface)",
-            border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
-          }}
-        >
+        <p className="creation-status creation-status--warning">
           生图功能暂时关闭
         </p>
       ) : null}
 
-      <div className="flex items-center gap-2.5 flex-wrap">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleSelect}
-          className="hidden"
-        />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled || processing || generating || refs.length >= MAX_REFS}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:scale-100"
-          style={{
-            background: "var(--accent-surface)",
-            border: "1px solid var(--accent)",
-            color: "var(--accent)",
-          }}
-        >
-          {refs.length > 0 ? "添加参考图" : "选择参考图"}
-          <span className="opacity-70">({refs.length}/{MAX_REFS})</span>
-        </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleSelect}
+        className="hidden"
+      />
 
-        {refs.length > 0 && (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {refs.map((r, idx) => (
-                <div key={idx} className="relative shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={r.preview || r.base64}
-                    alt={`参考图 ${idx + 1}`}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg object-cover border"
-                    style={{ borderColor: "var(--border)" }}
-                  />
-                  <button
-                    onClick={() => removeRef(idx)}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] hover:scale-110 transition-transform"
-                    style={{ background: "var(--danger)", color: "#fff" }}
-                    title="删除此图"
-                    aria-label={`删除参考图 ${idx + 1}`}
-                  >
-                    ✕
-                  </button>
-                  {editMode === "per-image" ? (
-                    <textarea
-                      value={perImagePrompts[idx] || ""}
-                      onChange={(event) =>
-                        setPerImagePrompts((prev) => {
-                          const next = [...prev];
-                          next[idx] = event.target.value;
-                          return next;
-                        })
-                      }
-                      onFocus={lockPageScroll}
-                      onBlur={unlockPageScroll}
-                      rows={2}
-                      disabled={processing}
-                      placeholder={"图片 " + (idx + 1) + " 的修改指令"}
-                      className="mt-1 w-24 rounded-md px-1.5 py-1 text-[10px] resize-y disabled:opacity-40"
-                      style={{
-                        background: "var(--bg-root)",
-                        border: "1px solid var(--border)",
-                        color: "var(--text-primary)",
-                      }}
-                    />
-                  ) : (
-                    <div className="mt-1 flex flex-col gap-1 text-[10px]">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetIndex(idx);
-                          setReferenceIndexes((prev) =>
-                            prev.filter((index) => index !== idx),
-                          );
-                        }}
-                        disabled={processing}
-                        className="rounded-md px-1.5 py-1 text-left disabled:opacity-40"
-                        style={{
-                          background:
-                            targetIndex === idx
-                              ? "var(--accent-surface)"
-                              : "var(--bg-root)",
-                          border:
-                            targetIndex === idx
-                              ? "1px solid var(--accent)"
-                              : "1px solid var(--border)",
-                          color:
-                            targetIndex === idx
-                              ? "var(--accent)"
-                              : "var(--text-secondary)",
-                        }}
-                      >
-                        {targetIndex === idx ? "目标图" : "设为目标"}
-                      </button>
-                      <label
-                        className="flex items-center gap-1 px-1.5 py-0.5"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={referenceIndexes.includes(idx)}
-                          onChange={() => toggleReference(idx)}
-                          disabled={processing || targetIndex === idx}
-                        />
-                        参考图
-                      </label>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+      <section className="img2img-assets" aria-label="参考素材">
+        <div className="img2img-assets__toolbar">
+          <div>
+            <span className="creation-section-label">参考素材</span>
+            <span className="img2img-assets__count">
+              {refs.length} / {MAX_REFS}
+            </span>
+          </div>
+          {refs.length > 0 ? (
             <button
+              type="button"
               onClick={clearAll}
-              className="text-[11px] transition-colors hover:opacity-80"
-              style={{ color: "var(--text-muted)" }}
+              disabled={processing}
+              className="creation-link"
             >
               清空全部
             </button>
-          </>
-        )}
-      </div>
-
-      {refs.length > 0 && (
-        <div
-          className="rounded-xl px-3 py-2.5 space-y-2"
-          style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <div className="flex items-center gap-1.5">
-            <span
-              className="text-[10px] font-semibold tracking-widest uppercase mr-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              处理方式
-            </span>
-            {(
-              [
-                ["per-image", "分别修改"],
-                ["reference", "参考修改"],
-              ] as const
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => toggleEditMode(mode)}
-                disabled={processing}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all disabled:opacity-40"
-                style={{
-                  background:
-                    editMode === mode
-                      ? "var(--accent-surface)"
-                      : "var(--bg-root)",
-                  border:
-                    editMode === mode
-                      ? "1px solid var(--accent)"
-                      : "1px solid var(--border)",
-                  color:
-                    editMode === mode
-                      ? "var(--accent)"
-                      : "var(--text-secondary)",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {editMode === "reference" && (
-            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              选择一张目标图，再勾选一张或多张参考图。参考修改当前仅支持 GPT Image 2。
-            </p>
-          )}
+          ) : null}
         </div>
-      )}
 
-      {/* 描述/风格/比例/生成：始终显示（上传图片只是填充参考图） */}
-      <>
-        <textarea
+        <div className="img2img-assets__rail">
+          {refs.map((ref, idx) => {
+            const selected =
+              editMode === "reference"
+                ? targetIndex === idx || referenceIndexes.includes(idx)
+                : targetIndex === idx;
+            const role =
+              editMode === "reference"
+                ? targetIndex === idx
+                  ? "目标图"
+                  : referenceIndexes.includes(idx)
+                    ? "参考图"
+                    : "选择"
+                : targetIndex === idx
+                  ? "当前编辑"
+                  : "图片 " + (idx + 1);
+
+            return (
+              <div
+                key={idx}
+                className={"img2img-asset " + (selected ? "is-selected" : "")}
+              >
+                <button
+                  type="button"
+                  className="img2img-asset__preview"
+                  onClick={() => {
+                    setTargetIndex(idx);
+                    if (editMode === "reference") {
+                      setReferenceIndexes((prev) =>
+                        prev.filter((index) => index !== idx),
+                      );
+                    }
+                  }}
+                  disabled={processing}
+                  aria-label={"选择图片 " + (idx + 1)}
+                  aria-pressed={selected}
+                >
+                  <img
+                    src={ref.preview || ref.base64}
+                    alt={"参考图 " + (idx + 1)}
+                    className="img2img-asset__image"
+                  />
+                  <span className="img2img-asset__index">{idx + 1}</span>
+                  <span className="img2img-asset__role">{role}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeRef(idx)}
+                  disabled={processing}
+                  className="img2img-asset__remove"
+                  title="删除此图"
+                  aria-label={"删除参考图 " + (idx + 1)}
+                >
+                  ×
+                </button>
+                {editMode === "reference" && targetIndex !== idx ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleReference(idx)}
+                    disabled={processing}
+                    className="img2img-asset__reference-toggle"
+                  >
+                    {referenceIndexes.includes(idx) ? "取消参考" : "设为参考"}
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+
+          {refs.length < MAX_REFS ? (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={disabled || processing || generating}
+              className="img2img-add-card"
+            >
+              <span className="img2img-add-card__icon">+</span>
+              <span>{refs.length > 0 ? "继续添加" : "添加参考图"}</span>
+            </button>
+          ) : null}
+        </div>
+
+        <p className="img2img-assets__hint">
+          {refs.length === 0
+            ? "最多上传 5 张图片，可分别修改或指定一张参考修改"
+            : editMode === "reference"
+              ? "点击图片设为目标，再将其他图片设为参考"
+              : "点击图片切换当前编辑对象"}
+        </p>
+      </section>
+
+      {refs.length > 0 ? (
+        <section className="img2img-task" aria-label="图生图任务">
+          <div className="img2img-task__header">
+            <div className="creation-segmented" role="tablist" aria-label="处理方式">
+              {(
+                [
+                  ["per-image", "分别修改"],
+                  ["reference", "参考修改"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={editMode === mode}
+                  onClick={() => toggleEditMode(mode)}
+                  disabled={processing}
+                  className={editMode === mode ? "is-active" : ""}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="img2img-task__mode-copy">
+              {editMode === "reference" ? "一张目标图 + 多张参考图" : "逐张编辑"}
+            </span>
+          </div>
+
+          {editMode === "per-image" ? (
+            <label className="img2img-current-editor">
+              <span className="creation-section-label">当前编辑</span>
+              <select
+                value={targetIndex}
+                onChange={(event) => setTargetIndex(Number(event.target.value))}
+                disabled={processing}
+                className="img2img-current-editor__select"
+              >
+                {refs.map((_, idx) => (
+                  <option key={idx} value={idx}>
+                    图片 {idx + 1}
+                  </option>
+                ))}
+              </select>
+              <span className="img2img-current-editor__count">
+                {activeEditPrompt.trim() ? "已填写专属指令" : "使用公共要求"}
+              </span>
+            </label>
+          ) : (
+            <div className="img2img-role-summary">
+              <span className="creation-section-label">编辑关系</span>
+              <span>目标图：图片 {targetIndex + 1}</span>
+              <span>参考图：{referenceIndexes.length} 张</span>
+            </div>
+          )}
+
+          <label className="creation-composer">
+            <span className="creation-section-label">
+              {editMode === "reference"
+                ? "描述参考修改"
+                : "图片 " + (targetIndex + 1) + " 的修改指令"}
+            </span>
+            <textarea
+              value={currentPrompt}
+              onChange={(event) => updateCurrentPrompt(event.target.value)}
+              onFocus={lockPageScroll}
+              onBlur={unlockPageScroll}
+              placeholder={
+                editMode === "reference"
+                  ? "描述你想要的修改…"
+                  : "例如：把背景改成海边日落，保留主体不变…"
+              }
+              rows={4}
+              disabled={processing}
+              className="creation-composer__input"
+            />
+            <span className="creation-composer__counter">
+              {currentPrompt.length} / 1000
+            </span>
+          </label>
+
+          {editMode === "per-image" ? (
+            <details className="img2img-shared-prompt">
+              <summary>所有图片的共同要求（可选）</summary>
+              <textarea
+                value={edit}
+                onChange={(event) => setEdit(event.target.value)}
+                onFocus={lockPageScroll}
+                onBlur={unlockPageScroll}
+                placeholder="例如：整体保持原构图，只统一色调…"
+                rows={2}
+                disabled={processing}
+                className="img2img-shared-prompt__input"
+              />
+            </details>
+          ) : null}
+        </section>
+      ) : (
+        <label className="creation-composer creation-composer--empty">
+          <span className="creation-section-label">修改要求</span>
+          <textarea
             value={edit}
-            onChange={(e) => setEdit(e.target.value)}
+            onChange={(event) => setEdit(event.target.value)}
             onFocus={lockPageScroll}
             onBlur={unlockPageScroll}
-            placeholder="描述你想要的改动（可选），例如：改成赛博朋克风格、把背景变成海边日落…"
-            rows={5}
+            placeholder="上传参考图后，描述你想要的修改…"
+            rows={4}
             disabled={processing}
-            className="w-full rounded-xl px-3.5 py-2.5 text-xs resize-y transition-all duration-200 disabled:opacity-40"
-            style={{
-              background: "var(--bg-root)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              minHeight: "6rem",
-            }}
+            className="creation-composer__input"
           />
+          <span className="creation-composer__counter">{edit.length} / 1000</span>
+        </label>
+      )}
 
-          {/* 风格预设 */}
-          <div className="rounded-xl px-3 py-2.5 space-y-2.5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
-                风格
-              </span>
+      <details className="creation-settings">
+        <summary>
+          <span className="creation-settings__title">更多设置</span>
+          <span className="creation-settings__summary">
+            {settingsSummary.length > 0
+              ? settingsSummary.join(" · ")
+              : "风格、比例、数量"}
+          </span>
+        </summary>
+        <div className="creation-settings__body">
+          <section className="creation-setting-group">
+            <div className="creation-setting-group__header">
+              <span className="creation-section-label">风格</span>
               <button
                 type="button"
-                onClick={() => setStyleId(styleId === "" ? DEFAULT_EDIT_STYLE : "")}
-                className="text-[10px] transition-colors hover:opacity-80"
-                style={{ color: styleId === "" ? "var(--accent)" : "var(--text-muted)" }}
+                onClick={() =>
+                  setStyleId(styleId === "" ? DEFAULT_EDIT_STYLE : "")
+                }
+                disabled={processing}
+                className="creation-link"
               >
                 {styleId === "" ? "开启风格" : "不使用风格"}
               </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {styles.map((s) => (
+            <div className="creation-chip-list">
+              {styles.map((style) => (
                 <button
-                  key={s.id}
+                  key={style.id}
                   type="button"
-                  onClick={() => setStyleId(s.id)}
+                  onClick={() => setStyleId(style.id)}
                   disabled={processing}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
-                  style={{
-                    background: styleId === s.id ? "var(--accent-surface)" : "var(--bg-root)",
-                    border: `1px solid ${styleId === s.id ? "var(--accent)" : "var(--border)"}`,
-                    color: styleId === s.id ? "var(--accent)" : "var(--text-secondary)",
-                  }}
+                  className={
+                    styleId === style.id
+                      ? "creation-chip is-selected"
+                      : "creation-chip"
+                  }
                 >
-                  {s.label}
+                  {style.label}
                 </button>
               ))}
             </div>
 
-            {activeStyle?.colors && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
-                  主色
-                </span>
-                {activeStyle.colors.map((c) => (
+            {activeStyle?.colors ? (
+              <div className="creation-setting-options">
+                <span className="creation-setting-options__label">主色</span>
+                {activeStyle.colors.map((color) => (
                   <button
-                    key={c}
+                    key={color}
                     type="button"
-                    onClick={() => setStyleColor(c)}
+                    onClick={() => setStyleColor(color)}
                     disabled={processing}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40"
-                    style={{
-                      background:
-                        styleColor === c || (!styleColor && c === activeStyle.colors?.[0])
-                          ? "var(--accent-surface)"
-                          : "var(--bg-root)",
-                      border: `1px solid ${
-                        styleColor === c || (!styleColor && c === activeStyle.colors?.[0])
-                          ? "var(--accent)"
-                          : "var(--border)"
-                      }`,
-                      color: "var(--text-secondary)",
-                    }}
+                    className={
+                      styleColor === color ||
+                      (!styleColor && color === activeStyle.colors?.[0])
+                        ? "creation-chip is-selected"
+                        : "creation-chip"
+                    }
                   >
-                    {friendlyStyleColor(c)}
+                    {friendlyStyleColor(color)}
                   </button>
                 ))}
               </div>
-            )}
+            ) : null}
 
-            {activeStyle?.textures && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] shrink-0" style={{ color: "var(--text-muted)" }}>
-                  纹理
-                </span>
-                {activeStyle.textures.map((t) => (
+            {activeStyle?.textures ? (
+              <div className="creation-setting-options">
+                <span className="creation-setting-options__label">纹理</span>
+                {activeStyle.textures.map((texture) => (
                   <button
-                    key={t}
+                    key={texture}
                     type="button"
-                    onClick={() => setStyleTexture(t)}
+                    onClick={() => setStyleTexture(texture)}
                     disabled={processing}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 active:scale-95 disabled:opacity-40"
-                    style={{
-                      background:
-                        styleTexture === t || (!styleTexture && t === activeStyle.textures?.[0])
-                          ? "var(--accent-surface)"
-                          : "var(--bg-root)",
-                      border: `1px solid ${
-                        styleTexture === t || (!styleTexture && t === activeStyle.textures?.[0])
-                          ? "var(--accent)"
-                          : "var(--border)"
-                      }`,
-                      color: "var(--text-secondary)",
-                    }}
+                    className={
+                      styleTexture === texture ||
+                      (!styleTexture && texture === activeStyle.textures?.[0])
+                        ? "creation-chip is-selected"
+                        : "creation-chip"
+                    }
                   >
-                    {friendlyStyleTexture(t)}
+                    {friendlyStyleTexture(texture)}
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            ) : null}
+          </section>
 
-          {/* 图片比例（面板内独立选择） */}
-          {sizeOptions && sizeOptions.length > 0 && (
-            <div
-              className="rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap"
-              style={{
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <span
-                className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              >
-                比例
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {sizeOptions.map((opt) => (
+          {sizeOptions && sizeOptions.length > 0 ? (
+            <section className="creation-setting-group">
+              <span className="creation-section-label">比例</span>
+              <div className="creation-chip-list">
+                {sizeOptions.map((option) => (
                   <button
-                    key={opt.value}
+                    key={option.value}
                     type="button"
-                    onClick={() => setEditSize(opt.value)}
+                    onClick={() => setEditSize(option.value)}
                     disabled={processing}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
-                    style={{
-                      background:
-                        editSize === opt.value
-                          ? "var(--accent-surface)"
-                          : "var(--bg-root)",
-                      border: `1px solid ${
-                        editSize === opt.value
-                          ? "var(--accent)"
-                          : "var(--border)"
-                      }`,
-                      color:
-                        editSize === opt.value
-                          ? "var(--accent)"
-                          : "var(--text-secondary)",
-                    }}
+                    className={
+                      editSize === option.value
+                        ? "creation-chip is-selected"
+                        : "creation-chip"
+                    }
                   >
-                    {opt.label}
+                    {option.label}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            </section>
+          ) : null}
 
-          {/* 批量数量：1 = 单张，2-5 = 批量变体（每张 5 积分） */}
-          <div
-            className="rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap"
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <span
-              className="text-[10px] font-semibold tracking-widest uppercase shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            >
-              数量
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {[1, 2, 3, 4, 5].map((n) => (
+          <section className="creation-setting-group">
+            <span className="creation-section-label">生成数量</span>
+            <div className="creation-chip-list">
+              {[1, 2, 3, 4, 5].map((count) => (
                 <button
-                  key={n}
+                  key={count}
                   type="button"
-                  onClick={() => setBatchCount(n)}
+                  onClick={() => setBatchCount(count)}
                   disabled={processing}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 hover:scale-[1.03] active:scale-95 disabled:opacity-40 disabled:scale-100"
-                  style={{
-                    background:
-                      batchCount === n
-                        ? "var(--accent-surface)"
-                        : "var(--bg-root)",
-                    border: `1px solid ${
-                      batchCount === n ? "var(--accent)" : "var(--border)"
-                    }`,
-                    color:
-                      batchCount === n
-                        ? "var(--accent)"
-                        : "var(--text-secondary)",
-                  }}
+                  className={
+                    batchCount === count
+                      ? "creation-chip is-selected"
+                      : "creation-chip"
+                  }
                 >
-                  {n === 1 ? "1 张" : `${n} 张`}
+                  {count} 张
                 </button>
               ))}
             </div>
-            <span
-              className="text-[10px] shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <p className="creation-setting-hint">
               {batchCount > 1
                 ? "共 " + batchCount * activeTaskCount * 5 + " 积分"
                 : editMode === "reference"
                   ? "参考模式每张 5 积分"
                   : "预计 " + activeTaskCount * 5 + " 积分"}
+            </p>
+          </section>
+        </div>
+      </details>
+
+      <div className="img2img-action">
+        {processing ? (
+          <>
+            <span className="img2img-action__progress" aria-hidden="true">
+              <span />
+              <span />
+              <span />
             </span>
-          </div>
+            <span className="img2img-action__status">
+              {analyzing
+                ? "正在分析图片… "
+                : "正在生成图片… "}
+              {formatTime(elapsed)}
+            </span>
+            <button type="button" onClick={handleStop} className="ui-button ui-button--danger">
+              停止生成
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={disabled || refs.length === 0 || generating || processing}
+            className="ui-button ui-button--primary"
+          >
+            生成图片
+          </button>
+        )}
+      </div>
 
-          <div className="flex items-center gap-2.5">
-            {processing ? (
-              <>
-                <span className="flex gap-1">
-                  {[0, 120, 240].map((delay) => (
-                    <span
-                      key={delay}
-                      className="w-1.5 h-1.5 rounded-full animate-pulse-soft"
-                      style={{
-                        background: "var(--accent)",
-                        animationDelay: `${delay}ms`,
-                      }}
-                    />
-                  ))}
-                </span>
-                <span className="text-[11px]" style={{ color: "var(--accent)" }}>
-                  {analyzing
-                    ? `正在分析图片… ${formatTime(elapsed)}`
-                    : `正在生成图片… ${formatTime(elapsed)}`}
-                </span>
-                <button
-                  onClick={handleStop}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 hover:scale-105"
-                  style={{
-                    background: "var(--danger-surface)",
-                    border: "1px solid var(--danger)",
-                    color: "var(--danger)",
-                  }}
-                >
-                  停止
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleGenerate}
-                disabled={disabled || refs.length === 0 || generating || processing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:scale-100"
-                style={{
-                  background: "var(--accent-surface)",
-                  border: "1px solid var(--accent)",
-                  color: "var(--accent)",
-                }}
-              >
-                生成图片
-              </button>
-            )}
-          </div>
-      </>
-
-      {error && (
-        <p className="text-[11px] animate-fade-in" style={{ color: "var(--danger)" }}>
-          ✗ {error}
+      {error ? (
+        <p className="creation-status creation-status--error" role="alert">
+          {error}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
