@@ -80,6 +80,10 @@ export const siteSettings = pgTable(
     invitationEnabled: integer("invitation_enabled").notNull().default(1),
     /** 每次成功邀请奖励积分，允许为 0 */
     invitationReward: integer("invitation_reward").notNull().default(200),
+    /** 被邀请人成功注册时获得的额外积分，允许为 0 */
+    invitationInviteeReward: integer("invitation_invitee_reward")
+      .notNull()
+      .default(50),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
@@ -87,6 +91,10 @@ export const siteSettings = pgTable(
     invitationRewardNonNegative: check(
       "site_settings_invitation_reward_non_negative",
       sql`${table.invitationReward} >= 0`,
+    ),
+    invitationInviteeRewardNonNegative: check(
+      "site_settings_invitation_invitee_reward_non_negative",
+      sql`${table.invitationInviteeReward} >= 0`,
     ),
   }),
 );
@@ -148,6 +156,9 @@ export const userInvitations = pgTable(
     inviterUsername: text("inviter_username").notNull(),
     inviteeUsername: text("invitee_username").notNull(),
     rewardAmount: integer("reward_amount").notNull().default(0),
+    inviteeRewardAmount: integer("invitee_reward_amount")
+      .notNull()
+      .default(0),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
@@ -226,7 +237,7 @@ export const creditTransactions = pgTable("credit_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward'
+  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward' | 'invitee_reward'
   amount: integer("amount").notNull(), // 正=增加, 负=扣除
   balanceAfter: integer("balance_after").notNull(),
   planId: text("plan_id"), // 充值档位, 仅 type=recharge 时

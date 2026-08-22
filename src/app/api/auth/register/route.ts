@@ -13,7 +13,10 @@ import { ApiError } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
-import { getInvitationReward } from "@/server/services/invitation-policy";
+import {
+  getInvitationReward,
+  getInviteeInvitationReward,
+} from "@/server/services/invitation-policy";
 
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
@@ -82,6 +85,7 @@ async function registerInTransaction(args: {
         registrationEnabled: siteSettings.registrationEnabled,
         invitationEnabled: siteSettings.invitationEnabled,
         invitationReward: siteSettings.invitationReward,
+        invitationInviteeReward: siteSettings.invitationInviteeReward,
       })
       .from(siteSettings)
       .where(eq(siteSettings.id, 1))
@@ -151,14 +155,22 @@ async function registerInTransaction(args: {
     });
 
     if (inviter) {
+      const inviterIsActiveUser =
+        inviter.role === "user" && inviter.status === "active";
       const reward = getInvitationReward(
         invitationEnabled,
         settings?.invitationReward ?? 200,
-        inviter.role === "user" && inviter.status === "active",
+        inviterIsActiveUser,
+        inviteCode,
+      );
+      const inviteeReward = getInviteeInvitationReward(
+        invitationEnabled,
+        settings?.invitationInviteeReward ?? 50,
+        inviterIsActiveUser,
         inviteCode,
       );
 
-      if (reward !== null) {
+      if (reward !== null && inviteeReward !== null) {
         const [updatedInviter] = await tx
           .update(users)
           .set({
@@ -182,12 +194,36 @@ async function registerInTransaction(args: {
           );
         }
 
+        if (inviteeReward > 0) {
+          const [updatedInvitee] = await tx
+            .update(users)
+            .set({
+              credits: sql`${users.credits} + ${inviteeReward}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, user.id))
+            .returning({ credits: users.credits });
+
+          if (!updatedInvitee) {
+            throw new Error("被邀请人奖励发放失败");
+          }
+
+          await tx.insert(creditTransactions).values({
+            userId: user.id,
+            type: "invitee_reward",
+            amount: inviteeReward,
+            balanceAfter: updatedInvitee.credits,
+            note: "受邀注册额外奖励",
+          });
+        }
+
         await tx.insert(userInvitations).values({
           inviterId: inviter.id,
           inviteeId: user.id,
           inviterUsername: inviter.username,
           inviteeUsername: user.username,
           rewardAmount: reward,
+          inviteeRewardAmount: inviteeReward,
         });
 
         if (reward > 0) {

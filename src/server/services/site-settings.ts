@@ -53,6 +53,7 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     donationText: row.donationText ?? "",
     invitationEnabled: (row.invitationEnabled ?? 1) !== 0,
     invitationReward: row.invitationReward ?? 200,
+    invitationInviteeReward: row.invitationInviteeReward ?? 50,
     updatedAt: row.updatedAt,
   };
 }
@@ -238,6 +239,9 @@ export async function updateInvitationSettings(patch: InvitationSettingsPatch) {
   }
   if (patch.invitationReward !== undefined) {
     values.invitationReward = patch.invitationReward;
+  }
+  if (patch.invitationInviteeReward !== undefined) {
+    values.invitationInviteeReward = patch.invitationInviteeReward;
   }
   const [row] = await db
     .update(siteSettings)

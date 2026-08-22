@@ -42,3 +42,17 @@ test("short-code schema keeps the legacy index partial like the migration", () =
     /legacyInviteCodeUnique[\s\S]*?\.where\(sql`\$\{table\.legacyInviteCode\} IS NOT NULL`\)/,
   );
 });
+
+test("invitee reward migration preserves old balances and defaults history to zero", () => {
+  assert.equal(existsSync("drizzle/0014_invitee_invitation_reward.sql"), true);
+  const sql = readFileSync(
+    "drizzle/0014_invitee_invitation_reward.sql",
+    "utf8",
+  );
+  assert.match(sql, /invitation_invitee_reward/);
+  assert.match(sql, /DEFAULT 50/);
+  assert.match(sql, /invitee_reward_amount/);
+  assert.match(sql, /DEFAULT 0/);
+  assert.match(sql, /NON_NEGATIVE|non_negative|>= 0/i);
+  assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
+});

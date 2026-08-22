@@ -8,8 +8,13 @@ test("parses invitation settings together before any update is applied", () => {
     parseInvitationSettingsPatch({
       invitationEnabled: false,
       invitationReward: "0",
+      invitationInviteeReward: "50",
     }),
-    { invitationEnabled: false, invitationReward: 0 },
+    {
+      invitationEnabled: false,
+      invitationReward: 0,
+      invitationInviteeReward: 50,
+    },
   );
 });
 
@@ -19,6 +24,16 @@ test("rejects an invalid reward even when the toggle is also present", () => {
       parseInvitationSettingsPatch({
         invitationEnabled: true,
         invitationReward: -1,
+      }),
+    (error: unknown) => error instanceof ApiError && error.status === 400,
+  );
+});
+
+test("rejects an invalid invitee reward", () => {
+  assert.throws(
+    () =>
+      parseInvitationSettingsPatch({
+        invitationInviteeReward: 1.5,
       }),
     (error: unknown) => error instanceof ApiError && error.status === 400,
   );
