@@ -18,6 +18,14 @@ import {
   refundCredits,
 } from "@/server/services/credits";
 import { assertImageGenerationAllowed } from "@/server/services/site-settings";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import {
+  PUBLIC_IMAGE_EDIT_ERROR,
+  calculateImageEditCost,
+  normalizeImageEditCount,
+  normalizeImageEditRequest,
+} from "./image-edit-tasks";
+import { executeImageEditTasks } from "./image-edit-runner";
 
 const MAX_PROMPT_LENGTH = 2000;
 
@@ -334,11 +342,8 @@ export type EditImageResult = {
   size: string;
 };
 
-/**
- * 图生图：单张参考图按提示词编辑；
- * 多张参考图时逐张独立生成（每张参考图 + 同一提示词各出一张），返回结果数组。
- */
-export async function editImage(opts: {
+/** 执行一次上游图像编辑请求并落盘一个结果。 */
+async function editImageOnce(opts: {
   userId: string;
   role?: string;
   /** data URL（data:image/...;base64,...）或 http(s) 图片 URL，支持多张（最多 5 张） */
@@ -346,7 +351,7 @@ export async function editImage(opts: {
   prompt: string;
   modelOverride?: string;
   size?: string;
-}): Promise<EditImageResult | EditImageResult[]> {
+}): Promise<EditImageResult> {
   const {
     userId,
     role = "user",
@@ -394,7 +399,6 @@ export async function editImage(opts: {
   if (!apiKey) throw new ApiError("请先在设置中配置 API Key", 400);
   if (!baseUrl) throw new ApiError("未配置 API Base URL", 400);
 
-  let lastError: unknown;
   // 仅 gpt-image-2：标准比例映射到最近原生尺寸，落盘前精确裁切
   const needsCrop = CROP_MODELS.has(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
@@ -403,26 +407,6 @@ export async function editImage(opts: {
   const isGrok = model.startsWith("grok-");
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
-  }
-
-  // 多参考图：逐张独立生成（每张参考图 + 同一提示词 → 各出一张结果），
-  // 避免多图同时输入被模型拼接/融合成一张；每张独立扣积分
-  if (images.length > 1) {
-    const results: EditImageResult[] = [];
-    for (const img of images) {
-      // 单图调用总是返回单个结果对象
-      results.push(
-        (await editImage({
-          userId,
-          role,
-          image: img,
-          prompt,
-          modelOverride,
-          size,
-        })) as EditImageResult,
-      );
-    }
-    return results;
   }
 
   const editPayload = isGrok
@@ -439,8 +423,8 @@ export async function editImage(opts: {
         size: requestSize,
         n: 1,
         quality: "high",
-        // gpt2api /v1/images/edits 支持 JSON 原图引用（data URL 或 URL）
-        image: images[0],
+        // chatgpt2api /v1/images/edits 支持 JSON 单图或多图引用。
+        image: images.length === 1 ? images[0] : images,
       };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -529,7 +513,6 @@ export async function editImage(opts: {
         size,
       };
     } catch (err) {
-      lastError = err;
       console.error(
         `Image edit error (attempt ${attempt}/${maxRetries}):`,
         err instanceof Error ? err.message : err,
@@ -540,8 +523,108 @@ export async function editImage(opts: {
     }
   }
 
-  const msg = lastError instanceof Error ? lastError.message : "未知错误";
-  throw new ApiError(`图生图失败: ${msg}`, 500);
+  throw new ApiError(PUBLIC_IMAGE_EDIT_ERROR, 502, "UPSTREAM_IMAGE_ERROR");
+}
+
+/**
+ * 兼容旧调用方：数组图片仍然逐张独立生成。
+ * 参考模式由 runImageEditTasks 直接把多图数组交给 editImageOnce。
+ */
+export async function editImage(opts: {
+  userId: string;
+  role?: string;
+  image: string | string[];
+  prompt: string;
+  modelOverride?: string;
+  size?: string;
+}): Promise<EditImageResult | EditImageResult[]> {
+  const images = Array.isArray(opts.image)
+    ? opts.image.filter((value) => value?.trim())
+    : opts.image?.trim()
+      ? [opts.image]
+      : [];
+  if (images.length > 5) {
+    throw new ApiError("参考图最多 5 张", 400);
+  }
+  if (images.length <= 1) {
+    return editImageOnce(opts);
+  }
+
+  const results: EditImageResult[] = [];
+  for (const image of images) {
+    results.push(await editImageOnce({ ...opts, image }));
+  }
+  return results;
+}
+
+export async function runImageEditTasks(opts: {
+  userId: string;
+  role?: string;
+  request: ImageEditRequest;
+  modelOverride?: string;
+  size?: string;
+  count?: number;
+}) {
+  const {
+    userId,
+    role = "user",
+    request,
+    modelOverride,
+    size = "1024x1024",
+    count = 1,
+  } = opts;
+
+  await assertImageGenerationAllowed(role);
+  const config = await getConfig();
+  const model =
+    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+  const enabledModels = parseEnabledModels(
+    config?.enabledImageModels,
+    defaultImageModelIds(),
+    config?.imageModel,
+  );
+  if (!enabledModels.includes(model)) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+
+  const tasks = normalizeImageEditRequest(request, model);
+  const normalizedCount = normalizeImageEditCount(count);
+  const chargeCredits = role !== "admin";
+  if (userId && chargeCredits) {
+    await assertEnoughCredits(
+      userId,
+      CREDIT_PER_IMAGE * calculateImageEditCost(tasks, normalizedCount),
+    );
+  }
+
+  const execution = await executeImageEditTasks<EditImageResult>(
+    tasks,
+    normalizedCount,
+    async (task) =>
+      editImageOnce({
+        userId,
+        role,
+        image:
+          task.mode === "reference"
+            ? [task.targetImage, ...task.referenceImages]
+            : task.targetImage,
+        prompt: task.prompt,
+        modelOverride: model,
+        size,
+      }),
+  );
+
+  return {
+    images: execution.images.map(({ result, taskIndex, targetIndex }) => ({
+      ...result,
+      taskIndex,
+      targetIndex,
+    })),
+    total: execution.total,
+    succeeded: execution.succeeded,
+    failed: execution.failed,
+    lastError: execution.lastError,
+  };
 }
 
 export async function listImageHistory(userId: string, limit = 50) {

@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/client-api";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 export type ImageTaskErrorKind = "credits" | "network" | "service";
 
@@ -13,6 +14,7 @@ export interface ImageTaskRequest {
   size: string;
   count: number;
   images?: string[];
+  editRequest?: ImageEditRequest;
 }
 
 export interface ImageTaskState {
@@ -30,6 +32,16 @@ export const INITIAL_IMAGE_TASK: ImageTaskState = {
   resultIds: [],
   error: null,
 };
+
+export function createImageTaskState(request: ImageTaskRequest): ImageTaskState {
+  return {
+    status: "generating",
+    startedAt: Date.now(),
+    request,
+    resultIds: [],
+    error: null,
+  };
+}
 
 export function classifyImageTaskError(error: unknown): ImageTaskError {
   if (

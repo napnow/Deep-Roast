@@ -21,6 +21,7 @@ import type {
 } from "@/lib/image-workspace";
 import {
   INITIAL_IMAGE_TASK,
+  createImageTaskState,
   type ImageTaskError,
   type ImageTaskRequest,
   type ImageTaskState,
@@ -204,15 +205,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
     set((s) => ({ imageHistory: applyUpdater(s.imageHistory, history) })),
   setGenerating: (generating) => set({ generating }),
   startImageTask: (request) =>
-    set({
-      imageTask: {
-        status: "generating",
-        startedAt: Date.now(),
-        request,
-        resultIds: [],
-        error: null,
-      },
-    }),
+    set({ imageTask: createImageTaskState(request) }),
   finishImageTask: (resultIds) =>
     set((state) => ({
       imageTask: {

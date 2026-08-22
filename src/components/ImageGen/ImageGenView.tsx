@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import type { ImageRecord } from "@/types";
 import { getSizeOptions } from "./imageUtils";
 import CreationPanel from "./CreationPanel";
+import CreationPanelResizeHandle from "./CreationPanelResizeHandle";
 import ResultCanvas from "./ResultCanvas";
 import AssetInspector from "./AssetInspector";
 import ImageMobileBar from "./ImageMobileBar";
@@ -11,18 +12,25 @@ import GalleryTab from "./GalleryTab";
 import AnnouncementTab from "./AnnouncementTab";
 import ImagePreviewModal from "./ImagePreviewModal";
 import { useDeepRoastStore } from "@/lib/store";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import {
+  clampCreationPanelWidth,
+  CREATION_PANEL_LAYOUT,
+  getCreationPanelBounds,
+  parseCreationPanelWidth,
+  type CreationPanelBounds,
+} from "./creation-workbench-ui";
 
 type MobileTab = "generate" | "gallery" | "announcements";
 
 interface ImageGenViewProps {
   model: string;
   onGenerate: (prompt: string, size: string, count?: number) => void;
-  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
-  onEditImage?: (images: string[], prompt: string, size: string) => void;
-  /** 图生图批量：同参考图生成 N 张变体（最多 5） */
+  /** 图生图：按结构化任务编辑 */
+  onEditImage?: (request: ImageEditRequest, size: string) => void;
+  /** 图生图批量：按结构化任务生成 N 张变体（最多 5） */
   onEditImageBatch?: (
-    images: string[],
-    prompt: string,
+    request: ImageEditRequest,
     size: string,
     count: number,
   ) => void;
@@ -71,6 +79,14 @@ export default function ImageGenView({
   const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
   // 固定输入条的高度（结果区预留，避免被遮挡）
   const [barHeight, setBarHeight] = useState(120);
+  const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
+  const panelStorageReadyRef = useRef(false);
+  const [creationPanelBounds, setCreationPanelBounds] = useState<CreationPanelBounds>(
+    () => getCreationPanelBounds(1440),
+  );
+  const [creationPanelWidth, setCreationPanelWidth] = useState<number>(
+    CREATION_PANEL_LAYOUT.defaultWidth,
+  );
 
   useEffect(() => {
     const opts = getSizeOptions(model);
@@ -78,6 +94,58 @@ export default function ImageGenView({
       setSize(opts[0]?.value || "1024x1024");
     }
   }, [model]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!panelStorageReadyRef.current) return;
+    try {
+      window.localStorage.setItem(
+        CREATION_PANEL_LAYOUT.storageKey,
+        String(creationPanelWidth),
+      );
+    } catch {
+      // 浏览器禁用本地存储时仍保留当前会话内的宽度调整
+    }
+  }, [creationPanelWidth]);
+
+  useEffect(() => {
+    function updatePanelBounds() {
+      const nextBounds = getCreationPanelBounds(window.innerWidth);
+      setCreationPanelBounds(nextBounds);
+      setCreationPanelWidth((current) =>
+        clampCreationPanelWidth(current, nextBounds),
+      );
+    }
+
+    updatePanelBounds();
+    const restoreFrame = window.requestAnimationFrame(() => {
+      try {
+        const savedWidth = window.localStorage.getItem(
+          CREATION_PANEL_LAYOUT.storageKey,
+        );
+        setCreationPanelWidth(
+          parseCreationPanelWidth(
+            savedWidth,
+            getCreationPanelBounds(window.innerWidth),
+          ),
+        );
+      } catch {
+        // 本地存储不可用时回退到默认宽度
+      }
+      panelStorageReadyRef.current = true;
+    });
+    window.addEventListener("resize", updatePanelBounds);
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+      window.removeEventListener("resize", updatePanelBounds);
+    };
+  }, []);
+
+  const handleCreationPanelWidthChange = useCallback(
+    (nextWidth: number) => {
+      setCreationPanelWidth(clampCreationPanelWidth(nextWidth, creationPanelBounds));
+    },
+    [creationPanelBounds],
+  );
 
   useEffect(() => {
     if (generating) {
@@ -128,22 +196,37 @@ export default function ImageGenView({
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
       {/* 桌面端：三栏布局（md+） */}
-      <div className="hidden md:flex flex-1 min-h-0 min-w-0">
+      <div
+        ref={desktopWorkspaceRef}
+        className="image-workspace-desktop hidden md:flex flex-1 min-h-0 min-w-0"
+        style={
+          {
+            "--creation-panel-width": `${creationPanelWidth}px`,
+          } as CSSProperties
+        }
+      >
         <CreationPanel
           model={model}
           generating={generating}
           credits={credits}
           isAdmin={Boolean(isAdmin)}
           onGenerate={handleGenerate}
-          onEdit={(images, editPrompt, editSize, count) => {
+          onEdit={(request, editSize, count) => {
             if (count > 1 && onEditImageBatch) {
-              onEditImageBatch(images, editPrompt, editSize, count);
+              onEditImageBatch(request, editSize, count);
             } else {
-              onEditImage?.(images, editPrompt, editSize);
+              onEditImage?.(request, editSize);
             }
           }}
           onStop={onStopGenerate}
           onWalletClick={onWalletClick}
+        />
+
+        <CreationPanelResizeHandle
+          width={creationPanelWidth}
+          bounds={creationPanelBounds}
+          containerRef={desktopWorkspaceRef}
+          onWidthChange={handleCreationPanelWidthChange}
         />
 
         <ResultCanvas

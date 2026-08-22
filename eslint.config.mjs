@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     ".next-*/**",
     ".deploy-backups/**",
+    ".deploy/**",
     "**/*.rollback-",
     "out/**",
     "build/**",

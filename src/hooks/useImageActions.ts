@@ -5,6 +5,7 @@ import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import { classifyImageTaskError } from "@/lib/image-task";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 /** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400 */
 function resolveRequestModel(): string {
@@ -185,11 +186,26 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     clearImageTask();
   }, [clearImageTask, setGenerating]);
 
-  /** 图生图：原图直传编辑（/api/image-edit），多张参考图逐张独立生成，结果并入历史 */
+  /** 图生图：提交逐图或目标/参考结构化任务 */
   const handleEditImage = useCallback(
-    async (images: string[], prompt: string, size: string) => {
+    async (request: ImageEditRequest, size: string) => {
+      const prompt =
+        request.prompt ||
+        request.items?.map((item) => item.prompt).filter(Boolean).join("；") ||
+        "图生图";
+      const legacyImages =
+        request.mode === "reference"
+          ? [request.targetImage || "", ...(request.referenceImages || [])]
+          : request.items?.map((item) => item.image) || request.image || [];
       setGenerating(true);
-      startImageTask({ mode: "edit", prompt, size, count: 1, images });
+      startImageTask({
+        mode: "edit",
+        prompt,
+        size,
+        count: 1,
+        images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
+        editRequest: request,
+      });
       const abort = new AbortController();
       imageAbortRef.current = abort;
       try {
@@ -205,7 +221,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         }>("/api/image-edit", {
           method: "POST",
           ...jsonBody({
-            image: images,
+            ...request,
             prompt,
             size,
             model: resolveRequestModel(),
@@ -227,7 +243,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (list[0]) setActiveImageId(list[0].id);
         toast(
           list.length > 1
-            ? `生成成功 ${list.length} 张（每张参考图各出一张）`
+            ? "生成成功 " + list.length + " 张"
             : "图片生成成功",
           "success",
         );
@@ -253,11 +269,26 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     [clearImageTask, failImageTask, finishImageTask, loadCredits, setActiveImageId, setGenerating, setImageHistory, setWalletOpen, startImageTask, toast],
   );
 
-  /** 图生图批量：同参考图（支持多张）生成 N 张变体（最多 5），结果并入历史 */
+  /** 图生图批量：按结构化任务生成 N 张变体（最多 5） */
   const handleEditImageBatch = useCallback(
-    async (images: string[], prompt: string, size: string, count: number) => {
+    async (request: ImageEditRequest, size: string, count: number) => {
+      const prompt =
+        request.prompt ||
+        request.items?.map((item) => item.prompt).filter(Boolean).join("；") ||
+        "图生图";
+      const legacyImages =
+        request.mode === "reference"
+          ? [request.targetImage || "", ...(request.referenceImages || [])]
+          : request.items?.map((item) => item.image) || request.image || [];
       setGenerating(true);
-      startImageTask({ mode: "edit", prompt, size, count, images });
+      startImageTask({
+        mode: "edit",
+        prompt,
+        size,
+        count,
+        images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
+        editRequest: request,
+      });
       const abort = new AbortController();
       imageAbortRef.current = abort;
       try {
@@ -277,7 +308,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         }>("/api/image-edit/batch", {
           method: "POST",
           ...jsonBody({
-            image: images,
+            ...request,
             prompt,
             size,
             count,
@@ -339,15 +370,33 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     if (!request) return;
     if (request.mode === "text") {
       await handleGenerateImageBatch(request.prompt, request.size, request.count);
+    } else if (request.editRequest) {
+      if (request.count > 1) {
+        await handleEditImageBatch(
+          request.editRequest,
+          request.size,
+          request.count,
+        );
+      } else {
+        await handleEditImage(request.editRequest, request.size);
+      }
     } else if (request.count > 1) {
       await handleEditImageBatch(
-        request.images || [],
-        request.prompt,
+        {
+          image: request.images || [],
+          prompt: request.prompt,
+        },
         request.size,
         request.count,
       );
     } else {
-      await handleEditImage(request.images || [], request.prompt, request.size);
+      await handleEditImage(
+        {
+          image: request.images || [],
+          prompt: request.prompt,
+        },
+        request.size,
+      );
     }
   }, [handleEditImage, handleEditImageBatch, handleGenerateImageBatch]);
 

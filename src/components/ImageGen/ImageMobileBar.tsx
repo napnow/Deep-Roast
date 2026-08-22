@@ -6,6 +6,7 @@ import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 interface ImageMobileBarProps {
   prompt: string;
@@ -18,12 +19,11 @@ interface ImageMobileBarProps {
   isAdmin?: boolean;
   imageGenerationEnabled?: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
-  onEditImage?: (images: string[], prompt: string, size: string) => void;
-  /** 图生图批量：最多 5 张 */
+  /** 图生图：按结构化任务编辑 */
+  onEditImage?: (request: ImageEditRequest, size: string) => void;
+  /** 图生图批量：按结构化任务生成多个变体 */
   onEditImageBatch?: (
-    images: string[],
-    prompt: string,
+    request: ImageEditRequest,
     size: string,
     count: number,
   ) => void;
@@ -87,6 +87,12 @@ export default function ImageMobileBar({
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    if (!toolbarOpen) return;
+    lockPageScroll();
+    return unlockPageScroll;
+  }, [toolbarOpen]);
+
   // 上报输入条高度（含键盘补偿），供结果区预留空间
   useEffect(() => {
     const el = barRef.current;
@@ -117,42 +123,58 @@ export default function ImageMobileBar({
     requestAnimationFrame(autoResize);
   }
 
-  const chipStyle = (active: boolean): React.CSSProperties => ({
-    background: active ? "var(--accent-surface)" : "var(--bg-root)",
-    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-    color: active ? "var(--accent)" : "var(--text-secondary)",
-  });
-
   return (
     <div
       ref={barRef}
-      className="md:hidden fixed z-30"
-      style={{
-        left: 0,
-        right: 0,
-        bottom: kbInset,
-        borderTop: "1px solid var(--border)",
-        background: "color-mix(in srgb, var(--bg-elevated) 82%, transparent)",
-        backdropFilter: "blur(14px) saturate(1.2)",
-        WebkitBackdropFilter: "blur(14px) saturate(1.2)",
-        transition: "bottom 0.22s ease",
-      }}
+      className="mobile-composer-shell md:hidden fixed z-40"
+      style={{ bottom: kbInset }}
     >
-      {/* 工具面板：展开时盖在结果区上方 */}
-      {toolbarOpen && (
-        <div className="relative border-b" style={{ borderColor: "var(--border)" }}>
-          <div
-            className="overflow-y-auto overflow-x-hidden px-4 py-3"
-            style={{ maxHeight: "60vh", background: "var(--bg-surface)" }}
-          >
-            {toolbarOpen === "reverse" && (
+      {toolbarOpen ? (
+        <div
+          className="mobile-creation-overlay"
+          onClick={() => setToolbarOpen(null)}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      {toolbarOpen ? (
+        <section
+          id="mobile-creation-sheet"
+          className="mobile-creation-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label={toolbarOpen === "img2img" ? "图生图设置" : "反推设置"}
+        >
+          <div className="mobile-creation-sheet__header">
+            <span className="mobile-creation-sheet__handle" aria-hidden="true" />
+            <div>
+              <span className="ui-kicker">
+                {toolbarOpen === "img2img" ? "图生图" : "反推"}
+              </span>
+              <p className="mobile-creation-sheet__subtitle">
+                {toolbarOpen === "img2img"
+                  ? "素材、指令和生成设置"
+                  : "上传图片分析提示词"}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="mobile-creation-sheet__close"
+              onClick={() => setToolbarOpen(null)}
+              aria-label="关闭工具面板"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mobile-creation-sheet__body">
+            {toolbarOpen === "reverse" ? (
               <ReversePromptPanel
                 disabled={generating}
                 onPrompt={setPrompt}
                 onCloseToolbar={() => setToolbarOpen(null)}
               />
-            )}
-            {toolbarOpen === "img2img" && (
+            ) : (
               <Img2ImgPanel
                 size={size}
                 sizeOptions={sizeOptions}
@@ -165,135 +187,97 @@ export default function ImageMobileBar({
               />
             )}
           </div>
-        </div>
-      )}
+        </section>
+      ) : null}
 
-      {/* 工具行 */}
-      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 overflow-x-auto">
+      <div className="mobile-composer-tools">
         <button
+          type="button"
           onClick={() => toggleToolbar("reverse")}
-          className="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150 active:scale-95"
-          style={chipStyle(toolbarOpen === "reverse")}
+          aria-expanded={toolbarOpen === "reverse"}
+          aria-controls="mobile-creation-sheet"
+          className={
+            toolbarOpen === "reverse"
+              ? "mobile-composer-chip is-active"
+              : "mobile-composer-chip"
+          }
         >
           反推
         </button>
         <button
+          type="button"
           onClick={() => toggleToolbar("img2img")}
-          className="shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-150 active:scale-95"
-          style={chipStyle(toolbarOpen === "img2img")}
+          aria-expanded={toolbarOpen === "img2img"}
+          aria-controls="mobile-creation-sheet"
+          className={
+            toolbarOpen === "img2img"
+              ? "mobile-composer-chip is-active"
+              : "mobile-composer-chip"
+          }
         >
           图生图
         </button>
-        <span
-          className="w-px h-4 shrink-0"
-          style={{ background: "var(--border-strong)" }}
-        />
-        <select
-          value={size}
-          onChange={(e) => setSize(e.target.value)}
-          className="shrink-0 rounded-full px-3 py-1.5 text-base cursor-pointer transition-colors duration-200"
-          style={{
-            background: "var(--bg-root)",
-            border: "1px solid var(--border)",
-            color: "var(--text-secondary)",
-          }}
-        >
-          {sizeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <span className="mobile-composer-divider" aria-hidden="true" />
+        <label className="mobile-composer-size">
+          <span className="sr-only">图片比例</span>
+          <select
+            value={size}
+            onChange={(event) => setSize(event.target.value)}
+            aria-label="图片比例"
+          >
+            {sizeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {!imageGenerationAvailable ? (
-        <p
-          className="mx-3 mb-2 rounded-lg px-3 py-2 text-xs"
-          style={{
-            color: "var(--accent)",
-            background: "var(--accent-surface)",
-            border:
-              "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
-          }}
-        >
+        <p className="mobile-composer-alert">
           生图功能暂时关闭，反推提示词仍可使用
         </p>
       ) : null}
 
-      {/* 输入行：工具面板展开时隐藏（面板内有自己的输入框，避免双输入框） */}
-      {!toolbarOpen && (
-      <div className="flex items-end gap-2 px-3 pb-3">
-        <div
-          className="flex-1 min-w-0 flex items-end rounded-2xl border transition-colors duration-200"
-          style={{
-            background: "var(--bg-root)",
-            borderColor: prompt.trim()
-              ? "color-mix(in srgb, var(--accent) 45%, var(--border))"
-              : "var(--border)",
-          }}
-        >
-          <textarea
-            ref={taRef}
-            value={prompt}
-            onChange={(e) => {
-              setPrompt(e.target.value);
-              autoResize();
-            }}
-            onFocus={() => {
-              autoResize();
-              lockPageScroll();
-            }}
-            onBlur={unlockPageScroll}
-            placeholder="描述你想要生成的图片…"
-            rows={1}
-            disabled={generating || !imageGenerationAvailable}
-            className="flex-1 min-w-0 bg-transparent px-3.5 py-2.5 text-base resize-none max-h-[120px] outline-none disabled:opacity-40"
-            style={{ color: "var(--text-primary)" }}
-          />
+      {!toolbarOpen ? (
+        <div className="mobile-composer-input-row">
+          <div className="mobile-composer-input">
+            <textarea
+              ref={taRef}
+              value={prompt}
+              onChange={(event) => {
+                setPrompt(event.target.value);
+                autoResize();
+              }}
+              onFocus={() => {
+                autoResize();
+                lockPageScroll();
+              }}
+              onBlur={unlockPageScroll}
+              placeholder="描述你想要生成的图片…"
+              rows={1}
+              disabled={generating || !imageGenerationAvailable}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={generating ? onStopGenerate : handleGenerate}
+            disabled={
+              !generating &&
+              (!prompt.trim() || !canAfford || !imageGenerationAvailable)
+            }
+            className={
+              generating
+                ? "mobile-composer-submit is-stopping"
+                : "mobile-composer-submit"
+            }
+            aria-label={generating ? "停止生成" : "生成"}
+          >
+            {generating ? "■" : "↑"}
+          </button>
         </div>
-        <button
-          onClick={generating ? onStopGenerate : handleGenerate}
-          disabled={
-            !generating &&
-            (!prompt.trim() || !canAfford || !imageGenerationAvailable)
-          }
-          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:scale-100"
-          style={
-            generating
-              ? {
-                  background: "var(--danger-surface)",
-                  border: "1px solid var(--danger)",
-                  color: "var(--danger)",
-                }
-              : {
-                  background: "linear-gradient(135deg, var(--accent-soft), var(--accent))",
-                  color: "var(--accent-on)",
-                  boxShadow: "0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent)",
-                }
-          }
-          aria-label={generating ? "停止生成" : "生成"}
-        >
-          {generating ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="5" y="5" width="14" height="14" rx="2" />
-            </svg>
-          ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 19V5M5 12l7-7 7 7" />
-            </svg>
-          )}
-        </button>
-      </div>
-      )}
+      ) : null}
     </div>
   );
 }

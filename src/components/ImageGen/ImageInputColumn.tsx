@@ -4,6 +4,7 @@ import { useState } from "react";
 import { IMAGE_STYLE_PRESETS, CREDIT_PER_IMAGE } from "@/types";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 interface ImageInputColumnProps {
   prompt: string;
@@ -18,12 +19,11 @@ interface ImageInputColumnProps {
   checkinEligible?: boolean;
   todayChecked?: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
-  onEditImage?: (images: string[], prompt: string, size: string) => void;
-  /** 图生图批量：最多 5 张 */
+  /** 图生图：按结构化任务编辑 */
+  onEditImage?: (request: ImageEditRequest, size: string) => void;
+  /** 图生图批量：按结构化任务生成多个变体 */
   onEditImageBatch?: (
-    images: string[],
-    prompt: string,
+    request: ImageEditRequest,
     size: string,
     count: number,
   ) => void;

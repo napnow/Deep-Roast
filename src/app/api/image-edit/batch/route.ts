@@ -1,7 +1,8 @@
 import { requireActiveUser } from "@/server/auth";
 import { handleRoute, jsonOk, readJson } from "@/server/http";
-import { editImageBatch } from "@/server/services/image";
+import { runImageEditTasks } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 // 批量图生图限流：每用户 3 次/分钟（每张图内部还有单张接口的限流兜底）
 const BATCH_LIMIT = 3;
@@ -16,19 +17,12 @@ export const POST = handleRoute(async (req) => {
     BATCH_LIMIT,
     BATCH_WINDOW,
   );
-  const body = await readJson<{
-    image?: string | string[];
-    prompt?: string;
-    model?: string;
-    size?: string;
-    count?: number;
-  }>(req);
+  const body = await readJson<ImageEditRequest>(req);
 
-  const result = await editImageBatch({
+  const result = await runImageEditTasks({
     userId: user.userId,
     role: user.role,
-    image: body.image || [],
-    prompt: body.prompt || "",
+    request: body,
     modelOverride: body.model,
     size: body.size,
     count: body.count,
