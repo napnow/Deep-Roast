@@ -51,10 +51,8 @@ export function resolveChatEndpoint(
 
   if (isGrok) {
     return {
-      // Grok has its own upstream credentials. Do not let the generic
-      // administrator Ark settings shadow them when both are configured.
-      apiKey: firstNonEmpty(process.env.GROK_API_KEY, configKey),
-      baseUrl: firstNonEmpty(process.env.GROK_BASE_URL, configBase),
+      apiKey: firstNonEmpty(configKey, process.env.GROK_API_KEY),
+      baseUrl: firstNonEmpty(configBase, process.env.GROK_BASE_URL),
       maxRetries: 1,
     };
   }
@@ -77,10 +75,8 @@ export function resolveImageEndpoint(
 
   if (isGrok) {
     return {
-      // Grok has its own upstream credentials. Do not let the generic
-      // administrator Ark settings shadow them when both are configured.
-      apiKey: firstNonEmpty(process.env.GROK_API_KEY, configKey),
-      baseUrl: firstNonEmpty(process.env.GROK_BASE_URL, configBase),
+      apiKey: firstNonEmpty(configKey, process.env.GROK_API_KEY),
+      baseUrl: firstNonEmpty(configBase, process.env.GROK_BASE_URL),
       maxRetries: 3,
     };
   }
@@ -88,13 +84,13 @@ export function resolveImageEndpoint(
   if (isGptImage) {
     return {
       apiKey: firstNonEmpty(
-        process.env.GPT_IMAGE_KEY,
         configKey,
+        process.env.GPT_IMAGE_KEY,
         process.env.ARK_API_KEY,
       ),
       baseUrl: firstNonEmpty(
-        process.env.GPT_IMAGE_BASE_URL,
         configBase,
+        process.env.GPT_IMAGE_BASE_URL,
       ),
       maxRetries: 1,
     };
@@ -112,13 +108,13 @@ export function resolveGeminiEndpoint(config?: ConfigLike): UpstreamEndpoint {
   const configKey = config?.arkApiKey?.trim() || "";
   return {
     apiKey: firstNonEmpty(
-      process.env.GEMINI_API_KEY,
       configKey,
+      process.env.GEMINI_API_KEY,
       process.env.ARK_API_KEY,
     ),
     baseUrl: firstNonEmpty(
-      process.env.GEMINI_BASE_URL,
       configBase,
+      process.env.GEMINI_BASE_URL,
     ),
     maxRetries: 1,
   };
