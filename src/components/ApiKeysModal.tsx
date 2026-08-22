@@ -88,7 +88,6 @@ export default function ApiKeysModal({ open, onClose }: ApiKeysModalProps) {
     setExampleCopied(false);
     setOrigin(window.location.origin);
     void load(session);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;

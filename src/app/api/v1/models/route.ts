@@ -6,7 +6,7 @@ export const OPTIONS = apiV1CorsPreflight;
 
 // GET /api/v1/models — 列出管理员启用的生图模型（中转可用模型）
 export const GET = handleRoute(async (req) => {
-  const user = await requireApiUser(req);
+  await requireApiUser(req);
   const config = await getConfig();
   const enabled = parseEnabledModels(
     config?.enabledImageModels,

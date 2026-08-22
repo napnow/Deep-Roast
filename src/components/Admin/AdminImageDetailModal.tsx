@@ -19,11 +19,11 @@ export default function AdminImageDetailModal({
         onClick={onClose}
       />
       <div
-        className="relative z-10 flex h-full items-center justify-center overflow-y-auto p-3 sm:p-6"
+        className="relative z-10 flex min-h-full items-start justify-center overflow-y-auto p-3 sm:p-6"
         onClick={onClose}
       >
         <div
-          className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] border animate-fade-up sm:max-h-[calc(100vh-3rem)]"
+          className="my-auto w-full max-w-2xl overflow-hidden rounded-[var(--radius-xl)] border animate-fade-up"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border-strong)",
@@ -33,19 +33,19 @@ export default function AdminImageDetailModal({
         >
           <div
             data-testid="admin-image-detail-media"
-            className="flex min-h-[30vh] flex-1 items-center justify-center overflow-hidden p-2 sm:min-h-[40vh] sm:p-4"
+            className="flex min-h-[30vh] shrink-0 items-center justify-center p-2 sm:min-h-[40vh] sm:p-4"
             style={{ background: "var(--bg-root)" }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.imageUrl}
               alt={image.prompt}
-              className="max-h-[55vh] max-w-full object-contain sm:max-h-[60vh]"
+              className="block h-auto max-h-[70vh] max-w-full object-contain"
             />
           </div>
           <div
             data-testid="admin-image-detail-info"
-            className="max-h-[42vh] shrink-0 space-y-4 overflow-y-auto border-t p-4 sm:p-5"
+            className="space-y-4 border-t p-4 sm:p-5"
             style={{ borderColor: "var(--border)" }}
           >
             <div
@@ -66,7 +66,7 @@ export default function AdminImageDetailModal({
                 </button>
               </div>
               <p
-                className="mt-2 max-h-[24vh] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed"
+                className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed"
                 style={{ color: "var(--text-primary)" }}
               >
                 {image.prompt}

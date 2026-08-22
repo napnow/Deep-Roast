@@ -59,7 +59,7 @@ function memCheck(
     return;
   }
   if (bucket.count >= limit) {
-    throw rateLimitError(bucket.resetAt - now);
+    throw rateLimitError();
   }
   bucket.count += 1;
 }
@@ -81,8 +81,7 @@ async function redisCheck(
       await redis.expire(key, windowSeconds);
     }
     if (count > limit) {
-      const ttl = await redis.ttl(key);
-      throw rateLimitError((ttl > 0 ? ttl : windowSeconds) * 1000);
+      throw rateLimitError();
     }
   } catch (err) {
     if (err instanceof ApiError) throw err;
@@ -93,16 +92,26 @@ async function redisCheck(
   }
 }
 
-function rateLimitError(_retryAfterMs: number): ApiError {
+function rateLimitError(): ApiError {
   // 刻意不回显剩余秒数：避免帮攻击者精确计时、同步调整爆破节奏
   return new ApiError("请求过于频繁，请稍后再试", 429, "RATE_LIMITED");
 }
 
 /** 获取客户端 IP（兼容反代头） */
 export function getClientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]?.trim() || "unknown";
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+  const firstHeaderValue = (value: string | null): string | null => {
+    const first = value?.split(",")[0]?.trim();
+    return first || null;
+  };
+
+  // Prefer Cloudflare's real visitor IP over proxy edge addresses.
+  const cloudflareIp = firstHeaderValue(req.headers.get("cf-connecting-ip"));
+  if (cloudflareIp) return cloudflareIp;
+
+  const forwardedIp = firstHeaderValue(req.headers.get("x-forwarded-for"));
+  if (forwardedIp) return forwardedIp;
+
+  return firstHeaderValue(req.headers.get("x-real-ip")) || "unknown";
 }
 
 /**
