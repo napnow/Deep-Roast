@@ -1,15 +1,23 @@
 import { db } from "@/db";
-import { users, creditTransactions, registrationRecords } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
+import {
+  creditTransactions,
+  registrationRecords,
+  siteSettings,
+  userInvitations,
+  users,
+} from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
+import { hashPassword, setAuthCookie, signToken } from "@/lib/auth";
+import { normalizeInviteCode } from "@/lib/invitation";
 import { ApiError } from "@/server/http";
-import { assertPasswordStrength } from "@/server/services/auth-password";
-import { isRegistrationEnabled } from "@/server/services/site-settings";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
+import { assertPasswordStrength } from "@/server/services/auth-password";
+import { createInviteCode } from "@/server/services/invitation-code";
+import { getInvitationReward } from "@/server/services/invitation-policy";
 
-// 注册限流：同一 IP 10 次/小时
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
+const INVITE_CODE_RETRIES = 3;
 
 /** 生产环境白名单 IP（逗号分隔），这些 IP 不受单 IP 注册限制 */
 const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
@@ -18,18 +26,179 @@ const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
   .filter(Boolean);
 
 function shouldSkipIpLimit(ip: string): boolean {
-  // 开发环境不做单 IP 限制（方便本地测试）
   if (process.env.NODE_ENV !== "production") return true;
   return BYPASS_IPS.includes(ip);
 }
 
-/** 注册 IP 占位冲突（registration_records.ip unique） */
+function errorText(err: unknown): string {
+  const e = err as {
+    message?: string;
+    constraint?: string;
+    detail?: string;
+  };
+  return [e?.message, e?.constraint, e?.detail].filter(Boolean).join(" ");
+}
+
+function isUniqueViolation(err: unknown, names: string[]): boolean {
+  const e = err as { code?: string };
+  if (e?.code !== "23505") return false;
+  const text = errorText(err);
+  return names.some((name) => text.includes(name));
+}
+
 function isIpUniqueViolation(err: unknown): boolean {
-  const e = err as { code?: string; message?: string };
-  if (e?.code === "23505") return true;
-  // drizzle 会包装 pg 错误，code 可能丢失：按错误消息兜底匹配
-  const msg = e?.message || "";
-  return msg.includes("registration_records") && /duplicate|already exists/i.test(msg);
+  return isUniqueViolation(err, [
+    "registration_records_ip_unique",
+    "registration_records.ip",
+  ]);
+}
+
+function isUsernameUniqueViolation(err: unknown): boolean {
+  return isUniqueViolation(err, ["users_username_unique", "users.username"]);
+}
+
+function isInviteCodeUniqueViolation(err: unknown): boolean {
+  return isUniqueViolation(err, ["users_invite_code_unique", "users.invite_code"]);
+}
+
+type RegistrationResult = {
+  id: string;
+  username: string;
+  role: string;
+};
+
+async function registerInTransaction(args: {
+  ip: string;
+  username: string;
+  hashedPassword: string;
+  inviteCode: string | null;
+  ipLimitActive: boolean;
+}): Promise<RegistrationResult> {
+  const { ip, username, hashedPassword, inviteCode, ipLimitActive } = args;
+
+  return db.transaction(async (tx) => {
+    const [settings] = await tx
+      .select({
+        registrationEnabled: siteSettings.registrationEnabled,
+        invitationEnabled: siteSettings.invitationEnabled,
+        invitationReward: siteSettings.invitationReward,
+      })
+      .from(siteSettings)
+      .where(eq(siteSettings.id, 1))
+      .limit(1);
+
+    if ((settings?.registrationEnabled ?? 1) === 0) {
+      throw new ApiError("暂不开放注册", 403);
+    }
+
+    if (ipLimitActive) {
+      await tx.insert(registrationRecords).values({ ip, username });
+    }
+
+    const invitationEnabled = (settings?.invitationEnabled ?? 1) !== 0;
+    let inviter: {
+      id: string;
+      username: string;
+      role: string;
+      status: string;
+    } | null = null;
+
+    if (inviteCode && invitationEnabled) {
+      const [row] = await tx
+        .select({
+          id: users.id,
+          username: users.username,
+          role: users.role,
+          status: users.status,
+        })
+        .from(users)
+        .where(eq(users.inviteCode, inviteCode))
+        .limit(1);
+
+      if (!row || row.role !== "user" || row.status !== "active") {
+        throw new ApiError(
+          "邀请链接无效或已失效",
+          400,
+          "INVALID_INVITE_CODE",
+        );
+      }
+      inviter = row;
+    }
+
+    const [user] = await tx
+      .insert(users)
+      .values({
+        username,
+        password: hashedPassword,
+        credits: 50,
+        inviteCode: createInviteCode(),
+      })
+      .returning({ id: users.id, username: users.username, role: users.role });
+
+    if (!user) throw new Error("注册用户创建失败");
+
+    await tx.insert(creditTransactions).values({
+      userId: user.id,
+      type: "signup_bonus",
+      amount: 50,
+      balanceAfter: 50,
+      note: "新用户注册赠送",
+    });
+
+    if (inviter) {
+      const reward = getInvitationReward(
+        invitationEnabled,
+        settings?.invitationReward ?? 200,
+        inviter.role === "user" && inviter.status === "active",
+        inviteCode,
+      );
+
+      if (reward !== null) {
+        const [updatedInviter] = await tx
+          .update(users)
+          .set({
+            credits: sql`${users.credits} + ${reward}`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(users.id, inviter.id),
+              eq(users.role, "user"),
+              eq(users.status, "active"),
+            ),
+          )
+          .returning({ credits: users.credits });
+
+        if (!updatedInviter) {
+          throw new ApiError(
+            "邀请链接无效或已失效",
+            400,
+            "INVALID_INVITE_CODE",
+          );
+        }
+
+        await tx.insert(userInvitations).values({
+          inviterId: inviter.id,
+          inviteeId: user.id,
+          inviterUsername: inviter.username,
+          inviteeUsername: user.username,
+          rewardAmount: reward,
+        });
+
+        if (reward > 0) {
+          await tx.insert(creditTransactions).values({
+            userId: inviter.id,
+            type: "invite_reward",
+            amount: reward,
+            balanceAfter: updatedInviter.credits,
+            note: `邀请 ${user.username} 注册奖励`,
+          });
+        }
+      }
+    }
+
+    return user;
+  });
 }
 
 export async function POST(req: Request) {
@@ -42,11 +211,13 @@ export async function POST(req: Request) {
       REGISTER_WINDOW,
     );
 
-    if (!(await isRegistrationEnabled())) {
-      return Response.json({ error: "暂不开放注册" }, { status: 403 });
-    }
-
-    const { username, password } = await req.json();
+    const body = (await req.json()) as {
+      username?: unknown;
+      password?: unknown;
+      inviteCode?: unknown;
+    };
+    const username = typeof body.username === "string" ? body.username : "";
+    const password = typeof body.password === "string" ? body.password : "";
 
     if (!username || !password) {
       return Response.json({ error: "用户名和密码不能为空" }, { status: 400 });
@@ -66,78 +237,73 @@ export async function POST(req: Request) {
     }
 
     const existing = await db
-      .select()
+      .select({ id: users.id })
       .from(users)
-      .where(eq(users.username, username));
+      .where(eq(users.username, username))
+      .limit(1);
     if (existing.length > 0) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 
-    // 单 IP 限注册一个账号：先预检（常规路径），再占位（并发竞态由
-    // unique 约束兜底）；后续注册流程失败时回滚占位，避免误锁 IP。
     const ipLimitActive = !shouldSkipIpLimit(ip);
-    const [ipRecord] = ipLimitActive
-      ? await db
-          .select()
-          .from(registrationRecords)
-          .where(eq(registrationRecords.ip, ip))
-      : [];
-    if (ipLimitActive && ipRecord) {
-      return Response.json(
-        { error: "该网络地址已注册过账号，如有疑问请联系管理员" },
-        { status: 403 },
-      );
-    }
-
-    try {
-      if (ipLimitActive) {
-        await db.insert(registrationRecords).values({ ip, username });
-      }
-    } catch (err) {
-      if (isIpUniqueViolation(err)) {
+    if (ipLimitActive) {
+      const [ipRecord] = await db
+        .select({ id: registrationRecords.id })
+        .from(registrationRecords)
+        .where(eq(registrationRecords.ip, ip))
+        .limit(1);
+      if (ipRecord) {
         return Response.json(
           { error: "该网络地址已注册过账号，如有疑问请联系管理员" },
           { status: 403 },
         );
       }
-      throw err;
     }
 
-    try {
-      const hashed = await hashPassword(password);
+    const hashedPassword = await hashPassword(password);
+    const inviteCode = normalizeInviteCode(body.inviteCode);
+    let user: RegistrationResult | null = null;
 
-      const [user] = await db
-        .insert(users)
-        .values({ username, password: hashed, credits: 50 })
-        .returning();
-
-      await db.insert(creditTransactions).values({
-        userId: user.id,
-        type: "signup_bonus",
-        amount: 50,
-        balanceAfter: 50,
-        note: "新用户注册赠送",
-      });
-
-      const token = await signToken({
-        userId: user.id,
-        username: user.username,
-        role: user.role,
-      });
-      await setAuthCookie(token);
-
-      return Response.json(
-        { success: true, username: user.username, role: user.role },
-        { status: 201 },
-      );
-    } catch (err) {
-      // 注册失败（用户名并发冲突等）：释放 IP 占位
-      await db
-        .delete(registrationRecords)
-        .where(eq(registrationRecords.ip, ip))
-        .catch(() => {});
-      throw err;
+    for (let attempt = 0; attempt < INVITE_CODE_RETRIES; attempt += 1) {
+      try {
+        user = await registerInTransaction({
+          ip,
+          username,
+          hashedPassword,
+          inviteCode,
+          ipLimitActive,
+        });
+        break;
+      } catch (err) {
+        if (isInviteCodeUniqueViolation(err) && attempt < INVITE_CODE_RETRIES - 1) {
+          continue;
+        }
+        if (isIpUniqueViolation(err)) {
+          return Response.json(
+            { error: "该网络地址已注册过账号，如有疑问请联系管理员" },
+            { status: 403 },
+          );
+        }
+        if (isUsernameUniqueViolation(err)) {
+          return Response.json({ error: "用户名已存在" }, { status: 409 });
+        }
+        throw err;
+      }
     }
+
+    if (!user) throw new Error("注册用户创建失败");
+
+    const token = await signToken({
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
+    await setAuthCookie(token);
+
+    return Response.json(
+      { success: true, username: user.username, role: user.role },
+      { status: 201 },
+    );
   } catch (err) {
     if (err instanceof ApiError) {
       return Response.json(
