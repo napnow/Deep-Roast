@@ -79,6 +79,12 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
         <path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z" />
       </>
     ),
+    bell: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
     announcement: (
       <>
         <path d="m4 13 2 6h3l-1-6M4 9v4h4l9 4V5L8 9H4Z" />
