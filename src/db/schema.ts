@@ -3,10 +3,14 @@ import {
   pgTable,
   text,
   integer,
+  boolean,
   timestamp,
   check,
   uuid,
+  jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { MessageMetadata } from "@/types";
 
 // ── LLM Config (single row) ──
 export const llmConfig = pgTable(
@@ -24,6 +28,9 @@ export const llmConfig = pgTable(
       .notNull()
       .default("doubao-seedream-4-5-251128"),
     imageSystemPrompt: text("image_system_prompt")
+      .notNull()
+      .default(""),
+    assistantImagePrompt: text("assistant_image_prompt")
       .notNull()
       .default(""),
     /** 图推 / 反推提示词所用的视觉模型（可在设置页从 API 目录选择；空则回落 textModel） */
@@ -59,10 +66,28 @@ export const siteSettings = pgTable(
       .default(""),
     /** 是否开放注册；关闭后 register API 与登录页注册入口不可用 */
     registrationEnabled: integer("registration_enabled").notNull().default(1), // 1=开 0=关
+    /** 普通用户生图总开关；管理员不受影响 */
+    imageGenerationEnabled: integer("image_generation_enabled")
+      .notNull()
+      .default(1),
+    /** 打赏功能开关（1=开 0=关）；关闭后用户端打赏入口隐藏 */
+    donationEnabled: integer("donation_enabled").notNull().default(1),
+    /** 打赏收款码图片路径（public/uploads/donation/ 下） */
+    donationImagePath: text("donation_image_path").notNull().default(""),
+    /** 打赏弹窗展示的自定义文案，空则显示默认文案 */
+    donationText: text("donation_text").notNull().default(""),
+    /** 邀请功能开关（1=开 0=关） */
+    invitationEnabled: integer("invitation_enabled").notNull().default(1),
+    /** 每次成功邀请奖励积分，允许为 0 */
+    invitationReward: integer("invitation_reward").notNull().default(200),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => ({
     singleRowCheck: check("site_settings_single_row", sql`${table.id} = 1`),
+    invitationRewardNonNegative: check(
+      "site_settings_invitation_reward_non_negative",
+      sql`${table.invitationReward} >= 0`,
+    ),
   }),
 );
 
@@ -75,6 +100,8 @@ export const users = pgTable("users", {
   credits: integer("credits").notNull().default(50), // 积分余额（新用户注册赠送 50）
   /** active | banned */
   status: text("status").notNull().default("active"),
+  /** 普通用户固定邀请代码；管理员保持 NULL */
+  inviteCode: text("invite_code").unique(),
   /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
   lastCheckinOn: text("last_checkin_on"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -85,6 +112,7 @@ export const users = pgTable("users", {
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),
   body: text("body").notNull(),
+  pinned: boolean("pinned").default(false).notNull(),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
   }),
@@ -99,6 +127,33 @@ export const registrationRecords = pgTable("registration_records", {
   username: text("username").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── 用户邀请关系：账号删除后保留用户名快照和奖励历史 ──
+export const userInvitations = pgTable(
+  "user_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    inviterId: uuid("inviter_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    inviteeId: uuid("invitee_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    inviterUsername: text("inviter_username").notNull(),
+    inviteeUsername: text("invitee_username").notNull(),
+    rewardAmount: integer("reward_amount").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    inviteeUnique: uniqueIndex("user_invitations_invitee_unique").on(
+      table.inviteeId,
+    ),
+    rewardNonNegative: check(
+      "user_invitations_reward_non_negative",
+      sql`${table.rewardAmount} >= 0`,
+    ),
+  }),
+);
 
 // ── Conversations ──
 export const conversations = pgTable("conversations", {
@@ -120,6 +175,10 @@ export const messages = pgTable("messages", {
     .references(() => conversations.id, { onDelete: "cascade" }),
   role: text("role").notNull(), // 'user' | 'assistant' | 'system'
   content: text("content").notNull(),
+  metadata: jsonb("metadata")
+    .$type<MessageMetadata>()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -161,10 +220,48 @@ export const creditTransactions = pgTable("credit_transactions", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus'
+  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward'
   amount: integer("amount").notNull(), // 正=增加, 负=扣除
   balanceAfter: integer("balance_after").notNull(),
   planId: text("plan_id"), // 充值档位, 仅 type=recharge 时
   note: text("note"), // 管理员备注
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── API Keys（中转）──
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** 展示名（用户备注用途） */
+  name: text("name").notNull().default(""),
+  /** key 的 SHA-256 哈希（明文只在创建时展示一次） */
+  keyHash: text("key_hash").notNull().unique(),
+  /** 前缀（用于列表展示，如 sk-dr-a1b2…） */
+  keyPrefix: text("key_prefix").notNull(),
+  /** AES-256-GCM 密文；旧 Key 为空 */
+  keyCiphertext: text("key_ciphertext"),
+  /** AES-256-GCM 初始化向量；旧 Key 为空 */
+  keyIv: text("key_iv"),
+  /** AES-256-GCM 认证标签；旧 Key 为空 */
+  keyAuthTag: text("key_auth_tag"),
+  /** active | disabled */
+  status: text("status").notNull().default("active"),
+  usageCount: integer("usage_count").notNull().default(0),
+  creditsConsumed: integer("credits_consumed").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ── Cards（卡片功能）──
+export const cards = pgTable("cards", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("未命名卡片"),
+  config: jsonb("config").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });

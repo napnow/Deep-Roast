@@ -50,6 +50,34 @@
       "when": 1786106892282,
       "tag": "0006_wild_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787213160199,
+      "tag": "0007_wonderful_ultimo",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787310000000,
+      "tag": "0008_conversational_image_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787311000000,
+      "tag": "0011_recoverable_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787363215011,
+      "tag": "0012_invitation_system",
+      "breakpoints": true
     }
   ]
 }
