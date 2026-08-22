@@ -7,29 +7,43 @@ export default function AdminSiteSettingsCard() {
   const [text, setText] = useState("");
   const [imagePath, setImagePath] = useState("");
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
+  const [invitationEnabled, setInvitationEnabled] = useState(true);
+  const [invitationReward, setInvitationReward] = useState("200");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await apiJson<{
+  useEffect(() => {
+    let cancelled = false;
+    apiJson<{
         adminContactText: string;
         adminContactImagePath: string;
         registrationEnabled?: boolean;
-      }>("/api/admin/site-settings");
+        imageGenerationEnabled?: boolean;
+        invitationEnabled?: boolean;
+        invitationReward?: number;
+      }>("/api/admin/site-settings")
+      .then((data) => {
+        if (cancelled) return;
       setText(data.adminContactText || "");
       setImagePath(data.adminContactImagePath || "");
       setRegistrationEnabled(data.registrationEnabled !== false);
-    } catch (e: unknown) {
-      setMsg(e instanceof Error ? e.message : "加载失败");
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    load();
+      setImageGenerationEnabled(data.imageGenerationEnabled !== false);
+      setInvitationEnabled(data.invitationEnabled !== false);
+      setInvitationReward(String(data.invitationReward ?? 200));
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setMsg(e instanceof Error ? e.message : "加载失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function saveText() {
@@ -111,6 +125,68 @@ export default function AdminSiteSettingsCard() {
     setSaving(false);
   }
 
+  async function toggleImageGeneration(next: boolean) {
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ imageGenerationEnabled?: boolean }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ imageGenerationEnabled: next }),
+        },
+      );
+      setImageGenerationEnabled(data.imageGenerationEnabled !== false);
+      setMsg(next ? "已开放用户生图" : "已关闭用户生图");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function toggleInvitation(next: boolean) {
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ invitationEnabled?: boolean }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ invitationEnabled: next }),
+        },
+      );
+      setInvitationEnabled(data.invitationEnabled !== false);
+      setMsg(next ? "已开启邀请功能" : "已关闭邀请功能");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function saveInvitationReward() {
+    const raw = invitationReward.trim();
+    if (!/^\d+$/.test(raw)) {
+      setMsg("奖励积分必须是非负整数");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ invitationReward?: number }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ invitationReward: Number(raw) }),
+        },
+      );
+      setInvitationReward(String(data.invitationReward ?? raw));
+      setMsg("邀请奖励已保存，仅影响后续注册");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "保存失败");
+    }
+    setSaving(false);
+  }
+
   return (
     <section className="admin-card">
       <div className="admin-card-head">
@@ -118,7 +194,7 @@ export default function AdminSiteSettingsCard() {
           <p className="admin-kicker">Site</p>
           <h2 className="admin-title text-lg mt-1">站点设置</h2>
           <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-            注册闸门与登录页联系方式
+            注册、生图与登录页联系方式
           </p>
         </div>
       </div>
@@ -171,6 +247,123 @@ export default function AdminSiteSettingsCard() {
                 />
                 {registrationEnabled ? "开放中" : "已关闭"}
               </button>
+            </div>
+
+            <div
+              className="flex items-center justify-between gap-3 rounded-[var(--radius)] px-3.5 py-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="min-w-0">
+                <p
+                  className="text-[13px] font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  用户生图
+                </p>
+                <p
+                  className="text-[10.5px] mt-0.5"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  关闭后普通用户与其 API Key 无法生图，管理员不受影响
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() =>
+                  toggleImageGeneration(!imageGenerationEnabled)
+                }
+                className={`admin-btn shrink-0 ${
+                  imageGenerationEnabled
+                    ? "admin-btn--accent"
+                    : "admin-btn--danger"
+                }`}
+                aria-pressed={imageGenerationEnabled}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{
+                    background: imageGenerationEnabled
+                      ? "var(--success)"
+                      : "var(--danger)",
+                  }}
+                />
+                {imageGenerationEnabled ? "开放中" : "已关闭"}
+              </button>
+            </div>
+
+            <div
+              className="rounded-[var(--radius)] px-3.5 py-3 space-y-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    用户邀请
+                  </p>
+                  <p
+                    className="text-[10.5px] mt-0.5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    关闭后普通注册仍可用，但邀请码不建立关系也不发奖励
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => toggleInvitation(!invitationEnabled)}
+                  className={`admin-btn shrink-0 ${
+                    invitationEnabled ? "admin-btn--accent" : "admin-btn--danger"
+                  }`}
+                  aria-pressed={invitationEnabled}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: invitationEnabled
+                        ? "var(--success)"
+                        : "var(--danger)",
+                    }}
+                  />
+                  {invitationEnabled ? "开放中" : "已关闭"}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex-1 min-w-[12rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    成功邀请奖励积分
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={invitationReward}
+                    onChange={(e) => setInvitationReward(e.target.value)}
+                    className="admin-input"
+                    inputMode="numeric"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={saveInvitationReward}
+                  className="admin-btn admin-btn--solid"
+                >
+                  保存奖励
+                </button>
+              </div>
             </div>
 
             <div>
