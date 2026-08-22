@@ -25,6 +25,11 @@ test("migration journal only references migrations committed with the project", 
   }
 });
 
+test("drizzle migrations use the existing public migration ledger", () => {
+  const config = readFileSync("drizzle.config.ts", "utf8");
+  assert.match(config, /migrations\s*:\s*\{[\s\S]*schema\s*:\s*["']public["']/);
+});
+
 test("short invitation migration preserves old links", () => {
   assert.equal(existsSync("drizzle/0013_short_invitation_codes.sql"), true);
   const sql = readFileSync("drizzle/0013_short_invitation_codes.sql", "utf8");
