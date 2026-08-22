@@ -7,6 +7,7 @@ import { siteSettings } from "@/db/schema";
 import { ApiError } from "@/server/http";
 import { assertImageGenerationPolicy } from "./image-generation-access";
 import { parseInvitationReward } from "./invitations";
+import type { InvitationSettingsPatch } from "./invitation-settings-input";
 
 const UPLOAD_DIR = path.join(
   process.cwd(),
@@ -222,6 +223,25 @@ export async function setInvitationReward(value: unknown) {
   const [row] = await db
     .update(siteSettings)
     .set({ invitationReward: reward, updatedAt: new Date() })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function updateInvitationSettings(patch: InvitationSettingsPatch) {
+  await ensureRow();
+  const values: Partial<typeof siteSettings.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+  if (patch.invitationEnabled !== undefined) {
+    values.invitationEnabled = patch.invitationEnabled ? 1 : 0;
+  }
+  if (patch.invitationReward !== undefined) {
+    values.invitationReward = patch.invitationReward;
+  }
+  const [row] = await db
+    .update(siteSettings)
+    .set(values)
     .where(eq(siteSettings.id, 1))
     .returning();
   return mapSettings(row!);

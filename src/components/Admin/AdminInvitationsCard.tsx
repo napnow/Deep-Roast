@@ -19,7 +19,14 @@ interface AdminInvitationData {
     totalReward: number;
   };
   invitations: AdminInvitationRow[];
+  pagination: {
+    offset: number;
+    hasMore: boolean;
+    nextOffset: number | null;
+  };
 }
+
+const PAGE_SIZE = 50;
 
 function statusLabel(status: string): string {
   if (status === "active") return "正常";
@@ -38,12 +45,19 @@ export default function AdminInvitationsCard() {
   const [data, setData] = useState<AdminInvitationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [offset, setOffset] = useState(0);
+  const pageLoading = loading || (data !== null && data.pagination.offset !== offset);
 
   useEffect(() => {
     let cancelled = false;
-    apiJson<AdminInvitationData>("/api/admin/invitations?limit=300")
+    apiJson<AdminInvitationData>(
+      `/api/admin/invitations?limit=${PAGE_SIZE}&offset=${offset}`,
+    )
       .then((next) => {
-        if (!cancelled) setData(next);
+        if (!cancelled) {
+          setError("");
+          setData(next);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "加载失败");
@@ -54,7 +68,7 @@ export default function AdminInvitationsCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [offset]);
 
   return (
     <section className="admin-card lg:col-span-2">
@@ -144,6 +158,35 @@ export default function AdminInvitationsCard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {data.invitations.length > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                <span>
+                  已显示 {data.pagination.offset + 1}–{data.pagination.offset + data.invitations.length} 条，共 {data.stats.totalInvitations} 条
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary"
+                    disabled={offset === 0 || pageLoading}
+                    onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
+                  >
+                    上一页
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary"
+                    disabled={!data.pagination.hasMore || pageLoading}
+                    onClick={() => {
+                      if (data.pagination.nextOffset !== null) {
+                        setOffset(data.pagination.nextOffset);
+                      }
+                    }}
+                  >
+                    下一页
+                  </button>
+                </div>
               </div>
             )}
           </>

@@ -54,36 +54,8 @@
     {
       "idx": 7,
       "version": "7",
-      "when": 1786689854760,
-      "tag": "0007_busy_flatman",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1786775268372,
-      "tag": "0008_opposite_swordsman",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1787195945931,
-      "tag": "0009_api_keys",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1787214553661,
-      "tag": "0010_tiny_absorbing_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1787283373745,
-      "tag": "0011_recoverable_api_keys",
+      "when": 1787363215011,
+      "tag": "0012_invitation_system",
       "breakpoints": true
     }
   ]
