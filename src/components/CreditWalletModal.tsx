@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { CreditTransaction } from "@/types";
+import type { CreditTransaction, UserInvitationData } from "@/types";
 import {
   CREDIT_TYPE_LABELS,
   CREDIT_PER_IMAGE,
   CHECKIN_REWARD,
   RECHARGE_PLANS,
 } from "@/types";
+import DonationModal from "@/components/DonationModal";
+import { shouldShowInvitationPanel } from "@/lib/invitation-ui";
 
 interface CreditWalletModalProps {
   open: boolean;
@@ -32,19 +34,54 @@ export default function CreditWalletModal({
 }: CreditWalletModalProps) {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(false);
+  // 打赏功能状态：管理端关闭时不显示入口
+  const [donationEnabled, setDonationEnabled] = useState(false);
+  const [donationOpen, setDonationOpen] = useState(false);
+  const [invitation, setInvitation] = useState<UserInvitationData | null>(null);
+  const [invitationLoading, setInvitationLoading] = useState(false);
+  const [copyState, setCopyState] = useState("");
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    async function loadWallet() {
       setLoading(true);
-      fetch("/api/credits/transactions")
-        .then((r) => r.json())
-        .then((data) => {
-          if (Array.isArray(data)) setTransactions(data);
-        })
-        .catch(console.error)
-        .finally(() => setLoading(false));
+      setInvitationLoading(role === "user");
+      setCopyState("");
+      try {
+        const invitationRequest =
+          role === "user"
+            ? fetch("/api/user/invitations").then((r) => r.json())
+            : Promise.resolve(null);
+        const [transactionsData, donationData, invitationData] = await Promise.all([
+          fetch("/api/credits/transactions").then((r) => r.json()),
+          fetch("/api/public/donation").then((r) => r.json()),
+          invitationRequest,
+        ]);
+        if (Array.isArray(transactionsData)) setTransactions(transactionsData);
+        setDonationEnabled(
+          (donationData as { enabled?: boolean })?.enabled !== false,
+        );
+        if (
+          invitationData &&
+          typeof invitationData === "object" &&
+          "eligible" in invitationData
+        ) {
+          setInvitation(invitationData as UserInvitationData);
+        } else if (role !== "user") {
+          setInvitation(null);
+        }
+      } catch (err) {
+        console.error(err);
+        setDonationEnabled(false);
+      } finally {
+        setLoading(false);
+        setInvitationLoading(false);
+      }
     }
-  }, [open]);
+
+    void loadWallet();
+  }, [open, role]);
 
   const totalCheckin = transactions
     .filter((tx) => tx.type === "checkin")
@@ -53,6 +90,16 @@ export default function CreditWalletModal({
   const totalConsumed = transactions
     .filter((tx) => tx.type === "consume")
     .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+
+  async function copyInviteLink() {
+    if (!invitation?.inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(invitation.inviteLink);
+      setCopyState("已复制");
+    } catch {
+      setCopyState("请手动复制链接");
+    }
+  }
 
   if (!open) return null;
 
@@ -172,7 +219,102 @@ export default function CreditWalletModal({
           </div>
         </div>
 
+        {role === "user" &&
+          (invitationLoading ||
+            (invitation && shouldShowInvitationPanel(invitation))) && (
+            <section
+              className="mx-5 mt-3 rounded-xl p-3.5 shrink-0"
+              style={{
+                background: "var(--accent-surface)",
+                border: "1px solid color-mix(in srgb, var(--accent) 25%, transparent)",
+              }}
+              aria-label="我的邀请"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    邀请好友
+                  </p>
+                  {invitationLoading ? (
+                    <p
+                      className="mt-1 text-[10px]"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      正在加载邀请信息…
+                    </p>
+                  ) : invitation?.enabled ? (
+                    <>
+                      <p
+                        className="mt-1 text-[10px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        成功邀请 {invitation.invitedCount} 人 · 累计获得 {invitation.totalReward} 积分
+                      </p>
+                      {invitation.inviteLink && (
+                        <p
+                          className="mt-2 break-all text-[10px] leading-relaxed"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {invitation.inviteLink}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p
+                      className="mt-1 text-[10px]"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      邀请功能暂未开启
+                    </p>
+                  )}
+                </div>
+                {invitation?.inviteLink && invitation.enabled && (
+                  <button
+                    type="button"
+                    onClick={copyInviteLink}
+                    className="shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold transition-transform active:scale-95"
+                    style={{
+                      background: "var(--accent)",
+                      color: "var(--accent-on)",
+                    }}
+                  >
+                    {copyState || "复制链接"}
+                  </button>
+                )}
+              </div>
+              {!invitationLoading && invitation && invitation.invitations.length > 0 && (
+                <div className="mt-3 max-h-24 space-y-1 overflow-y-auto border-t pt-2" style={{ borderColor: "var(--border)" }}>
+                  {invitation.invitations.map((row, index) => (
+                    <div key={`${row.inviteeUsername}-${row.createdAt}-${index}`} className="flex items-center justify-between gap-2 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <span className="truncate">{row.inviteeUsername}</span>
+                      <span className="shrink-0 tabular-nums">+{row.rewardAmount} · {row.createdAt ? new Date(row.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
         <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+          {/* 打赏入口：管理端开启时显示 */}
+          {donationEnabled && (
+            <button
+              type="button"
+              onClick={() => setDonationOpen(true)}
+              className="w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold mb-3 transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]"
+              style={{
+                background: "linear-gradient(135deg, #ffb347 0%, #ff8c42 100%)",
+                color: "#4a2800",
+                boxShadow: "0 2px 10px rgba(255,140,66,0.3)",
+              }}
+            >
+              💝 打赏支持
+            </button>
+          )}
+
           <h3
             className="text-[11px] font-semibold tracking-widest uppercase mb-2"
             style={{ color: "var(--text-muted)" }}
@@ -266,6 +408,8 @@ export default function CreditWalletModal({
           )}
         </div>
       </div>
+
+      <DonationModal open={donationOpen} onClose={() => setDonationOpen(false)} />
     </div>
   );
 }

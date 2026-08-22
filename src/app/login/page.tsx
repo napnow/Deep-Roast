@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { login, register } from "@/lib/auth-client";
+import { normalizeInviteCode } from "@/lib/invitation";
 import { useAuth } from "@/components/AuthProvider";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
 import LoginIntro from "@/components/LoginIntro";
@@ -28,6 +29,12 @@ export default function LoginPage() {
   const [introSkipped, setIntroSkipped] = useState(false);
   // 是否已点击「开始使用」：直接切换到登录表单视图（不再滚动分屏）
   const [showForm, setShowForm] = useState(false);
+  const [inviteCode, setInviteCode] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return normalizeInviteCode(
+      new URLSearchParams(window.location.search).get("invite"),
+    );
+  });
 
   const heroRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +94,7 @@ export default function LoginPage() {
       const result =
         tab === "login"
           ? await login(username.trim(), password)
-          : await register(username.trim(), password);
+          : await register(username.trim(), password, inviteCode);
       if (result.success) {
         await refresh();
       } else {
@@ -340,6 +347,29 @@ export default function LoginPage() {
             <p className="mb-8 text-center text-xs" style={{ color: "#8a827a" }}>
               当前仅开放登录（注册已关闭）
             </p>
+          )}
+
+          {tab === "register" && inviteCode && (
+            <div
+              className="mb-6 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[11px]"
+              style={{
+                background: "rgba(212,137,74,0.08)",
+                border: "1px solid rgba(212,137,74,0.22)",
+                color: "#c9b09a",
+              }}
+            >
+              <span className="min-w-0 truncate">
+                已识别邀请链接，注册成功后邀请人将获得奖励
+              </span>
+              <button
+                type="button"
+                onClick={() => setInviteCode(null)}
+                className="shrink-0 underline underline-offset-2 hover:opacity-80"
+                style={{ color: "#d4894a" }}
+              >
+                清除
+              </button>
+            </div>
           )}
 
           {/* 公告 */}
