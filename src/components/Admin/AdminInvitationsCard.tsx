@@ -8,6 +8,7 @@ interface AdminInvitationRow {
   inviterUsername: string;
   inviteeUsername: string;
   rewardAmount: number;
+  inviteeRewardAmount: number;
   createdAt: string | null;
   inviterStatus: string;
   inviteeStatus: string;
@@ -17,6 +18,7 @@ interface AdminInvitationData {
   stats: {
     totalInvitations: number;
     totalReward: number;
+    totalInviteeReward: number;
   };
   invitations: AdminInvitationRow[];
   pagination: {
@@ -109,6 +111,14 @@ export default function AdminInvitationsCard() {
                 <p className="admin-stat-value">{data.stats.totalReward}</p>
                 <p className="admin-stat-hint">邀请奖励积分</p>
               </div>
+              <div
+                className="rounded-[var(--radius)] px-3.5 py-3"
+                style={{ background: "var(--bg-root)", border: "1px solid var(--border)" }}
+              >
+                <p className="admin-stat-label">被邀请人累计发放</p>
+                <p className="admin-stat-value">{data.stats.totalInviteeReward}</p>
+                <p className="admin-stat-hint">被邀请人额外奖励积分</p>
+              </div>
             </div>
 
             {data.invitations.length === 0 ? (
@@ -140,7 +150,10 @@ export default function AdminInvitationsCard() {
                           {row.inviteeUsername}
                         </td>
                         <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--accent)" }}>
-                          +{row.rewardAmount}
+                          <div>邀请人 +{row.rewardAmount}</div>
+                          <div style={{ color: "var(--text-secondary)" }}>
+                            被邀请人 +{row.inviteeRewardAmount}
+                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-[10px]">
                           <span style={{ color: statusColor(row.inviterStatus) }}>

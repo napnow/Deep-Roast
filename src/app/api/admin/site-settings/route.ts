@@ -30,6 +30,7 @@ export const PUT = handleRoute(async (req) => {
     clearDonationImage?: boolean;
     invitationEnabled?: boolean;
     invitationReward?: number | string;
+    invitationInviteeReward?: number | string;
   }>(req);
 
   const invitationPatch = parseInvitationSettingsPatch(body);

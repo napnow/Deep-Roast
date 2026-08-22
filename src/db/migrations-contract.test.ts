@@ -25,6 +25,11 @@ test("migration journal only references migrations committed with the project", 
   }
 });
 
+test("drizzle migrations use the existing public migration ledger", () => {
+  const config = readFileSync("drizzle.config.ts", "utf8");
+  assert.match(config, /migrations\s*:\s*\{[\s\S]*schema\s*:\s*["']public["']/);
+});
+
 test("short invitation migration preserves old links", () => {
   assert.equal(existsSync("drizzle/0013_short_invitation_codes.sql"), true);
   const sql = readFileSync("drizzle/0013_short_invitation_codes.sql", "utf8");
@@ -41,4 +46,18 @@ test("short-code schema keeps the legacy index partial like the migration", () =
     schema,
     /legacyInviteCodeUnique[\s\S]*?\.where\(sql`\$\{table\.legacyInviteCode\} IS NOT NULL`\)/,
   );
+});
+
+test("invitee reward migration preserves old balances and defaults history to zero", () => {
+  assert.equal(existsSync("drizzle/0014_invitee_invitation_reward.sql"), true);
+  const sql = readFileSync(
+    "drizzle/0014_invitee_invitation_reward.sql",
+    "utf8",
+  );
+  assert.match(sql, /invitation_invitee_reward/);
+  assert.match(sql, /DEFAULT 50/);
+  assert.match(sql, /invitee_reward_amount/);
+  assert.match(sql, /DEFAULT 0/);
+  assert.match(sql, /NON_NEGATIVE|non_negative|>= 0/i);
+  assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
 });

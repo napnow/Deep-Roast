@@ -129,6 +129,7 @@ export async function listAdminInvitations(limit = 100, offset = 0) {
         inviterUsername: userInvitations.inviterUsername,
         inviteeUsername: userInvitations.inviteeUsername,
         rewardAmount: userInvitations.rewardAmount,
+        inviteeRewardAmount: userInvitations.inviteeRewardAmount,
         createdAt: userInvitations.createdAt,
       })
       .from(userInvitations)
@@ -139,6 +140,7 @@ export async function listAdminInvitations(limit = 100, offset = 0) {
       .select({
         totalInvitations: sql<number>`count(*)::int`,
         totalReward: sql<number>`coalesce(sum(${userInvitations.rewardAmount}), 0)::int`,
+        totalInviteeReward: sql<number>`coalesce(sum(${userInvitations.inviteeRewardAmount}), 0)::int`,
       })
       .from(userInvitations),
   ]);
@@ -163,6 +165,7 @@ export async function listAdminInvitations(limit = 100, offset = 0) {
     stats: {
       totalInvitations,
       totalReward: Number(statsRows[0]?.totalReward ?? 0),
+      totalInviteeReward: Number(statsRows[0]?.totalInviteeReward ?? 0),
     },
     pagination: {
       limit: safeQuery.limit,
@@ -178,6 +181,7 @@ export async function listAdminInvitations(limit = 100, offset = 0) {
       inviterUsername: row.inviterUsername,
       inviteeUsername: row.inviteeUsername,
       rewardAmount: row.rewardAmount,
+      inviteeRewardAmount: row.inviteeRewardAmount,
       createdAt: row.createdAt,
       inviterStatus: row.inviterId
         ? currentById.get(row.inviterId)?.status ?? "deleted"

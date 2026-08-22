@@ -10,6 +10,7 @@ export default function AdminSiteSettingsCard() {
   const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
   const [invitationEnabled, setInvitationEnabled] = useState(true);
   const [invitationReward, setInvitationReward] = useState("200");
+  const [invitationInviteeReward, setInvitationInviteeReward] = useState("50");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -23,6 +24,7 @@ export default function AdminSiteSettingsCard() {
         imageGenerationEnabled?: boolean;
         invitationEnabled?: boolean;
         invitationReward?: number;
+        invitationInviteeReward?: number;
       }>("/api/admin/site-settings")
       .then((data) => {
         if (cancelled) return;
@@ -32,6 +34,7 @@ export default function AdminSiteSettingsCard() {
       setImageGenerationEnabled(data.imageGenerationEnabled !== false);
       setInvitationEnabled(data.invitationEnabled !== false);
       setInvitationReward(String(data.invitationReward ?? 200));
+      setInvitationInviteeReward(String(data.invitationInviteeReward ?? 50));
       })
       .catch((e: unknown) => {
         if (!cancelled) {
@@ -163,23 +166,33 @@ export default function AdminSiteSettingsCard() {
     setSaving(false);
   }
 
-  async function saveInvitationReward() {
-    const raw = invitationReward.trim();
-    if (!/^\d+$/.test(raw)) {
-      setMsg("奖励积分必须是非负整数");
+  async function saveInvitationRewards() {
+    const inviterRaw = invitationReward.trim();
+    const inviteeRaw = invitationInviteeReward.trim();
+    if (!/^\d+$/.test(inviterRaw) || !/^\d+$/.test(inviteeRaw)) {
+      setMsg("两项奖励都必须是非负整数");
       return;
     }
     setSaving(true);
     setMsg("");
     try {
-      const data = await apiJson<{ invitationReward?: number }>(
+      const data = await apiJson<{
+        invitationReward?: number;
+        invitationInviteeReward?: number;
+      }>(
         "/api/admin/site-settings",
         {
           method: "PUT",
-          ...jsonBody({ invitationReward: Number(raw) }),
+          ...jsonBody({
+            invitationReward: Number(inviterRaw),
+            invitationInviteeReward: Number(inviteeRaw),
+          }),
         },
       );
-      setInvitationReward(String(data.invitationReward ?? raw));
+      setInvitationReward(String(data.invitationReward ?? inviterRaw));
+      setInvitationInviteeReward(
+        String(data.invitationInviteeReward ?? inviteeRaw),
+      );
       setMsg("邀请奖励已保存，仅影响后续注册");
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "保存失败");
@@ -343,7 +356,7 @@ export default function AdminSiteSettingsCard() {
                     className="mb-1.5 block text-[11px] font-semibold"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    成功邀请奖励积分
+                    邀请人奖励积分
                   </span>
                   <input
                     type="number"
@@ -355,13 +368,30 @@ export default function AdminSiteSettingsCard() {
                     inputMode="numeric"
                   />
                 </label>
+                <label className="flex-1 min-w-[12rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    被邀请人额外奖励积分
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={invitationInviteeReward}
+                    onChange={(e) => setInvitationInviteeReward(e.target.value)}
+                    className="admin-input"
+                    inputMode="numeric"
+                  />
+                </label>
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={saveInvitationReward}
+                  onClick={saveInvitationRewards}
                   className="admin-btn admin-btn--solid"
                 >
-                  保存奖励
+                  保存奖励设置
                 </button>
               </div>
             </div>
