@@ -57,6 +57,13 @@
       "when": 1787363215011,
       "tag": "0012_invitation_system",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787363215012,
+      "tag": "0013_short_invitation_codes",
+      "breakpoints": true
     }
   ]
 }

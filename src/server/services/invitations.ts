@@ -61,7 +61,10 @@ export async function getUserInvitationData(
   req: Request,
 ) {
   const [user] = await db
-    .select({ inviteCode: users.inviteCode })
+    .select({
+      inviteCode: users.inviteCode,
+      legacyInviteCode: users.legacyInviteCode,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -93,6 +96,7 @@ export async function getUserInvitationData(
 
   const eligible = role === "user";
   const enabled = (settings[0]?.invitationEnabled ?? 1) !== 0;
+  const inviteCode = user.inviteCode ?? user.legacyInviteCode;
   const invitations = rows.map((row) => ({
     inviteeUsername: row.inviteeUsername,
     rewardAmount: row.rewardAmount,
@@ -103,10 +107,10 @@ export async function getUserInvitationData(
     eligible,
     enabled,
     reward: settings[0]?.invitationReward ?? 200,
-    inviteCode: eligible ? user.inviteCode : null,
+    inviteCode: eligible ? inviteCode : null,
     inviteLink:
-      eligible && user.inviteCode
-        ? buildInviteLink(getPublicOrigin(req), user.inviteCode)
+      eligible && inviteCode
+        ? buildInviteLink(getPublicOrigin(req), inviteCode)
         : null,
     invitedCount: invitations.length,
     totalReward: invitations.reduce((sum, row) => sum + row.rewardAmount, 0),

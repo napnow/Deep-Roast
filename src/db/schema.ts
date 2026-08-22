@@ -102,11 +102,17 @@ export const users = pgTable("users", {
   status: text("status").notNull().default("active"),
   /** 普通用户固定邀请代码；管理员保持 NULL */
   inviteCode: text("invite_code").unique(),
+  /** 升级前的长邀请码；保留用于兼容已经发出的邀请链接 */
+  legacyInviteCode: text("legacy_invite_code"),
   /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
   lastCheckinOn: text("last_checkin_on"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  legacyInviteCodeUnique: uniqueIndex("users_legacy_invite_code_unique").on(
+    table.legacyInviteCode,
+  ),
+}));
 
 // ── Site announcements ──
 export const announcements = pgTable("announcements", {
