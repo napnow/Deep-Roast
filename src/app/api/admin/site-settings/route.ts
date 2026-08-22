@@ -4,14 +4,14 @@ import {
   clearAdminContactImage,
   clearDonationImage,
   getSiteSettings,
-  setInvitationEnabled,
-  setInvitationReward,
+  updateInvitationSettings,
   setDonationEnabled,
   setImageGenerationEnabled,
   setRegistrationEnabled,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
+import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -32,6 +32,8 @@ export const PUT = handleRoute(async (req) => {
     invitationReward?: number | string;
   }>(req);
 
+  const invitationPatch = parseInvitationSettingsPatch(body);
+
   if (body.clearImage === true) {
     await clearAdminContactImage();
   }
@@ -47,11 +49,8 @@ export const PUT = handleRoute(async (req) => {
   if (typeof body.donationEnabled === "boolean") {
     await setDonationEnabled(body.donationEnabled);
   }
-  if (typeof body.invitationEnabled === "boolean") {
-    await setInvitationEnabled(body.invitationEnabled);
-  }
-  if (body.invitationReward !== undefined) {
-    await setInvitationReward(body.invitationReward);
+  if (Object.keys(invitationPatch).length > 0) {
+    await updateInvitationSettings(invitationPatch);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

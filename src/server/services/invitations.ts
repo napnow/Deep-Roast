@@ -5,6 +5,25 @@ import { buildInviteLink } from "@/lib/invitation";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 
 const MAX_INVITATION_ROWS = 500;
+const MAX_INVITATION_PAGE_SIZE = 100;
+
+export function normalizeInvitationListQuery(
+  rawLimit: string | null | undefined,
+  rawOffset: string | null | undefined,
+) {
+  const parsedLimit = Number(rawLimit ?? 100);
+  const parsedOffset = Number(rawOffset ?? 0);
+  return {
+    limit: Math.min(
+      Math.max(Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : 100, 1),
+      MAX_INVITATION_PAGE_SIZE,
+    ),
+    offset: Math.max(
+      Number.isFinite(parsedOffset) ? Math.trunc(parsedOffset) : 0,
+      0,
+    ),
+  };
+}
 
 export function parseInvitationReward(value: unknown): number {
   const parsed =
@@ -95,8 +114,8 @@ export async function getUserInvitationData(
   };
 }
 
-export async function listAdminInvitations(limit = 200) {
-  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_INVITATION_ROWS);
+export async function listAdminInvitations(limit = 100, offset = 0) {
+  const safeQuery = normalizeInvitationListQuery(String(limit), String(offset));
   const [rows, statsRows] = await Promise.all([
     db
       .select({
@@ -110,7 +129,8 @@ export async function listAdminInvitations(limit = 200) {
       })
       .from(userInvitations)
       .orderBy(desc(userInvitations.createdAt))
-      .limit(safeLimit),
+      .limit(safeQuery.limit)
+      .offset(safeQuery.offset),
     db
       .select({
         totalInvitations: sql<number>`count(*)::int`,
@@ -134,10 +154,20 @@ export async function listAdminInvitations(limit = 200) {
     : [];
   const currentById = new Map(currentUsers.map((row) => [row.id, row]));
 
+  const totalInvitations = Number(statsRows[0]?.totalInvitations ?? 0);
   return {
     stats: {
-      totalInvitations: Number(statsRows[0]?.totalInvitations ?? 0),
+      totalInvitations,
       totalReward: Number(statsRows[0]?.totalReward ?? 0),
+    },
+    pagination: {
+      limit: safeQuery.limit,
+      offset: safeQuery.offset,
+      hasMore: safeQuery.offset + rows.length < totalInvitations,
+      nextOffset:
+        safeQuery.offset + rows.length < totalInvitations
+          ? safeQuery.offset + rows.length
+          : null,
     },
     invitations: rows.map((row) => ({
       id: row.id,
