@@ -1,0 +1,18 @@
+{
+  "name": "深焙",
+  "short_name": "深焙",
+  "description": "深度思考，慢工出好答案",
+  "start_url": "/login",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e6e2d9",
+  "theme_color": "#e6e2d9",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

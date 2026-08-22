@@ -1,0 +1,78 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/.next-*/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — keep example
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# generated user content (keep directory via .gitkeep)
+/public/images/*
+!/public/images/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# local notes / agent scratch
+doubaome.md
+.superpowers/
+.claude/
+.workbuddy/
+# dev server logs
+dev-server.log
+dev-server.err.log
+*.log
+# agent design/plan history — keep locally, not for public clone
+docs/superpowers/
+# superseded internal design drafts (local only)
+docs/AI生图系统提示词-功能文档.md
+
+# server mirror / build-check / legacy backups (local only)
+.server-mirror/
+.server-mirror-src/
+.build-check-src/
+.old-chat-wt/
+_dev-test.err
+_dev-test.out
+*.rollback-
+
+# OS / editor
+.idea/
+.vscode/
+*.swp
