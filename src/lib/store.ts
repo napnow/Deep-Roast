@@ -14,6 +14,18 @@ import type {
   InspectorTab,
   WorkspaceMode,
 } from "@/lib/workspace-preferences";
+import type {
+  ImageToImageDraft,
+  ReversePromptDraft,
+  TextToImageDraft,
+} from "@/lib/image-workspace";
+import {
+  INITIAL_IMAGE_TASK,
+  createImageTaskState,
+  type ImageTaskError,
+  type ImageTaskRequest,
+  type ImageTaskState,
+} from "@/lib/image-task";
 
 type Updater<T> = T | ((prev: T) => T);
 
@@ -28,6 +40,9 @@ export interface DeepRoastState {
   inspectorTab: InspectorTab;
   inspectorCollapsed: boolean;
   activeImageId: string | null;
+  textToImageDraft: TextToImageDraft;
+  imageToImageDraft: ImageToImageDraft;
+  reversePromptDraft: ReversePromptDraft;
 
   // config / models
   config: Config;
@@ -45,6 +60,7 @@ export interface DeepRoastState {
   // image
   imageHistory: ImageRecord[];
   generating: boolean;
+  imageTask: ImageTaskState;
 
   // credits / check-in
   credits: number;
@@ -63,6 +79,9 @@ export interface DeepRoastState {
   setInspectorTab: (tab: InspectorTab) => void;
   setInspectorCollapsed: (collapsed: boolean) => void;
   setActiveImageId: (id: string | null) => void;
+  setTextToImageDraft: (next: Partial<TextToImageDraft>) => void;
+  setImageToImageDraft: (next: Partial<ImageToImageDraft>) => void;
+  setReversePromptDraft: (next: Partial<ReversePromptDraft>) => void;
   setConfig: (updates: Partial<Config> | ((prev: Config) => Config)) => void;
   replaceConfig: (config: Config) => void;
   setImageModels: (models: Updater<ModelInfo[]>) => void;
@@ -74,6 +93,10 @@ export interface DeepRoastState {
   setStreamingText: (text: string) => void;
   setImageHistory: (history: Updater<ImageRecord[]>) => void;
   setGenerating: (generating: boolean) => void;
+  startImageTask: (request: ImageTaskRequest) => void;
+  finishImageTask: (resultIds: string[]) => void;
+  failImageTask: (error: ImageTaskError) => void;
+  clearImageTask: () => void;
   setCredits: (credits: number) => void;
   setCheckinStatus: (status: {
     eligible?: boolean;
@@ -92,10 +115,12 @@ const initialConfig: Config = {
   textModel: "doubao-seed-2-0-pro-260215",
   imageModel: "doubao-seedream-4-5-251128",
   imageSystemPrompt: "",
+  assistantImagePrompt: "",
   reversePromptModel: "",
   hasApiKey: false,
   apiKeyHint: "",
   enabledImageModels: DEFAULT_IMAGE_MODELS.map((m) => m.id),
+  imageGenerationEnabled: true,
 };
 
 export const useDeepRoastStore = create<DeepRoastState>((set) => ({
@@ -104,6 +129,22 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   inspectorTab: "history",
   inspectorCollapsed: false,
   activeImageId: null,
+  textToImageDraft: {
+    prompt: "",
+    size: "1024x1024",
+    count: 1,
+    stylePrompt: "",
+  },
+  imageToImageDraft: {
+    prompt: "",
+    size: "1024x1024",
+    count: 1,
+    styleId: "",
+    styleColor: "",
+    styleTexture: "",
+    refs: [],
+  },
+  reversePromptDraft: { image: null, resultPrompt: "" },
   config: initialConfig,
   imageModels: DEFAULT_IMAGE_MODELS,
   selectedImageModel: initialConfig.imageModel,
@@ -114,6 +155,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   streamingText: "",
   imageHistory: [],
   generating: false,
+  imageTask: INITIAL_IMAGE_TASK,
   credits: 0,
   checkinEligible: false,
   todayChecked: false,
@@ -127,6 +169,18 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setInspectorTab: (tab) => set({ inspectorTab: tab }),
   setInspectorCollapsed: (collapsed) => set({ inspectorCollapsed: collapsed }),
   setActiveImageId: (id) => set({ activeImageId: id }),
+  setTextToImageDraft: (next) =>
+    set((state) => ({
+      textToImageDraft: { ...state.textToImageDraft, ...next },
+    })),
+  setImageToImageDraft: (next) =>
+    set((state) => ({
+      imageToImageDraft: { ...state.imageToImageDraft, ...next },
+    })),
+  setReversePromptDraft: (next) =>
+    set((state) => ({
+      reversePromptDraft: { ...state.reversePromptDraft, ...next },
+    })),
   setConfig: (updates) =>
     set((s) => ({
       config:
@@ -150,6 +204,28 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setImageHistory: (history) =>
     set((s) => ({ imageHistory: applyUpdater(s.imageHistory, history) })),
   setGenerating: (generating) => set({ generating }),
+  startImageTask: (request) =>
+    set({ imageTask: createImageTaskState(request) }),
+  finishImageTask: (resultIds) =>
+    set((state) => ({
+      imageTask: {
+        ...state.imageTask,
+        status: "success",
+        startedAt: null,
+        resultIds,
+        error: null,
+      },
+    })),
+  failImageTask: (error) =>
+    set((state) => ({
+      imageTask: {
+        ...state.imageTask,
+        status: "error",
+        startedAt: null,
+        error,
+      },
+    })),
+  clearImageTask: () => set({ imageTask: INITIAL_IMAGE_TASK }),
   setCredits: (credits) => set({ credits }),
   setCheckinStatus: (status) =>
     set((s) => ({
