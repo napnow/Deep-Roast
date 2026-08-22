@@ -12,6 +12,7 @@ export type AppIconName =
   | "search"
   | "more"
   | "wallet"
+  | "bell"
   | "announcement"
   | "key"
   | "settings"

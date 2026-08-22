@@ -7,7 +7,6 @@ import { useAuth } from "@/components/AuthProvider";
 import AdminContactModal from "@/components/Auth/AdminContactModal";
 import LoginIntro from "@/components/LoginIntro";
 import Magnetic from "@/components/Magnetic";
-import type { Announcement } from "@/types";
 
 const TITLE = "Deep Roast";
 
@@ -21,7 +20,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [focusField, setFocusField] = useState<"username" | "password" | null>(null);
   // 开屏初始化完成（以挂载时刻为基准编排标题/口号/按钮入场）
   const [introDone, setIntroDone] = useState(false);
@@ -65,12 +63,6 @@ export default function LoginPage() {
           setRegistrationEnabled(d.registrationEnabled);
           if (!d.registrationEnabled) setTab("login");
         }
-      })
-      .catch(() => {});
-    fetch("/api/public/announcements")
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d.announcements)) setAnnouncements(d.announcements);
       })
       .catch(() => {});
   }, []);
@@ -369,33 +361,6 @@ export default function LoginPage() {
               >
                 清除
               </button>
-            </div>
-          )}
-
-          {/* 公告 */}
-          {announcements.length > 0 && (
-            <div
-              className="mb-6 max-h-24 space-y-2 overflow-y-auto rounded-xl px-4 py-3"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <p
-                className="text-[10px] font-medium tracking-[0.2em]"
-                style={{ color: "#8a827a" }}
-              >
-                公告
-              </p>
-              {announcements.slice(0, 3).map((a) => (
-                <p
-                  key={a.id}
-                  className="text-xs leading-relaxed whitespace-pre-wrap"
-                  style={{ color: "#c9c0b4" }}
-                >
-                  {a.body}
-                </p>
-              ))}
             </div>
           )}
 

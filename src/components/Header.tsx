@@ -1,6 +1,7 @@
 "use client";
 
 import UserMenu from "@/components/Header/UserMenu";
+import AnnouncementBell from "@/components/Header/AnnouncementBell";
 import { AppIcon } from "@/components/ui/icons";
 import type { WorkspaceMode } from "@/lib/workspace-preferences";
 
@@ -93,6 +94,8 @@ export default function Header({
       </div>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <AnnouncementBell />
+
         <button
           type="button"
           onClick={onWalletClick}

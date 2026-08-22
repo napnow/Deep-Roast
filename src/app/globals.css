@@ -1464,6 +1464,89 @@ html.dark .liquid-glass-strong {
   text-transform: uppercase;
 }
 
+/* ── Topbar announcement bell ── */
+.announcement-bell__button {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease,
+    transform 150ms ease;
+}
+
+.announcement-bell__button:hover,
+.announcement-bell__button[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.announcement-bell__button:active {
+  transform: scale(0.94);
+}
+
+.announcement-bell__button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.announcement-bell__icon {
+  display: inline-flex;
+  transform-origin: 50% 18%;
+}
+
+.announcement-bell__icon.is-unread {
+  animation: announcement-bell-ring 680ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.announcement-bell__badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--bg-surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes announcement-bell-ring {
+  0% { transform: rotate(0deg); }
+  16% { transform: rotate(-12deg); }
+  32% { transform: rotate(8deg); }
+  48% { transform: rotate(-5deg); }
+  64% { transform: rotate(3deg); }
+  80% { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .announcement-bell__button {
+    transition: none;
+  }
+
+  .announcement-bell__button:active {
+    transform: none;
+  }
+
+  .announcement-bell__icon.is-unread {
+    animation: none;
+  }
+}
+
 /* ── Persistent image/chat workspace shell ── */
 .workspace-shell {
   position: relative;
