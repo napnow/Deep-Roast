@@ -24,3 +24,13 @@ test("migration journal only references migrations committed with the project", 
     assert.equal(existsSync(`drizzle/${entry.tag}.sql`), true, entry.tag);
   }
 });
+
+test("short invitation migration preserves old links", () => {
+  assert.equal(existsSync("drizzle/0013_short_invitation_codes.sql"), true);
+  const sql = readFileSync("drizzle/0013_short_invitation_codes.sql", "utf8");
+
+  assert.match(sql, /legacy_invite_code/);
+  assert.match(sql, /UPDATE "users"[\s\S]*legacy_invite_code/);
+  assert.match(sql, /CREATE UNIQUE INDEX/);
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});

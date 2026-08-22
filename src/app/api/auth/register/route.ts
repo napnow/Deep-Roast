@@ -6,7 +6,7 @@ import {
   userInvitations,
   users,
 } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { hashPassword, setAuthCookie, signToken } from "@/lib/auth";
 import { normalizeInviteCode } from "@/lib/invitation";
 import { ApiError } from "@/server/http";
@@ -112,7 +112,12 @@ async function registerInTransaction(args: {
           status: users.status,
         })
         .from(users)
-        .where(eq(users.inviteCode, inviteCode))
+        .where(
+          or(
+            eq(users.inviteCode, inviteCode),
+            eq(users.legacyInviteCode, inviteCode),
+          ),
+        )
         .limit(1);
 
       if (!row || row.role !== "user" || row.status !== "active") {
