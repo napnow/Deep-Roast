@@ -427,6 +427,7 @@ export default function Img2ImgPanel({
                   aria-label={"选择图片 " + (idx + 1)}
                   aria-pressed={selected}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={ref.preview || ref.base64}
                     alt={"参考图 " + (idx + 1)}
