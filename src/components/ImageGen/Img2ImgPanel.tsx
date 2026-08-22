@@ -4,6 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import type { EditStyle } from "@/types";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import {
+  buildImageEditRequest,
+  type ImageEditUiState,
+} from "./image-edit-ui";
 import {
   EDIT_STYLE_PRESETS,
   DEFAULT_EDIT_STYLE,
@@ -18,13 +23,13 @@ interface Img2ImgPanelProps {
   /** 可选比例列表（与文生图一致：1:1 / 9:16 / 16:9 等） */
   sizeOptions?: { value: string; label: string }[];
   generating: boolean;
+  disabled?: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张）；提供时优先使用 */
-  onEditImage?: (images: string[], prompt: string, size: string) => void;
-  /** 图生图批量：最多 5 张 */
+  /** 图生图：按结构化任务提交编辑 */
+  onEditImage?: (request: ImageEditRequest, size: string) => void;
+  /** 图生图批量：按结构化任务生成多个变体 */
   onEditImageBatch?: (
-    images: string[],
-    prompt: string,
+    request: ImageEditRequest,
     size: string,
     count: number,
   ) => void;
@@ -43,6 +48,7 @@ export default function Img2ImgPanel({
   size,
   sizeOptions,
   generating,
+  disabled = false,
   onGenerate,
   onEditImage,
   onEditImageBatch,
@@ -50,6 +56,11 @@ export default function Img2ImgPanel({
 }: Img2ImgPanelProps) {
   const [refs, setRefs] = useState<RefImage[]>([]);
   const [edit, setEdit] = useState("");
+  const [editMode, setEditMode] =
+    useState<ImageEditUiState["mode"]>("per-image");
+  const [perImagePrompts, setPerImagePrompts] = useState<string[]>([]);
+  const [targetIndex, setTargetIndex] = useState(0);
+  const [referenceIndexes, setReferenceIndexes] = useState<number[]>([]);
   const [processing, setProcessing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
@@ -89,10 +100,11 @@ export default function Img2ImgPanel({
   const activeStyle: EditStylePreset | undefined = styles.find(
     (s) => s.id === styleId,
   );
+  const activeTaskCount = editMode === "reference" ? 1 : refs.length;
 
   /** 编译最终编辑 prompt：风格前缀（填槽） + 用户描述 */
-  function compileEditPrompt(): string {
-    const userDesc = edit.trim() || "生成这张图的变体";
+  function compileEditPrompt(description = edit): string {
+    const userDesc = description.trim() || "生成这张图的变体";
     if (!activeStyle) return userDesc;
     let prefix = activeStyle.prefix;
     const color =
@@ -109,7 +121,6 @@ export default function Img2ImgPanel({
 
   useEffect(() => {
     if (processing) {
-      setElapsed(0);
       timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -126,6 +137,10 @@ export default function Img2ImgPanel({
       setProcessing(false);
       setRefs([]);
       setEdit("");
+      setPerImagePrompts([]);
+      setEditMode("per-image");
+      setTargetIndex(0);
+      setReferenceIndexes([]);
     }
   }, [generating]);
 
@@ -156,11 +171,13 @@ export default function Img2ImgPanel({
       reader.onload = () => {
         const preview = reader.result as string;
         // 压缩后用于编辑请求（避免大图撞 body 限制；预览用原图）
-        compressImageFile(file, 1536, 0.9)
-          .then((data) => {
-            setRefs((prev) =>
-              prev.length >= MAX_REFS ? prev : [...prev, { preview, base64: data }],
-            );
+          compressImageFile(file, 1536, 0.9)
+            .then((data) => {
+            setRefs((prev) => {
+              if (prev.length >= MAX_REFS) return prev;
+              setPerImagePrompts((prompts) => [...prompts, ""]);
+              return [...prev, { preview, base64: data }];
+            });
           })
           .catch(() => setError("读取图片失败"));
       };
@@ -171,11 +188,40 @@ export default function Img2ImgPanel({
 
   function removeRef(idx: number) {
     setRefs((prev) => prev.filter((_, i) => i !== idx));
+    setPerImagePrompts((prev) => prev.filter((_, i) => i !== idx));
+    setReferenceIndexes((prev) =>
+      prev
+        .filter((index) => index !== idx)
+        .map((index) => (index > idx ? index - 1 : index)),
+    );
+    setTargetIndex((prev) => {
+      if (prev === idx) return Math.max(0, Math.min(prev, refs.length - 2));
+      return prev > idx ? prev - 1 : prev;
+    });
+  }
+
+  function toggleEditMode(mode: ImageEditUiState["mode"]) {
+    setEditMode(mode);
+    if (mode === "reference") {
+      setReferenceIndexes((prev) =>
+        prev.filter((index) => index >= 0 && index < refs.length && index !== targetIndex),
+      );
+    }
+  }
+
+  function toggleReference(index: number) {
+    if (index === targetIndex) return;
+    setReferenceIndexes((prev) =>
+      prev.includes(index)
+        ? prev.filter((item) => item !== index)
+        : [...prev, index],
+    );
   }
 
   async function handleGenerate() {
-    if (refs.length === 0 || generating) return;
+    if (disabled || refs.length === 0 || generating) return;
     setError("");
+    setElapsed(0);
     setProcessing(true);
     setAnalyzing(false);
 
@@ -186,11 +232,33 @@ export default function Img2ImgPanel({
       // 注意：这里不 setProcessing(false)！让 processing 保持 true，
       // 禁用按钮直到父级 generating 接管（防重复点击生成多张）
       const imageData = refs.map((r) => r.base64 || r.preview);
+      const uiState: ImageEditUiState =
+        editMode === "reference"
+          ? { mode: "reference", targetIndex, referenceIndexes }
+          : {
+              mode: "per-image",
+              prompts: perImagePrompts.map((prompt) =>
+                prompt.trim() ? compileEditPrompt(prompt) : "",
+              ),
+            };
+      const request = buildImageEditRequest(
+        imageData,
+        uiState,
+        compileEditPrompt(),
+      );
+      if (
+        request.mode === "reference" &&
+        request.referenceImages?.length === 0
+      ) {
+        setError("参考修改至少需要选择一张参考图");
+        setProcessing(false);
+        genRef.current = false;
+        return;
+      }
       if (batchCount > 1 && onEditImageBatch) {
-        // 批量：同参考图（可多张）生成多张变体
-        onEditImageBatch(imageData, compileEditPrompt(), editSize, batchCount);
+        onEditImageBatch(request, editSize, batchCount);
       } else {
-        onEditImage(imageData, compileEditPrompt(), editSize);
+        onEditImage(request, editSize);
       }
       return;
     }
@@ -241,6 +309,10 @@ export default function Img2ImgPanel({
     abortRef.current?.abort();
     setRefs([]);
     setEdit("");
+    setPerImagePrompts([]);
+    setEditMode("per-image");
+    setTargetIndex(0);
+    setReferenceIndexes([]);
     setError("");
     setProcessing(false);
     setAnalyzing(false);
@@ -255,6 +327,19 @@ export default function Img2ImgPanel({
         图生图
       </span>
 
+      {disabled ? (
+        <p
+          className="rounded-lg px-3 py-2 text-xs"
+          style={{
+            color: "var(--accent)",
+            background: "var(--accent-surface)",
+            border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+          }}
+        >
+          生图功能暂时关闭
+        </p>
+      ) : null}
+
       <div className="flex items-center gap-2.5 flex-wrap">
         <input
           ref={fileRef}
@@ -266,7 +351,7 @@ export default function Img2ImgPanel({
         />
         <button
           onClick={() => fileRef.current?.click()}
-          disabled={processing || generating || refs.length >= MAX_REFS}
+          disabled={disabled || processing || generating || refs.length >= MAX_REFS}
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:scale-100"
           style={{
             background: "var(--accent-surface)",
@@ -299,6 +384,71 @@ export default function Img2ImgPanel({
                   >
                     ✕
                   </button>
+                  {editMode === "per-image" ? (
+                    <textarea
+                      value={perImagePrompts[idx] || ""}
+                      onChange={(event) =>
+                        setPerImagePrompts((prev) => {
+                          const next = [...prev];
+                          next[idx] = event.target.value;
+                          return next;
+                        })
+                      }
+                      onFocus={lockPageScroll}
+                      onBlur={unlockPageScroll}
+                      rows={2}
+                      disabled={processing}
+                      placeholder={"图片 " + (idx + 1) + " 的修改指令"}
+                      className="mt-1 w-24 rounded-md px-1.5 py-1 text-[10px] resize-y disabled:opacity-40"
+                      style={{
+                        background: "var(--bg-root)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
+                  ) : (
+                    <div className="mt-1 flex flex-col gap-1 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetIndex(idx);
+                          setReferenceIndexes((prev) =>
+                            prev.filter((index) => index !== idx),
+                          );
+                        }}
+                        disabled={processing}
+                        className="rounded-md px-1.5 py-1 text-left disabled:opacity-40"
+                        style={{
+                          background:
+                            targetIndex === idx
+                              ? "var(--accent-surface)"
+                              : "var(--bg-root)",
+                          border:
+                            targetIndex === idx
+                              ? "1px solid var(--accent)"
+                              : "1px solid var(--border)",
+                          color:
+                            targetIndex === idx
+                              ? "var(--accent)"
+                              : "var(--text-secondary)",
+                        }}
+                      >
+                        {targetIndex === idx ? "目标图" : "设为目标"}
+                      </button>
+                      <label
+                        className="flex items-center gap-1 px-1.5 py-0.5"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={referenceIndexes.includes(idx)}
+                          onChange={() => toggleReference(idx)}
+                          disabled={processing || targetIndex === idx}
+                        />
+                        参考图
+                      </label>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -312,6 +462,60 @@ export default function Img2ImgPanel({
           </>
         )}
       </div>
+
+      {refs.length > 0 && (
+        <div
+          className="rounded-xl px-3 py-2.5 space-y-2"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[10px] font-semibold tracking-widest uppercase mr-1"
+              style={{ color: "var(--text-muted)" }}
+            >
+              处理方式
+            </span>
+            {(
+              [
+                ["per-image", "分别修改"],
+                ["reference", "参考修改"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => toggleEditMode(mode)}
+                disabled={processing}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all disabled:opacity-40"
+                style={{
+                  background:
+                    editMode === mode
+                      ? "var(--accent-surface)"
+                      : "var(--bg-root)",
+                  border:
+                    editMode === mode
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  color:
+                    editMode === mode
+                      ? "var(--accent)"
+                      : "var(--text-secondary)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {editMode === "reference" && (
+            <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+              选择一张目标图，再勾选一张或多张参考图。参考修改当前仅支持 GPT Image 2。
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 描述/风格/比例/生成：始终显示（上传图片只是填充参考图） */}
       <>
@@ -519,7 +723,11 @@ export default function Img2ImgPanel({
               className="text-[10px] shrink-0"
               style={{ color: "var(--text-muted)" }}
             >
-              {batchCount > 1 ? `共 ${batchCount * 5} 积分` : "每张 5 积分"}
+              {batchCount > 1
+                ? "共 " + batchCount * activeTaskCount * 5 + " 积分"
+                : editMode === "reference"
+                  ? "参考模式每张 5 积分"
+                  : "预计 " + activeTaskCount * 5 + " 积分"}
             </span>
           </div>
 
@@ -558,7 +766,7 @@ export default function Img2ImgPanel({
             ) : (
               <button
                 onClick={handleGenerate}
-                disabled={refs.length === 0 || generating || processing}
+                disabled={disabled || refs.length === 0 || generating || processing}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:scale-100"
                 style={{
                   background: "var(--accent-surface)",

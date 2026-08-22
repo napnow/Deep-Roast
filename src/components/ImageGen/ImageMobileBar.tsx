@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { CREDIT_PER_IMAGE } from "@/types";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
+import { canUseImageGeneration } from "@/lib/image-generation-access";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
+import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 interface ImageMobileBarProps {
   prompt: string;
@@ -15,13 +17,13 @@ interface ImageMobileBarProps {
   generating: boolean;
   credits: number;
   isAdmin?: boolean;
+  imageGenerationEnabled?: boolean;
   onGenerate: (prompt: string, size: string) => void;
-  /** 图生图：原图直传编辑，支持多张参考图（最多 5 张） */
-  onEditImage?: (images: string[], prompt: string, size: string) => void;
-  /** 图生图批量：最多 5 张 */
+  /** 图生图：按结构化任务编辑 */
+  onEditImage?: (request: ImageEditRequest, size: string) => void;
+  /** 图生图批量：按结构化任务生成多个变体 */
   onEditImageBatch?: (
-    images: string[],
-    prompt: string,
+    request: ImageEditRequest,
     size: string,
     count: number,
   ) => void;
@@ -66,6 +68,7 @@ export default function ImageMobileBar({
   generating,
   credits,
   isAdmin = false,
+  imageGenerationEnabled = true,
   onGenerate,
   onEditImage,
   onEditImageBatch,
@@ -73,6 +76,10 @@ export default function ImageMobileBar({
   onHeightChange,
 }: ImageMobileBarProps) {
   const canAfford = isAdmin || credits >= CREDIT_PER_IMAGE;
+  const imageGenerationAvailable = canUseImageGeneration(
+    isAdmin ? "admin" : "user",
+    imageGenerationEnabled,
+  );
   const [toolbarOpen, setToolbarOpen] = useState<"reverse" | "img2img" | null>(
     null,
   );
@@ -104,7 +111,7 @@ export default function ImageMobileBar({
 
   function handleGenerate() {
     const p = prompt.trim();
-    if (!p || generating) return;
+    if (!p || generating || !imageGenerationAvailable) return;
     onGenerate(p, size);
     setPrompt("");
     requestAnimationFrame(autoResize);
@@ -150,6 +157,7 @@ export default function ImageMobileBar({
                 size={size}
                 sizeOptions={sizeOptions}
                 generating={generating}
+                disabled={!imageGenerationAvailable}
                 onGenerate={onGenerate}
                 onEditImage={onEditImage}
                 onEditImageBatch={onEditImageBatch}
@@ -198,6 +206,20 @@ export default function ImageMobileBar({
         </select>
       </div>
 
+      {!imageGenerationAvailable ? (
+        <p
+          className="mx-3 mb-2 rounded-lg px-3 py-2 text-xs"
+          style={{
+            color: "var(--accent)",
+            background: "var(--accent-surface)",
+            border:
+              "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+          }}
+        >
+          生图功能暂时关闭，反推提示词仍可使用
+        </p>
+      ) : null}
+
       {/* 输入行：工具面板展开时隐藏（面板内有自己的输入框，避免双输入框） */}
       {!toolbarOpen && (
       <div className="flex items-end gap-2 px-3 pb-3">
@@ -224,14 +246,17 @@ export default function ImageMobileBar({
             onBlur={unlockPageScroll}
             placeholder="描述你想要生成的图片…"
             rows={1}
-            disabled={generating}
+            disabled={generating || !imageGenerationAvailable}
             className="flex-1 min-w-0 bg-transparent px-3.5 py-2.5 text-base resize-none max-h-[120px] outline-none disabled:opacity-40"
             style={{ color: "var(--text-primary)" }}
           />
         </div>
         <button
           onClick={generating ? onStopGenerate : handleGenerate}
-          disabled={!generating && (!prompt.trim() || !canAfford)}
+          disabled={
+            !generating &&
+            (!prompt.trim() || !canAfford || !imageGenerationAvailable)
+          }
           className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:scale-100"
           style={
             generating
