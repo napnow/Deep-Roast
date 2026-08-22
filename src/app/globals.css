@@ -2304,7 +2304,7 @@ html.dark .liquid-glass-strong {
 .mobile-creation-overlay {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 1;
   background: color-mix(in srgb, var(--text-primary) 28%, transparent);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
@@ -2389,6 +2389,8 @@ html.dark .liquid-glass-strong {
 }
 
 .mobile-composer-tools {
+  position: relative;
+  z-index: 2;
   display: flex;
   min-height: 48px;
   align-items: center;
@@ -2447,6 +2449,8 @@ html.dark .liquid-glass-strong {
 }
 
 .mobile-composer-alert {
+  position: relative;
+  z-index: 2;
   margin: 0 12px 7px;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
