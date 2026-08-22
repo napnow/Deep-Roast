@@ -1,108 +1,228 @@
 # 深焙 Deep Roast
 
-自托管的 **文生图** 工作台：深度思考、慢焙出好图。
+深焙（Deep Roast）是一个面向个人和小团队的自托管 AI 创作工作台，支持文生图、图生图、反推提示词、对话和图库管理。
 
-- Next.js App Router + React 19  
-- PostgreSQL + Drizzle ORM  
-- Cookie JWT 登录、积分、管理后台  
-- OpenAI 兼容上游（自配 Base URL / API Key，支持豆包 / GPT / Grok 等多模型）
-- WebP 缩略图加速（移动端列表秒开，预览/下载保持原图）
+项目地址：[github.com/napnow/Deep-Roast](https://github.com/napnow/Deep-Roast)
 
-> 适合个人或小团队自托管。默认偏单租户：全局 LLM 配置在库中，公网开放注册前请自行评估风险。
+## 功能
 
-## 功能一览
+- 文生图：提示词、风格预设、尺寸、批量生成
+- 图生图：
+  - 逐图编辑：每张输入图可以使用独立修改提示词
+  - 参考图模式：一张目标图配合一张或多张参考图
+  - 最多 5 张输入图，批量输出最多 5 张
+  - 参考图模式目前仅支持 gpt-image-2
+- 反推提示词：从图片生成可编辑的提示词
+- 图库：缩略图、原图预览、下载、删除和历史记录
+- 对话：流式聊天和会话历史
+- 积分：签到、消费记录和管理员调配
+- 管理后台：用户、图片、公告、风格、站点设置和 API Key 管理
+- 安全保护：密码策略、登录失败锁定、IP/用户限流、API Key 加密存储
+- OpenAI 兼容上游：可接入豆包、Grok、GPT Image、Gemini 以及其他兼容网关
 
-- 文生图、风格预设、尺寸选择（1:1 / 9:16 / 16:9 / 3:4 / 4:3）、图生图、反推提示词  
-- 图库历史（缩略图网格）、大图预览、下载、删除  
-- 普通用户每日签到 +50 积分（北京时间）；生图 5 积分/张（管理员免费）  
-- 改密 / 管理员重置密码  
-- 管理员：用户封禁/删除、积分流水与调配、图片审计、注册开关、站点公告、登录页联系方式  
-- 安全：账号级登录失败锁定（5 次锁 15 分钟）、密码强度校验、IP 限流（Redis 可选）
+> 项目默认按单实例、小团队场景设计。图像推理由外部 API 或网关完成，服务器不需要 GPU。
+
+## 技术栈
+
+- Next.js App Router
+- React
+- TypeScript
+- PostgreSQL
+- Drizzle ORM
+- Node.js
+- 可选 Redis（多实例部署时共享限流计数）
 
 ## 环境要求
 
-| 依赖 | 版本 |
-|------|------|
-| Node.js | ≥ 18（推荐 20 LTS） |
-| PostgreSQL | ≥ 14 |
-| npm | ≥ 9 |
+| 依赖 | 要求 |
+| --- | --- |
+| Node.js | 18+，推荐 20 LTS |
+| npm | 9+ |
+| PostgreSQL | 14+ |
+| Redis | 可选；多实例部署建议配置 |
 
 ## 快速开始
 
-### 1. 克隆与安装
+### 1. 安装项目
 
-```bash
-git clone <your-repo-url> deep-roast
-cd deep-roast
+~~bash
+git clone https://github.com/napnow/Deep-Roast.git
+cd Deep-Roast
 npm install
-```
+~~
 
-### 2. 环境变量
+### 2. 配置环境变量
 
-```bash
+~~bash
 cp .env.example .env.local
-```
+~~
 
-编辑 `.env.local`，至少设置：
+至少配置：
 
-- `DATABASE_URL` — Postgres 连接串  
-- `JWT_SECRET` — 长随机串（**生产必填**）  
-- `ADMIN_PASSWORD` — 首次 seed 的管理员密码（推荐）  
+~~env
+DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/deep_roast
+JWT_SECRET=replace-with-a-long-random-string
+ADMIN_PASSWORD=replace-with-a-strong-password
+~~
 
-### 3. 数据库
+生成随机密钥示例：
 
-准备好空库后：
+~~bash
+openssl rand -base64 32
+~~
 
-```bash
+### 3. 初始化数据库
+
+创建 PostgreSQL 数据库后执行：
+
+~~bash
 npm run db:migrate
 npm run db:seed
-```
+~~
 
-默认管理员用户名：`admin`（密码来自 `ADMIN_PASSWORD`，未设置时仅本地弱默认并警告）。
+首次 seed 创建管理员时，必须设置 ADMIN_PASSWORD。项目不会使用 admin123 等默认密码；如果管理员账号已经存在，后续 seed 不会修改现有密码。
 
-### 4. 开发 / 生产
+默认管理员用户名为：
 
-```bash
-npm run dev      # http://localhost:3000
-npm run build && npm start
-```
+~~text
+admin
+~~
 
-登录后在 **设置** 中填写 API Base URL 与 Key，并启用模型。
+### 4. 启动开发环境
 
-## 常用脚本
+~~bash
+npm run dev
+~~
 
-| 脚本 | 说明 |
-|------|------|
-| `npm run dev` | 开发服务器 |
-| `npm run build` / `start` | 生产构建与启动 |
-| `npm run lint` | ESLint |
-| `npm run db:generate` | 根据 schema 生成迁移 |
-| `npm run db:migrate` | 执行迁移 |
-| `npm run db:seed` | 写入默认配置与管理员 |
-| `npm run db:studio` | Drizzle Studio（可选） |
+打开 <http://localhost:3000>。
 
-## 安全提示
+### 5. 构建生产环境
 
-- **不要**把 `.env.local`、真实 Key、用户生成图提交进仓库  
-- 生产必须设置强 `JWT_SECRET`；未设置时生产环境会拒绝签发 token  
-- 账号连续 5 次密码错误自动锁定 15 分钟（防分布式爆破）；密码需 ≥8 位且含字母、数字、符号  
-- 公开部署时：在管理后台关闭注册、轮换默认 admin 密码、限制上传与积分刷量  
-- `public/images`、`public/uploads` 为运行时内容，已在 `.gitignore` 中忽略  
+~~bash
+npm run build
+npm start
+~~
 
-## 文档
+生产环境建议使用 systemd、Docker 或其他进程管理器，并在前面配置 HTTPS 反向代理。
 
-| 文档 | 说明 |
-|------|------|
-| [环境与运行](docs/setup.md) | 安装、迁移、环境变量 |
-| [产品范围](docs/PRD.md) | 功能与非目标 |
-| [API 概要](docs/api.md) | 主要路由约定 |
-| [架构说明](docs/architecture.md) | 技术栈与数据流 |
-| [文生图系统提示词](docs/image-system-prompt.md) | 全局生图前缀说明 |
+## 环境变量
 
-## 小范围部署提示
+### 核心配置
 
-自托管给少数用户时，通常需要：**1 台可跑 Node 的机器 + PostgreSQL + 磁盘存图 + 你自己的上游 API Key**。  
-不必自备 GPU（推理在外部网关）。生产务必设置强 `JWT_SECRET`、改掉默认 admin 密码，并评估是否开放注册。详见 [docs/setup.md](docs/setup.md)。
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| DATABASE_URL | 是 | PostgreSQL 连接串 |
+| JWT_SECRET | 是 | JWT 签名密钥，生产环境必须使用强随机值 |
+| ADMIN_PASSWORD | 首次 seed 时 | 新建管理员时使用；已有管理员不会被修改 |
+| API_KEY_ENCRYPTION_KEY | 使用 API Key 功能时 | 32 字节 Base64 密钥，用于 AES-256-GCM 加密 |
+| PUBLIC_APP_URL | API 网关/邀请链接时 | HTTPS 根域名，例如 https://example.com |
+| REGISTRATION_BYPASS_IPS | 否 | 允许单 IP 注册多个账号的 IP，逗号分隔 |
+
+### 限流与上游服务
+
+| 变量 | 说明 |
+| --- | --- |
+| REDIS_URL | 可选。配置后使用 Redis 共享限流；未配置时单实例自动使用内存限流 |
+| ARK_API_KEY | 通用 OpenAI 兼容模型密钥 |
+| GROK_API_KEY / GROK_BASE_URL | Grok 上游配置 |
+| GPT_IMAGE_KEY / GPT_IMAGE_BASE_URL | GPT Image 上游配置 |
+| GEMINI_API_KEY / GEMINI_BASE_URL | Gemini 上游配置 |
+| TELEGRAM_BOT_TOKEN | 可选，Telegram 相关功能使用 |
+
+LLM 和图像上游也可以在应用管理设置中配置。生产环境不要把真实密钥提交到 Git。
+
+## 图生图 API
+
+单图编辑：
+
+~~http
+POST /api/image-edit
+~~
+
+逐图编辑示例：
+
+~~json
+{
+  "mode": "per-image",
+  "items": [
+    {
+      "image": "data:image/png;base64,...",
+      "prompt": "把背景改成黄昏海边",
+      "targetIndex": 0
+    }
+  ],
+  "model": "gpt-image-2",
+  "size": "1024x1024"
+}
+~~
+
+目标图 + 参考图示例：
+
+~~json
+{
+  "mode": "reference",
+  "targetImage": "data:image/png;base64,...",
+  "referenceImages": [
+    "data:image/png;base64,..."
+  ],
+  "prompt": "参考参考图的色彩和构图修改目标图",
+  "model": "gpt-image-2",
+  "size": "1024x1024"
+}
+~~
+
+批量图生图：
+
+~~http
+POST /api/image-edit/batch
+~~
+
+批量接口返回 images、total、succeeded、failed 和 lastError，支持部分成功结果。上游 5xx 详情不会直接返回给客户端。
+
+其他常用接口：
+
+| 接口 | 用途 |
+| --- | --- |
+| POST /api/image | 文生图 |
+| POST /api/reverse-prompt | 图片反推提示词 |
+| POST /api/v1/images/generations | OpenAI 兼容文生图网关 |
+| GET /api/image-history | 当前用户图库历史 |
+
+默认保护限制包括：普通生图每用户每分钟 10 次、图生图每分钟 10 次、批量图生图每分钟 3 次、反推提示词每分钟 10 次。具体业务限制以后端实现为准。
+
+## 常用命令
+
+| 命令 | 说明 |
+| --- | --- |
+| npm run dev | 启动开发服务器 |
+| npm run build | 构建生产版本 |
+| npm start | 启动生产服务器 |
+| npm test | 运行测试 |
+| npm run lint | 运行 ESLint |
+| npm run db:generate | 根据 schema 生成迁移 |
+| npm run db:migrate | 执行数据库迁移 |
+| npm run db:seed | 初始化默认配置和管理员 |
+| npm run db:studio | 打开 Drizzle Studio |
+
+提交修改前建议至少运行：
+
+~~bash
+npm test
+npx tsc --noEmit
+npm run lint
+~~
+
+## 生产安全清单
+
+- 使用强随机 JWT_SECRET
+- 新数据库首次 seed 时设置强 ADMIN_PASSWORD
+- 不要把 .env.local、.env.production、API Key 或用户图片提交到仓库
+- API_KEY_ENCRYPTION_KEY 必须长期保存，轮换前先规划旧数据迁移
+- 公开部署前评估是否关闭开放注册
+- 使用 HTTPS，并正确设置 PUBLIC_APP_URL
+- 单实例可以使用内存限流；多实例部署应配置 Redis
+- 定期备份 PostgreSQL 和 public/images
+- 为磁盘、内存、Swap、上游错误和请求延迟设置监控
 
 ## License
 

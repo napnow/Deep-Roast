@@ -64,6 +64,8 @@ docs/superpowers/
 docs/AI生图系统提示词-功能文档.md
 
 # server mirror / build-check / legacy backups (local only)
+.deploy/
+.deploy-backups/
 .server-mirror/
 .server-mirror-src/
 .build-check-src/
