@@ -28,8 +28,9 @@ apply_family() {
     local tool="$1"
     local loopback="$2"
     for port in 2567 5661; do
-        add_rule "$tool" -s "$loopback" -p tcp -m conntrack --ctorigdstport "$port" -j ACCEPT
         add_rule "$tool" -p tcp -m conntrack --ctorigdstport "$port" -j DROP
+        # iptables -I inserts at the head; add ACCEPT second so it precedes DROP.
+        add_rule "$tool" -s "$loopback" -p tcp -m conntrack --ctorigdstport "$port" -j ACCEPT
     done
 }
 
