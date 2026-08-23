@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { apiJson } from "@/lib/client-api";
+import { decideModelCatalogRequest } from "./model-manager-request";
 
 interface ReversePromptModelPickerProps {
   value: string;
   onChange: (id: string) => void;
   baseUrl: string;
+  savedBaseUrl: string;
   apiKey: string;
   hasSavedApiKey?: boolean;
 }
@@ -19,6 +21,7 @@ export default function ReversePromptModelPicker({
   value,
   onChange,
   baseUrl,
+  savedBaseUrl,
   apiKey,
   hasSavedApiKey,
 }: ReversePromptModelPickerProps) {
@@ -37,12 +40,14 @@ export default function ReversePromptModelPicker({
   }, [catalog, filter]);
 
   async function fetchCatalog() {
-    if (!baseUrl.trim()) {
-      setError("请先在上方填写 API Base URL");
-      return;
-    }
-    if (!apiKey.trim() && !hasSavedApiKey) {
-      setError("请先在上方填写 API Key");
+    const decision = decideModelCatalogRequest({
+      baseUrl,
+      savedBaseUrl,
+      apiKey,
+      hasSavedApiKey: !!hasSavedApiKey,
+    });
+    if (decision.kind === "error") {
+      setError(decision.message);
       return;
     }
 
@@ -51,22 +56,22 @@ export default function ReversePromptModelPicker({
     setWarning("");
     setSourceHint("");
     try {
-      const body: { baseUrl: string; apiKey?: string } = {
-        baseUrl: baseUrl.trim(),
-      };
-      if (apiKey.trim()) body.apiKey = apiKey.trim();
-
       const data = await apiJson<{
         textModels?: { id: string }[];
         imageModels?: { id: string }[];
         warning?: string;
         baseUrl?: string;
         upstreamCount?: number;
-      }>("/api/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      }>(
+        "/api/models",
+        decision.method === "GET"
+          ? { method: "GET" }
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(decision.body),
+            },
+      );
 
       // 图推走 chat+vision：优先文本/多模态目录；把当前值钉在列表前
       const ids = [

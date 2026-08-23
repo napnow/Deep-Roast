@@ -186,6 +186,7 @@ export default function SettingsModal({
             defaultModel={textModel}
             onDefaultModelChange={setTextModel}
             baseUrl={baseUrl}
+            savedBaseUrl={config.baseUrl}
             apiKey={apiKey}
             hasSavedApiKey={!!config.hasApiKey}
           />
@@ -197,6 +198,7 @@ export default function SettingsModal({
             defaultModel={imageModel}
             onDefaultModelChange={setImageModel}
             baseUrl={baseUrl}
+            savedBaseUrl={config.baseUrl}
             apiKey={apiKey}
             hasSavedApiKey={!!config.hasApiKey}
           />
@@ -205,6 +207,7 @@ export default function SettingsModal({
             value={reversePromptModel}
             onChange={setReversePromptModel}
             baseUrl={baseUrl}
+            savedBaseUrl={config.baseUrl}
             apiKey={apiKey}
             hasSavedApiKey={!!config.hasApiKey}
           />

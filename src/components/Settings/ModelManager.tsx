@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { apiJson } from "@/lib/client-api";
+import { decideModelCatalogRequest } from "./model-manager-request";
 
 interface ModelManagerProps {
   kind: "text" | "image";
@@ -11,7 +12,9 @@ interface ModelManagerProps {
   onDefaultModelChange: (id: string) => void;
   /** 设置页当前填写的 Base URL（未保存也生效） */
   baseUrl: string;
-  /** 设置页当前填写的 API Key；空则服务端用已保存 key */
+  /** 已保存的 Base URL，用于判断是否可以安全复用已保存凭证 */
+  savedBaseUrl: string;
+  /** 设置页当前填写的 API Key */
   apiKey: string;
   hasSavedApiKey?: boolean;
 }
@@ -23,6 +26,7 @@ export default function ModelManager({
   defaultModel,
   onDefaultModelChange,
   baseUrl,
+  savedBaseUrl,
   apiKey,
   hasSavedApiKey,
 }: ModelManagerProps) {
@@ -48,12 +52,14 @@ export default function ModelManager({
   }, [catalog, enabledSet, filter]);
 
   async function fetchCatalog() {
-    if (!baseUrl.trim()) {
-      setError("请先在上方填写 API Base URL");
-      return;
-    }
-    if (!apiKey.trim() && !hasSavedApiKey) {
-      setError("请先在上方填写 API Key");
+    const decision = decideModelCatalogRequest({
+      baseUrl,
+      savedBaseUrl,
+      apiKey,
+      hasSavedApiKey: !!hasSavedApiKey,
+    });
+    if (decision.kind === "error") {
+      setError(decision.message);
       return;
     }
 
@@ -62,12 +68,6 @@ export default function ModelManager({
     setWarning("");
     setSourceHint("");
     try {
-      const body: { baseUrl: string; apiKey?: string } = {
-        baseUrl: baseUrl.trim(),
-      };
-      // 只有用户在表单里新输入了 key 才传；否则服务端用已保存的
-      if (apiKey.trim()) body.apiKey = apiKey.trim();
-
       const data = await apiJson<{
         textModels?: { id: string }[];
         imageModels?: { id: string }[];
@@ -75,11 +75,16 @@ export default function ModelManager({
         baseUrl?: string;
         upstreamCount?: number;
         source?: string;
-      }>("/api/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      }>(
+        "/api/models",
+        decision.method === "GET"
+          ? { method: "GET" }
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(decision.body),
+            },
+      );
       const list =
         kind === "text"
           ? (data.textModels || []).map((m) => m.id)
