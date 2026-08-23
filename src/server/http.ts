@@ -53,6 +53,9 @@ export function apiV1CorsPreflight(): Response {
   return new Response(null, { status: 204, headers: API_V1_CORS_HEADERS });
 }
 
+export const DEFAULT_JSON_MAX_BYTES = 1024 * 1024;
+export const IMAGE_EDIT_JSON_MAX_BYTES = 30 * 1024 * 1024;
+
 export function jsonError(err: unknown, fallback = "服务器错误"): Response {
   if (err instanceof ApiError) {
     const body: { error: string; code?: string } = { error: err.message };
@@ -63,9 +66,7 @@ export function jsonError(err: unknown, fallback = "服务器错误"): Response 
     });
   }
   console.error(err);
-  const message =
-    err instanceof Error && err.message ? err.message : fallback;
-  return Response.json({ error: message }, { status: 500 });
+  return Response.json({ error: fallback }, { status: 500 });
 }
 
 /** 包装 route handler，自动捕获 ApiError */
@@ -86,10 +87,40 @@ export function handleRoute<TContext = unknown>(
 
 export async function readJson<T = Record<string, unknown>>(
   req: Request,
+  options: { maxBytes?: number } = {},
 ): Promise<T> {
+  const maxBytes = options.maxBytes ?? DEFAULT_JSON_MAX_BYTES;
+  const declared = Number(req.headers.get("content-length") || 0);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new ApiError("请求体过大", 413, "PAYLOAD_TOO_LARGE");
+  }
+  if (!req.body) throw new ApiError("请求体必须是 JSON", 400);
+
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
   try {
-    return (await req.json()) as T;
-  } catch {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel("payload too large");
+        throw new ApiError("请求体过大", 413, "PAYLOAD_TOO_LARGE");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return JSON.parse(new TextDecoder().decode(bytes)) as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError("请求体必须是 JSON", 400);
+  } finally {
+    reader.releaseLock();
   }
 }

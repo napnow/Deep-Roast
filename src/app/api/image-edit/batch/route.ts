@@ -1,5 +1,10 @@
 import { requireActiveUser } from "@/server/auth";
-import { handleRoute, jsonOk, readJson } from "@/server/http";
+import {
+  handleRoute,
+  IMAGE_EDIT_JSON_MAX_BYTES,
+  jsonOk,
+  readJson,
+} from "@/server/http";
 import { runImageEditTasks } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
@@ -17,7 +22,9 @@ export const POST = handleRoute(async (req) => {
     BATCH_LIMIT,
     BATCH_WINDOW,
   );
-  const body = await readJson<ImageEditRequest>(req);
+  const body = await readJson<ImageEditRequest>(req, {
+    maxBytes: IMAGE_EDIT_JSON_MAX_BYTES,
+  });
 
   const result = await runImageEditTasks({
     userId: user.userId,
