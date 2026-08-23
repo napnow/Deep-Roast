@@ -1,14 +1,111 @@
 import { db } from "@/db";
 import { conversations, messages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getConfig } from "@/lib/config";
+import {
+  defaultTextModelIds,
+  getConfig,
+  parseEnabledModels,
+} from "@/lib/config";
 import { ApiError } from "@/server/http";
 import {
   resolveChatEndpoint,
   systemPromptForModel,
 } from "@/server/providers/llm";
 import { CREDIT_PER_CHAT } from "@/types";
-import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
+import { reserveCredits } from "@/server/services/credits";
+
+export const MAX_CHAT_MESSAGE_LENGTH = 20_000;
+const CHAT_STREAM_ERROR = "对话服务暂时不可用，请稍后重试";
+
+interface ChatCreditReservation {
+  refund(note: string): Promise<void>;
+}
+
+export function createChatChargeState(
+  reservation: ChatCreditReservation | null,
+): {
+  markContent(): void;
+  failBeforeContent(note: string): Promise<void>;
+  hasContent(): boolean;
+} {
+  let contentEmitted = false;
+  let refundStarted = false;
+
+  return {
+    markContent() {
+      contentEmitted = true;
+    },
+    async failBeforeContent(note: string) {
+      if (!reservation || contentEmitted || refundStarted) return;
+      refundStarted = true;
+      await reservation.refund(note);
+    },
+    hasContent() {
+      return contentEmitted;
+    },
+  };
+}
+
+export function assertEnabledTextModel(
+  value: string,
+  config: Awaited<ReturnType<typeof getConfig>>,
+): string {
+  const model = value.trim();
+  const enabled = parseEnabledModels(
+    config?.enabledTextModels,
+    defaultTextModelIds(),
+    config?.textModel,
+  );
+  if (!model || !enabled.includes(model)) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+  return model;
+}
+
+async function readUpstreamErrorSnippet(response: Response): Promise<string> {
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let remaining = 2 * 1024;
+  try {
+    while (remaining > 0) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = value.subarray(0, remaining);
+      chunks.push(chunk);
+      remaining -= chunk.byteLength;
+      if (chunk.byteLength < value.byteLength) {
+        await reader.cancel("upstream error snippet limit");
+        break;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(2 * 1024 - remaining);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes).replace(/\s+/g, " ").slice(0, 2 * 1024);
+}
+
+async function refundQuietly(
+  chargeState: ReturnType<typeof createChatChargeState>,
+  note: string,
+) {
+  try {
+    await chargeState.failBeforeContent(note);
+  } catch (refundError: unknown) {
+    console.error(
+      "Chat refund error:",
+      refundError instanceof Error ? refundError.message : "unknown error",
+    );
+  }
+}
 
 export async function createChatStream(
   userId: string,
@@ -18,6 +115,12 @@ export async function createChatStream(
 ): Promise<Response> {
   if (!conversationId || !message?.trim()) {
     throw new ApiError("conversationId 和 message 为必填项", 400);
+  }
+  if (message.trim().length > MAX_CHAT_MESSAGE_LENGTH) {
+    throw new ApiError(
+      `对话内容不能超过 ${MAX_CHAT_MESSAGE_LENGTH} 个字符`,
+      400,
+    );
   }
 
   const config = await getConfig();
@@ -34,16 +137,12 @@ export async function createChatStream(
   const conv = convs[0];
   if (!conv) throw new ApiError("对话不存在", 404);
 
-  // 积分：管理员免费；普通用户发送前校验余额（回复成功后才扣）
-  const chargeCredits = role !== "admin";
-  if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_CHAT);
-  }
+  const model = assertEnabledTextModel(conv.model, config);
 
   // 按模型解析端点后再检查 key（Grok 可用 GROK_API_KEY，不强制 ARK）
-  const { apiKey, baseUrl } = resolveChatEndpoint(conv.model, config || {});
+  const { apiKey, baseUrl } = resolveChatEndpoint(model, config || {});
   if (!apiKey) {
-    const isGrok = conv.model.startsWith("grok-");
+    const isGrok = model.startsWith("grok-");
     throw new ApiError(
       isGrok
         ? "请在 .env.local 中设置 GROK_API_KEY，或在设置中配置可用的 API Key"
@@ -55,41 +154,64 @@ export async function createChatStream(
     throw new ApiError("未配置 API Base URL", 400);
   }
 
-  const history = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.conversationId, conversationId))
-    .orderBy(messages.createdAt);
+  // 积分：管理员免费；普通用户在持久化消息和调用上游前预扣。
+  const chargeCredits = role !== "admin";
+  const reservation =
+    userId && chargeCredits
+      ? await reserveCredits(
+          userId,
+          CREDIT_PER_CHAT,
+          `对话: ${message.slice(0, 50)}`,
+        )
+      : null;
+  const chargeState = createChatChargeState(reservation);
 
-  const chatMessages = [
-    { role: "system" as const, content: systemPromptForModel(conv.model) },
-    ...history.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user" as const, content: message },
-  ];
+  let chatMessages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>;
+  try {
+    const history = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
 
-  await db.insert(messages).values({
-    conversationId,
-    role: "user",
-    content: message,
-  });
+    chatMessages = [
+      { role: "system" as const, content: systemPromptForModel(model) },
+      ...history.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+      { role: "user" as const, content: message },
+    ];
 
-  if (conv.title === "新对话") {
-    const title =
-      message.slice(0, 30) + (message.length > 30 ? "..." : "");
-    await db
-      .update(conversations)
-      .set({ title, updatedAt: new Date() })
-      .where(eq(conversations.id, conversationId));
-  } else {
-    await db
-      .update(conversations)
-      .set({ updatedAt: new Date() })
-      .where(eq(conversations.id, conversationId));
+    await db.insert(messages).values({
+      conversationId,
+      role: "user",
+      content: message,
+    });
+
+    if (conv.title === "新对话") {
+      const title =
+        message.slice(0, 30) + (message.length > 30 ? "..." : "");
+      await db
+        .update(conversations)
+        .set({ title, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    } else {
+      await db
+        .update(conversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    }
+  } catch (error: unknown) {
+    await refundQuietly(chargeState, "对话消息保存失败退款");
+    throw error;
   }
+
   const encoder = new TextEncoder();
+  let clientCancelled = false;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -97,6 +219,8 @@ export async function createChatStream(
       try {
         const apiRes = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
+          signal: AbortSignal.timeout(180_000),
+          redirect: "error",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
@@ -111,8 +235,9 @@ export async function createChatStream(
         });
 
         if (!apiRes.ok) {
-          const errText = await apiRes.text();
-          throw new Error(`${apiRes.status} ${errText}`);
+          const errText = await readUpstreamErrorSnippet(apiRes);
+          console.error("Chat upstream error:", apiRes.status, errText);
+          throw new Error("chat upstream request failed");
         }
 
         const reader = apiRes.body?.getReader();
@@ -133,7 +258,8 @@ export async function createChatStream(
             try {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
-              if (delta?.content) {
+              if (typeof delta?.content === "string" && delta.content) {
+                chargeState.markContent();
                 fullResponse += delta.content;
                 controller.enqueue(
                   encoder.encode(
@@ -141,7 +267,11 @@ export async function createChatStream(
                   ),
                 );
               }
-              if (delta?.reasoning_content) {
+              if (
+                typeof delta?.reasoning_content === "string" &&
+                delta.reasoning_content
+              ) {
+                chargeState.markContent();
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({ type: "reasoning", text: delta.reasoning_content })}\n\n`,
@@ -154,21 +284,17 @@ export async function createChatStream(
           }
         }
 
+        if (!chargeState.hasContent()) {
+          await chargeState.failBeforeContent("对话无有效内容退款");
+          throw new Error("chat upstream returned no content");
+        }
+
         if (fullResponse) {
           await db.insert(messages).values({
             conversationId,
             role: "assistant",
             content: fullResponse,
           });
-
-          // 回复成功才扣积分（失败/空回复不扣；管理员免费）
-          if (userId && chargeCredits) {
-            await consumeCredits(
-              userId,
-              CREDIT_PER_CHAT,
-              `对话: ${message.slice(0, 50)}`,
-            );
-          }
         }
 
         controller.enqueue(
@@ -176,15 +302,27 @@ export async function createChatStream(
         );
         controller.close();
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "未知错误";
-        console.error("Chat stream error:", msg);
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ type: "error", text: `对话出错: ${msg}` })}\n\n`,
-          ),
+        await refundQuietly(chargeState, "对话上游失败退款");
+        console.error(
+          "Chat stream error:",
+          err instanceof Error ? err.message : "unknown error",
         );
-        controller.close();
+        if (!clientCancelled) {
+          try {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "error", text: CHAT_STREAM_ERROR })}\n\n`,
+              ),
+            );
+            controller.close();
+          } catch {
+            // The client may have cancelled the stream while the upstream failed.
+          }
+        }
       }
+    },
+    cancel() {
+      clientCancelled = true;
     },
   });
 
