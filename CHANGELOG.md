@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-08-23 — Production security hardening
+
+### Security and request boundaries
+
+- Added bounded JSON request parsing and safer public error responses so internal provider and server details are not exposed to clients.
+- Isolated model-catalog credentials, enforced enabled-model access, and added SSRF protections for outbound URLs and image downloads.
+- Hardened chat and image service boundaries, including input-size limits, download validation, timeout handling, and safer upstream error mapping.
+- Added application and reverse-proxy security headers, disabled the framework-identifying response header, and constrained proxy request sizes.
+
+### Credit and data integrity
+
+- Added atomic, durable credit reservations for chat and image operations, including precharge, settlement, and failure refunds.
+- Added a persistent reservation identity to prevent duplicate credit operations during retries or concurrent requests.
+- Added migrations `0015_checkin_reward.sql` and `0016_credit_reservation_identity.sql`.
+- Made the daily check-in reward configurable from the admin settings and propagated the configured value through the API and user interface.
+
+### Runtime and deployment
+
+- Upgraded Next.js to 16.3.2 and Sharp to 0.35.3, refreshed the lockfile, and pinned the transitive Nano ID security override.
+- Added versioned release directories with an atomic current-release symlink for safer deployments and rollback.
+- Moved the application service to a dedicated low-privilege user with `NoNewPrivileges`, `PrivateTmp`, restart limits, and a memory cap.
+- Added Cloudflare-only origin routing, trusted-proxy handling, Caddy security headers, and a persistent firewall service for published Docker ports.
+
+### User-facing updates
+
+- Added a donation shortcut in the main header when donation support is enabled.
+- Updated wallet and sign-in state so the configured check-in reward is shown consistently before and after check-in.
+
+### Upgrade notes
+
+- Back up PostgreSQL data and uploaded images before applying the migrations.
+- Install from the lockfile, run migrations and verification checks, build a fresh production bundle, then restart the application and proxy services.
+- Review the supplied files under `ops/` before installing systemd, Caddy, or firewall configuration on a different host.
+
 ## 2026-08-22 — Invitation, announcements, and image editing
 
 ### User-facing updates

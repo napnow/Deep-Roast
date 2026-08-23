@@ -43,11 +43,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# generated user content (keep directory via .gitkeep)
-/public/images/*
-!/public/images/.gitkeep
-/public/uploads/*
-!/public/uploads/.gitkeep
+# generated user content (runtime directories or symlinks; never track)
+/public/images
+/public/uploads
 
 # local notes / agent scratch
 doubaome.md
