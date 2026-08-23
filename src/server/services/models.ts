@@ -2,6 +2,10 @@ import { getConfig } from "@/lib/config";
 import { normalizeBaseUrl } from "@/server/providers/llm";
 import { DEFAULT_TEXT_MODELS, DEFAULT_IMAGE_MODELS } from "@/types";
 import { ApiError } from "@/server/http";
+import {
+  assertPublicHttpsUrl,
+  requestPublicHttpsBuffer,
+} from "@/server/safe-http";
 
 function uniqById(list: { id: string }[]): { id: string }[] {
   const seen = new Set<string>();
@@ -17,36 +21,48 @@ function uniqById(list: { id: string }[]): { id: string }[] {
 export interface FetchCatalogInput {
   /** 设置页当前填写的 Base URL（优先于已保存配置） */
   baseUrl?: string | null;
-  /** 设置页当前填写的 API Key；留空则用已保存 key / env */
+  /** 设置页当前填写的 API Key；自定义 Base URL 时必须显式提供 */
   apiKey?: string | null;
+}
+
+interface CatalogConfig {
+  baseUrl?: string | null;
+  arkApiKey?: string | null;
+}
+
+export function resolveCatalogEndpoint(
+  input: FetchCatalogInput,
+  config: CatalogConfig | null,
+) {
+  if (input.baseUrl !== undefined) {
+    const baseUrl = normalizeBaseUrl(input.baseUrl);
+    const apiKey = input.apiKey?.trim() || "";
+    if (!baseUrl || !apiKey) {
+      throw new ApiError("测试自定义 Base URL 时必须重新输入 API Key", 400);
+    }
+    assertPublicHttpsUrl(baseUrl);
+    return { baseUrl, apiKey, custom: true as const };
+  }
+
+  const baseUrl = normalizeBaseUrl(config?.baseUrl || "");
+  const apiKey =
+    config?.arkApiKey?.trim() ||
+    process.env.ARK_API_KEY?.trim() ||
+    process.env.GROK_API_KEY?.trim() ||
+    "";
+  if (!baseUrl || !apiKey) {
+    throw new ApiError("请先配置 API Base URL 和 API Key", 400);
+  }
+  return { baseUrl, apiKey, custom: false as const };
 }
 
 /**
  * 拉取「可选目录」（catalog），供设置页勾选启用。
- * 凭证优先级：请求体里用户当前输入 > DB 已保存 > 环境变量
+ * 自定义 Base URL 只使用当前请求显式提供的凭证；已保存地址可继续使用 DB/env。
  */
 export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
   const config = await getConfig();
-
-  const baseUrl = normalizeBaseUrl(
-    input.baseUrl?.trim() || config?.baseUrl || "",
-  );
-  const apiKey =
-    input.apiKey?.trim() ||
-    config?.arkApiKey?.trim() ||
-    process.env.ARK_API_KEY ||
-    process.env.GROK_API_KEY ||
-    "";
-
-  if (!baseUrl) {
-    throw new ApiError("请先填写 API Base URL", 400);
-  }
-  if (!apiKey) {
-    throw new ApiError(
-      "请先填写 API Key（或确保设置/环境变量中已有可用 Key）",
-      400,
-    );
-  }
+  const { baseUrl, apiKey, custom } = resolveCatalogEndpoint(input, config);
 
   let remoteText: { id: string }[] = [];
   let remoteImage: { id: string }[] = [];
@@ -55,23 +71,44 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
   let upstreamCount = 0;
 
   try {
-    const res = await fetch(`${baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      // 避免上游挂死拖垮设置页
-      signal: AbortSignal.timeout(20_000),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new ApiError(
-        `从 ${baseUrl} 获取模型失败: HTTP ${res.status}${errText ? ` — ${errText.slice(0, 120)}` : ""}`,
-        400,
-      );
+    let status: number;
+    let data: { data?: { id?: string }[] } | { id?: string }[];
+    if (custom) {
+      const result = await requestPublicHttpsBuffer(`${baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeoutMs: 20_000,
+        maxBytes: 2 * 1024 * 1024,
+      });
+      status = result.status;
+      try {
+        data = JSON.parse(result.body.toString("utf8")) as typeof data;
+      } catch {
+        throw new ApiError("上游返回的模型目录格式无效", 400);
+      }
+    } else {
+      const response = await fetch(`${baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(20_000),
+      });
+      status = response.status;
+      try {
+        data = (await response.json()) as typeof data;
+      } catch {
+        throw new ApiError("上游返回的模型目录格式无效", 400);
+      }
     }
 
-    const data = await res.json();
+    if (status < 200 || status >= 300) {
+      throw new ApiError(`获取模型目录失败（上游 HTTP ${status}）`, 400);
+    }
+
     const models: { id: string }[] =
-      data.data || (Array.isArray(data) ? data : []);
+      (Array.isArray(data) ? data : data.data || [])
+        .filter((model): model is { id: string } =>
+          Boolean(model && typeof model.id === "string"),
+        )
+        .map((model) => ({ id: model.id }));
     upstreamCount = models.filter((m) => m?.id).length;
 
     // 文本 / 多模态（图推也从这批选：gemini、gpt-4o、claude 等）
@@ -124,9 +161,11 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
     }
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    const msg = err instanceof Error ? err.message : "未知错误";
-    console.warn("获取模型目录异常:", msg);
-    throw new ApiError(`从 ${baseUrl} 获取模型失败: ${msg}`, 400);
+    console.warn("获取模型目录异常", {
+      custom,
+      errorType: err instanceof Error ? err.name : typeof err,
+    });
+    throw new ApiError("获取模型目录失败，请检查地址、凭据和上游状态", 400);
   }
 
   return {

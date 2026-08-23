@@ -1,6 +1,6 @@
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 import { fetchModelCatalog } from "@/server/services/models";
-import { requireActiveUser } from "@/server/auth";
+import { requireActiveUser, requireAdmin } from "@/server/auth";
 
 /**
  * GET /api/models
@@ -16,7 +16,7 @@ export const GET = handleRoute(async (req) => {
 });
 
 export const POST = handleRoute(async (req) => {
-  await requireActiveUser(req);
+  await requireAdmin(req);
   const body = await readJson<{ baseUrl?: string; apiKey?: string }>(req);
   if (body.baseUrl !== undefined && !String(body.baseUrl).trim()) {
     throw new ApiError("API Base URL 不能为空", 400);
