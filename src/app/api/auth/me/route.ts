@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkinStatusFromUser } from "@/server/services/credits";
+import { getCheckinReward } from "@/server/services/site-settings";
 
 export async function GET(req: Request) {
   try {
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const checkin = checkinStatusFromUser(user);
+    const checkin = checkinStatusFromUser(user, await getCheckinReward());
 
     return Response.json({
       id: user.id,

@@ -64,6 +64,7 @@ export interface DeepRoastState {
 
   // credits / check-in
   credits: number;
+  checkinReward: number;
   checkinEligible: boolean;
   todayChecked: boolean;
 
@@ -101,6 +102,7 @@ export interface DeepRoastState {
   setCheckinStatus: (status: {
     eligible?: boolean;
     todayChecked?: boolean;
+    reward?: number;
   }) => void;
   setSettingsOpen: (open: boolean) => void;
   setWalletOpen: (open: boolean) => void;
@@ -157,6 +159,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   generating: false,
   imageTask: INITIAL_IMAGE_TASK,
   credits: 0,
+  checkinReward: 50,
   checkinEligible: false,
   todayChecked: false,
   settingsOpen: false,
@@ -229,6 +232,8 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setCredits: (credits) => set({ credits }),
   setCheckinStatus: (status) =>
     set((s) => ({
+      checkinReward:
+        status.reward !== undefined ? status.reward : s.checkinReward,
       checkinEligible:
         status.eligible !== undefined ? status.eligible : s.checkinEligible,
       todayChecked:

@@ -11,6 +11,8 @@ interface HeaderProps {
   username: string;
   role: string;
   credits: number;
+  donationEnabled: boolean;
+  onDonationClick: () => void;
   onWalletClick: () => void;
   onLogout: () => void;
   onMenuClick?: () => void;
@@ -30,6 +32,8 @@ export default function Header({
   username,
   role,
   credits,
+  donationEnabled,
+  onDonationClick,
   onWalletClick,
   onLogout,
   onMenuClick,
@@ -95,6 +99,24 @@ export default function Header({
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
         <AnnouncementBell />
+
+        {donationEnabled ? (
+          <button
+            type="button"
+            onClick={onDonationClick}
+            aria-label="打赏支持"
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-all active:scale-95 sm:px-3"
+            style={{
+              background: "var(--accent-surface)",
+              border:
+                "1px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+              color: "var(--accent)",
+            }}
+          >
+            <span aria-hidden>💝</span>
+            <span className="hidden sm:inline">打赏支持</span>
+          </button>
+        ) : null}
 
         <button
           type="button"

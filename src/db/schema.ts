@@ -70,6 +70,8 @@ export const siteSettings = pgTable(
     imageGenerationEnabled: integer("image_generation_enabled")
       .notNull()
       .default(1),
+    /** 每日签到奖励积分，允许为 0 */
+    checkinReward: integer("checkin_reward").notNull().default(50),
     /** 打赏功能开关（1=开 0=关）；关闭后用户端打赏入口隐藏 */
     donationEnabled: integer("donation_enabled").notNull().default(1),
     /** 打赏收款码图片路径（public/uploads/donation/ 下） */
@@ -95,6 +97,10 @@ export const siteSettings = pgTable(
     invitationInviteeRewardNonNegative: check(
       "site_settings_invitation_invitee_reward_non_negative",
       sql`${table.invitationInviteeReward} >= 0`,
+    ),
+    checkinRewardNonNegative: check(
+      "site_settings_checkin_reward_non_negative",
+      sql`${table.checkinReward} >= 0`,
     ),
   }),
 );

@@ -17,7 +17,7 @@ import {
   parseStoredWorkspaceMode,
   type WorkspaceMode,
 } from "@/lib/workspace-preferences";
-import { CHECKIN_REWARD, type ImageRecord } from "@/types";
+import { type ImageRecord } from "@/types";
 
 const WORKSPACE_STORAGE_KEY = "deep-roast-workspace";
 const INSPECTOR_COLLAPSED_STORAGE_KEY =
@@ -34,6 +34,8 @@ export default function Home() {
   >("generate");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [donationEnabled, setDonationEnabled] = useState(false);
+  const [donationOpen, setDonationOpen] = useState(false);
 
   const {
     activeMode,
@@ -51,12 +53,28 @@ export default function Home() {
     imageHistory,
     generating,
     credits,
+    checkinReward,
     checkinEligible,
     todayChecked,
     setCredits,
     setCheckinStatus,
     setWalletOpen,
   } = useDeepRoastStore();
+
+  useEffect(() => {
+    let cancelled = false;
+    apiJson<{ enabled?: boolean }>("/api/public/donation")
+      .then((data) => {
+        if (!cancelled) setDonationEnabled(data.enabled === true);
+      })
+      .catch(() => {
+        if (!cancelled) setDonationEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setActiveMode(
@@ -94,8 +112,13 @@ export default function Home() {
         todayChecked?: boolean;
       }>("/api/credits/checkin", { method: "POST" });
       setCredits(data.credits);
-      setCheckinStatus({ todayChecked: true, eligible: true });
-      toast(`签到成功，+${data.reward ?? CHECKIN_REWARD} 积分`, "success");
+      const reward = data.reward ?? checkinReward;
+      setCheckinStatus({
+        todayChecked: true,
+        eligible: true,
+        reward,
+      });
+      toast(`签到成功，+${reward} 积分`, "success");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         toast(error.message || "签到失败", "error");
@@ -111,6 +134,7 @@ export default function Home() {
     checkinEligible,
     todayChecked,
     checkinLoading,
+    checkinReward,
     setCredits,
     setCheckinStatus,
     toast,
@@ -187,6 +211,8 @@ export default function Home() {
       role={role}
       onLogout={logout}
       credits={credits}
+      donationEnabled={donationEnabled}
+      onDonationClick={() => setDonationOpen(true)}
       onWalletClick={() => setWalletOpen(true)}
       onMenuClick={handleMenuClick}
     />
@@ -279,6 +305,8 @@ export default function Home() {
         <AppModals
           onSaveConfig={actions.handleSaveConfig}
           role={role}
+          donationOpen={donationOpen}
+          onDonationClose={() => setDonationOpen(false)}
           checkinLoading={checkinLoading}
           onCheckinClick={handleCheckin}
         />

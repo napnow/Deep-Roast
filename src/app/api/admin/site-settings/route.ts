@@ -8,10 +8,12 @@ import {
   setDonationEnabled,
   setImageGenerationEnabled,
   setRegistrationEnabled,
+  setCheckinReward,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
 import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
+import { parseCheckinSettingsPatch } from "@/server/services/checkin-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -31,9 +33,11 @@ export const PUT = handleRoute(async (req) => {
     invitationEnabled?: boolean;
     invitationReward?: number | string;
     invitationInviteeReward?: number | string;
+    checkinReward?: number | string;
   }>(req);
 
   const invitationPatch = parseInvitationSettingsPatch(body);
+  const checkinPatch = parseCheckinSettingsPatch(body);
 
   if (body.clearImage === true) {
     await clearAdminContactImage();
@@ -52,6 +56,9 @@ export const PUT = handleRoute(async (req) => {
   }
   if (Object.keys(invitationPatch).length > 0) {
     await updateInvitationSettings(invitationPatch);
+  }
+  if (checkinPatch.checkinReward !== undefined) {
+    await setCheckinReward(checkinPatch.checkinReward);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

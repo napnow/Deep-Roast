@@ -11,6 +11,7 @@ export default function AdminSiteSettingsCard() {
   const [invitationEnabled, setInvitationEnabled] = useState(true);
   const [invitationReward, setInvitationReward] = useState("200");
   const [invitationInviteeReward, setInvitationInviteeReward] = useState("50");
+  const [checkinReward, setCheckinReward] = useState("50");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -25,6 +26,7 @@ export default function AdminSiteSettingsCard() {
         invitationEnabled?: boolean;
         invitationReward?: number;
         invitationInviteeReward?: number;
+        checkinReward?: number;
       }>("/api/admin/site-settings")
       .then((data) => {
         if (cancelled) return;
@@ -35,6 +37,7 @@ export default function AdminSiteSettingsCard() {
       setInvitationEnabled(data.invitationEnabled !== false);
       setInvitationReward(String(data.invitationReward ?? 200));
       setInvitationInviteeReward(String(data.invitationInviteeReward ?? 50));
+      setCheckinReward(String(data.checkinReward ?? 50));
       })
       .catch((e: unknown) => {
         if (!cancelled) {
@@ -194,6 +197,30 @@ export default function AdminSiteSettingsCard() {
         String(data.invitationInviteeReward ?? inviteeRaw),
       );
       setMsg("邀请奖励已保存，仅影响后续注册");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "保存失败");
+    }
+    setSaving(false);
+  }
+
+  async function saveCheckinReward() {
+    const raw = checkinReward.trim();
+    if (!/^\d+$/.test(raw)) {
+      setMsg("签到奖励必须是非负整数");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ checkinReward?: number }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ checkinReward: Number(raw) }),
+        },
+      );
+      setCheckinReward(String(data.checkinReward ?? raw));
+      setMsg("签到奖励已保存，仅影响后续签到");
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "保存失败");
     }
@@ -393,6 +420,59 @@ export default function AdminSiteSettingsCard() {
                 >
                   保存奖励设置
                 </button>
+              </div>
+            </div>
+
+            <div
+              className="rounded-[var(--radius)] px-3.5 py-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    每日签到奖励
+                  </p>
+                  <p
+                    className="text-[10.5px] mt-0.5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    修改后仅影响后续签到，历史流水不会变化
+                  </p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <label>
+                    <span
+                      className="sr-only"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      签到奖励积分
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={checkinReward}
+                      onChange={(e) => setCheckinReward(e.target.value)}
+                      className="admin-input w-28"
+                      inputMode="numeric"
+                      aria-label="每日签到奖励积分"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={saveCheckinReward}
+                    className="admin-btn admin-btn--solid"
+                  >
+                    保存签到奖励
+                  </button>
+                </div>
               </div>
             </div>
 

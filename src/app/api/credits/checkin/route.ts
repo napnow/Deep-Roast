@@ -5,12 +5,13 @@ import {
   getUserRow,
   performCheckin,
 } from "@/server/services/credits";
+import { getCheckinReward } from "@/server/services/site-settings";
 
 // GET /api/credits/checkin — 今日是否已签 + 奖励说明
 export const GET = handleRoute(async (req) => {
   const auth = await requireActiveUser(req);
   const user = await getUserRow(auth.userId);
-  const status = checkinStatusFromUser(user);
+  const status = checkinStatusFromUser(user, await getCheckinReward());
   return jsonOk({
     ...status,
     credits: user.credits,

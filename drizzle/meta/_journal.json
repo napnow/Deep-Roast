@@ -71,6 +71,13 @@
       "when": 1787368309093,
       "tag": "0014_invitee_invitation_reward",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787369000000,
+      "tag": "0015_checkin_reward",
+      "breakpoints": true
     }
   ]
 }

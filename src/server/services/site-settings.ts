@@ -8,6 +8,7 @@ import { ApiError } from "@/server/http";
 import { assertImageGenerationPolicy } from "./image-generation-access";
 import { parseInvitationReward } from "./invitations";
 import type { InvitationSettingsPatch } from "./invitation-settings-input";
+import { parseCheckinReward } from "./checkin-settings-input";
 
 const UPLOAD_DIR = path.join(
   process.cwd(),
@@ -48,6 +49,7 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     adminContactImagePath: row.adminContactImagePath ?? "",
     registrationEnabled: (row.registrationEnabled ?? 1) !== 0,
     imageGenerationEnabled: (row.imageGenerationEnabled ?? 1) !== 0,
+    checkinReward: row.checkinReward ?? 50,
     donationEnabled: (row.donationEnabled ?? 1) !== 0,
     donationImagePath: row.donationImagePath ?? "",
     donationText: row.donationText ?? "",
@@ -66,6 +68,11 @@ export async function getSiteSettings() {
 export async function isRegistrationEnabled(): Promise<boolean> {
   const s = await getSiteSettings();
   return s.registrationEnabled;
+}
+
+export async function getCheckinReward(): Promise<number> {
+  const settings = await getSiteSettings();
+  return settings.checkinReward;
 }
 
 export async function isImageGenerationEnabled(): Promise<boolean> {
@@ -246,6 +253,17 @@ export async function updateInvitationSettings(patch: InvitationSettingsPatch) {
   const [row] = await db
     .update(siteSettings)
     .set(values)
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function setCheckinReward(value: unknown) {
+  const reward = parseCheckinReward(value);
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({ checkinReward: reward, updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
   return mapSettings(row!);
