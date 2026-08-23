@@ -92,6 +92,9 @@ export async function readJson<T = Record<string, unknown>>(
   const maxBytes = options.maxBytes ?? DEFAULT_JSON_MAX_BYTES;
   const declared = Number(req.headers.get("content-length") || 0);
   if (Number.isFinite(declared) && declared > maxBytes) {
+    if (req.body) {
+      void req.body.cancel("payload too large").catch(() => undefined);
+    }
     throw new ApiError("请求体过大", 413, "PAYLOAD_TOO_LARGE");
   }
   if (!req.body) throw new ApiError("请求体必须是 JSON", 400);
@@ -105,7 +108,11 @@ export async function readJson<T = Record<string, unknown>>(
       if (done) break;
       received += value.byteLength;
       if (received > maxBytes) {
-        await reader.cancel("payload too large");
+        try {
+          await reader.cancel("payload too large");
+        } catch {
+          // Preserve the client-visible size error even if the stream is already closed.
+        }
         throw new ApiError("请求体过大", 413, "PAYLOAD_TOO_LARGE");
       }
       chunks.push(value);

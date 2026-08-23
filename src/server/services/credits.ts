@@ -35,11 +35,20 @@ export async function assertEnoughCredits(
   }
 }
 
-export async function consumeCredits(
+export function assertCreditAmount(amount: number): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new ApiError("积分金额必须是正整数", 400, "INVALID_CREDIT_AMOUNT");
+  }
+}
+
+const REFUND_ALREADY_APPLIED = Symbol("refund-already-applied");
+
+async function consumeCreditOperation(
   userId: string,
   amount: number,
   note: string,
-): Promise<number> {
+): Promise<{ balance: number; transactionId: string }> {
+  assertCreditAmount(amount);
   return db.transaction(async (tx) => {
     // 原子扣减：UPDATE ... SET credits = credits - amount WHERE credits >= amount。
     // 避免并发请求 check-then-act 绕过余额限制（超扣 / 负余额）。
@@ -61,42 +70,74 @@ export async function consumeCredits(
       );
     }
 
-    await tx.insert(creditTransactions).values({
-      userId,
-      type: "consume",
-      amount: -amount,
-      balanceAfter: row.credits,
-      note,
-    });
-    return row.credits;
+    const [transaction] = await tx
+      .insert(creditTransactions)
+      .values({
+        userId,
+        type: "consume",
+        amount: -amount,
+        balanceAfter: row.credits,
+        note,
+      })
+      .returning({ id: creditTransactions.id });
+    if (!transaction) throw new ApiError("积分流水写入失败", 500);
+
+    return { balance: row.credits, transactionId: transaction.id };
   });
+}
+
+export async function consumeCredits(
+  userId: string,
+  amount: number,
+  note: string,
+): Promise<number> {
+  const result = await consumeCreditOperation(userId, amount, note);
+  return result.balance;
 }
 
 export async function refundCredits(
   userId: string,
   amount: number,
   note: string,
+  reservationId?: string,
 ): Promise<number> {
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .update(users)
-      .set({
-        credits: sql`${users.credits} + ${amount}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .returning({ id: users.id, credits: users.credits });
-    const row = rows[0];
-    if (!row) throw new ApiError("用户不存在", 404);
-    await tx.insert(creditTransactions).values({
-      userId,
-      type: "refund",
-      amount,
-      balanceAfter: row.credits,
-      note,
+  assertCreditAmount(amount);
+  try {
+    return await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(users)
+        .set({
+          credits: sql`${users.credits} + ${amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
+        .returning({ id: users.id, credits: users.credits });
+      const row = rows[0];
+      if (!row) throw new ApiError("用户不存在", 404);
+
+      const [transaction] = await tx
+        .insert(creditTransactions)
+        .values({
+          userId,
+          type: "refund",
+          amount,
+          balanceAfter: row.credits,
+          note,
+          reservationId,
+        })
+        .onConflictDoNothing({ target: creditTransactions.reservationId })
+        .returning({ id: creditTransactions.id });
+      if (!transaction && reservationId) throw REFUND_ALREADY_APPLIED;
+      if (!transaction) throw new ApiError("积分流水写入失败", 500);
+      return row.credits;
     });
-    return row.credits;
-  });
+  } catch (error) {
+    // The transaction is rolled back when a prior refund owns this reservation.
+    // Returning the current balance makes retries safe even after an ambiguous
+    // network failure following the original commit.
+    if (error === REFUND_ALREADY_APPLIED) return getUserCredits(userId);
+    throw error;
+  }
 }
 
 export interface CreditReservation {
@@ -134,9 +175,11 @@ export async function reserveCredits(
   amount: number,
   debitNote: string,
 ): Promise<CreditReservation> {
-  await consumeCredits(userId, amount, debitNote);
+  const debit = await consumeCreditOperation(userId, amount, debitNote);
   return createCreditReservation((note) =>
-    refundCredits(userId, amount, note).then(() => undefined),
+    refundCredits(userId, amount, note, debit.transactionId).then(
+      () => undefined,
+    ),
   );
 }
 

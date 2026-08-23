@@ -238,18 +238,28 @@ export const styles = pgTable("styles", {
 });
 
 // ── Credit Transactions ──
-export const creditTransactions = pgTable("credit_transactions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward' | 'invitee_reward'
-  amount: integer("amount").notNull(), // 正=增加, 负=扣除
-  balanceAfter: integer("balance_after").notNull(),
-  planId: text("plan_id"), // 充值档位, 仅 type=recharge 时
-  note: text("note"), // 管理员备注
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const creditTransactions = pgTable(
+  "credit_transactions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // 'checkin' | 'recharge' | 'admin_grant' | 'admin_deduct' | 'consume' | 'signup_bonus' | 'invite_reward' | 'invitee_reward'
+    amount: integer("amount").notNull(), // 正=增加, 负=扣除
+    balanceAfter: integer("balance_after").notNull(),
+    planId: text("plan_id"), // 充值档位, 仅 type=recharge 时
+    note: text("note"), // 管理员备注
+    /** 预扣交易 ID；退款使用唯一约束实现数据库级幂等 */
+    reservationId: uuid("reservation_id"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    reservationIdUnique: uniqueIndex(
+      "credit_transactions_reservation_id_unique",
+    ).on(table.reservationId),
+  }),
+);
 
 // ── API Keys（中转）──
 export const apiKeys = pgTable("api_keys", {

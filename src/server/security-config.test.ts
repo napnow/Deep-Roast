@@ -4,6 +4,7 @@ import config from "../../next.config";
 
 test("production security headers are configured without CSP", async () => {
   assert.equal(config.poweredByHeader, false);
+  assert.equal(config.experimental?.proxyClientMaxBodySize, "30mb");
   assert.ok(config.headers);
 
   const rules = await config.headers();

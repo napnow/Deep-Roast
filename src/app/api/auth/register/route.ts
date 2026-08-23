@@ -9,7 +9,7 @@ import {
 import { and, eq, or, sql } from "drizzle-orm";
 import { hashPassword, setAuthCookie, signToken } from "@/lib/auth";
 import { normalizeInviteCode } from "@/lib/invitation";
-import { ApiError } from "@/server/http";
+import { ApiError, readJson } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
@@ -252,11 +252,11 @@ export async function POST(req: Request) {
       REGISTER_WINDOW,
     );
 
-    const body = (await req.json()) as {
+    const body = await readJson<{
       username?: unknown;
       password?: unknown;
       inviteCode?: unknown;
-    };
+    }>(req);
     const username = typeof body.username === "string" ? body.username : "";
     const password = typeof body.password === "string" ? body.password : "";
 

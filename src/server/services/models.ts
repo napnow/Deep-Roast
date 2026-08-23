@@ -30,6 +30,51 @@ interface CatalogConfig {
   arkApiKey?: string | null;
 }
 
+export const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
+
+async function readBoundedJson<T>(response: Response, maxBytes: number): Promise<T> {
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    if (response.body) void response.body.cancel("response too large");
+    throw new ApiError("远程服务响应过大", 400);
+  }
+  if (!response.body) throw new ApiError("上游返回的模型目录格式无效", 400);
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        try {
+          await reader.cancel("response too large");
+        } catch {
+          // Preserve the size error if the upstream stream already closed.
+        }
+        throw new ApiError("远程服务响应过大", 400);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as T;
+  } catch {
+    throw new ApiError("上游返回的模型目录格式无效", 400);
+  }
+}
+
 export function resolveCatalogEndpoint(
   input: FetchCatalogInput,
   config: CatalogConfig | null,
@@ -77,7 +122,7 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
       const result = await requestPublicHttpsBuffer(`${baseUrl}/models`, {
         headers: { Authorization: `Bearer ${apiKey}` },
         timeoutMs: 20_000,
-        maxBytes: 2 * 1024 * 1024,
+        maxBytes: MAX_CATALOG_BYTES,
       });
       status = result.status;
       try {
@@ -92,11 +137,7 @@ export async function fetchModelCatalog(input: FetchCatalogInput = {}) {
         signal: AbortSignal.timeout(20_000),
       });
       status = response.status;
-      try {
-        data = (await response.json()) as typeof data;
-      } catch {
-        throw new ApiError("上游返回的模型目录格式无效", 400);
-      }
+      data = await readBoundedJson<typeof data>(response, MAX_CATALOG_BYTES);
     }
 
     if (status < 200 || status >= 300) {

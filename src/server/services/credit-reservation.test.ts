@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { createCreditReservation } from "./credits";
+import { ApiError } from "@/server/http";
+import { assertCreditAmount, createCreditReservation } from "./credits";
 
 test("credit reservation refunds at most once", async () => {
   let refunds = 0;
@@ -27,4 +29,21 @@ test("a failed refund may be retried", async () => {
   await reservation.refund("failed");
 
   assert.equal(calls, 2);
+});
+
+test("credit amounts must be positive safe integers", () => {
+  for (const amount of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () => assertCreditAmount(amount),
+      (error: unknown) => error instanceof ApiError && error.status === 400,
+    );
+  }
+  assert.doesNotThrow(() => assertCreditAmount(1));
+  assert.doesNotThrow(() => assertCreditAmount(Number.MAX_SAFE_INTEGER));
+});
+
+test("credit schema has a unique reservation identity for durable refunds", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  assert.match(schema, /reservationId:\s*uuid\("reservation_id"\)/);
+  assert.match(schema, /uniqueIndex\([^)]*reservation/i);
 });

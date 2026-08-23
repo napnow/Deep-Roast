@@ -34,6 +34,7 @@ test("rejects literal non-public IPv4 and IPv6 targets", () => {
     "https://[fe80::1]/v1",
     "https://[ff02::1]/v1",
     "https://[::ffff:127.0.0.1]/v1",
+    "https://[64:ff9b:1::1]/v1",
   ];
 
   for (const value of blocked) {
@@ -117,6 +118,13 @@ test("pins the validated DNS address and preserves the HTTPS hostname", async (t
   assert.equal(connectedFamily, 4);
   assert.equal(result.status, 200);
   assert.equal(result.body.toString("utf8"), '{"data":[]}');
+});
+
+test("does not reuse an HTTPS socket outside the validated DNS lookup", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile("src/server/safe-http.ts", "utf8"),
+  );
+  assert.match(source, /agent:\s*false/);
 });
 
 test("rejects redirects without issuing a second request", async (t) => {

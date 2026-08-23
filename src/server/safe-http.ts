@@ -152,6 +152,11 @@ function isNonPublicIpv6(address: string): boolean {
     return isNonPublicIpv4(sixToFourIpv4);
   }
 
+  // RFC 8215 local-use translation prefix; the embedded address is deployment-specific.
+  const localNat64 =
+    words[0] === 0x0064 && words[1] === 0xff9b && words[2] === 0x0001;
+  if (localNat64) return true;
+
   const nat64 =
     words[0] === 0x0064 &&
     words[1] === 0xff9b &&
@@ -281,6 +286,7 @@ export async function requestPublicHttpsBuffer(
         headers,
         lookup: pinnedLookup,
         family: selected.family,
+        agent: false,
         ...(isIP(hostname) ? {} : { servername: hostname }),
       },
       (response) => {

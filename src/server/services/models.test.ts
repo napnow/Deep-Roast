@@ -81,3 +81,10 @@ test("model catalog failures do not log raw upstream error objects", () => {
   );
   assert.doesNotMatch(source, /errText|await\s+\w+\.text\(\)/);
 });
+
+test("saved catalog fetches use a bounded response reader", () => {
+  const source = readFileSync("src/server/services/models.ts", "utf8");
+  assert.match(source, /MAX_CATALOG_BYTES/);
+  assert.match(source, /response\.body\.getReader\(\)/);
+  assert.match(source, /reader\.cancel/);
+});
