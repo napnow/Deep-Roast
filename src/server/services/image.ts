@@ -6,7 +6,7 @@ import {
   getConfig,
   parseEnabledModels,
 } from "@/lib/config";
-import { writeFile, mkdir, unlink, access, readFile } from "fs/promises";
+import { mkdir, unlink, access, readFile, open, rename, type FileHandle } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
@@ -365,6 +365,30 @@ function detectImageExt(buffer: Buffer): ".png" | ".jpg" | ".webp" {
   return ".png";
 }
 
+export async function writeFileAtomically(
+  filePath: string,
+  data: Uint8Array,
+): Promise<void> {
+  const tempPath = filePath + "." + crypto.randomUUID() + ".tmp";
+  let handle: FileHandle | undefined;
+  try {
+    handle = await open(tempPath, "wx", 0o600);
+    await handle.writeFile(data);
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await rename(tempPath, filePath);
+  } catch (error) {
+    await handle?.close().catch(() => undefined);
+    try {
+      await unlink(tempPath);
+    } catch {
+      /* The temporary path may not have been created. */
+    }
+    throw error;
+  }
+}
+
 async function cleanupWrittenPaths(paths: string[]): Promise<void> {
   await Promise.all(
     paths.map(async (filePath) => {
@@ -444,7 +468,7 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
     const ext = detectImageExt(buffer);
     const filename = `${crypto.randomUUID()}${ext}`;
     const imagePath = path.join(imagesDir, filename);
-    await writeFile(imagePath, buffer, { flag: "wx" });
+    await writeFileAtomically(imagePath, buffer);
     writtenPaths.push(imagePath);
     const imageUrl = `/images/${filename}`;
 
@@ -460,7 +484,7 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
         .resize(512, 512, { fit: "inside" })
         .webp({ quality: 80 })
         .toBuffer();
-      await writeFile(thumbPath, thumbnail, { flag: "wx" });
+      await writeFileAtomically(thumbPath, thumbnail);
       writtenPaths.push(thumbPath);
       thumbUrl = `/images/thumbs/${thumbName}`;
     } catch {

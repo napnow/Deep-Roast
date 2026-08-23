@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
 import { ApiError } from "@/server/http";
 import {
@@ -13,6 +16,7 @@ import {
   preserveOrCropImage,
   readBoundedJsonResponse,
   readUpstreamImage,
+  writeFileAtomically,
 } from "./image";
 
 const ONE_PIXEL_PNG =
@@ -108,6 +112,30 @@ describe("image input safety", () => {
       (error: unknown) =>
         error instanceof ApiError && error.code === "INVALID_IMAGE",
     );
+  });
+
+  it("writes image artifacts atomically and cleans temp files after rename failure", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "deeproast-image-"));
+    try {
+      const target = path.join(dir, "image.png");
+      const bytes = Buffer.from([1, 2, 3, 4]);
+      await writeFileAtomically(target, bytes);
+      assert.deepEqual(await readFile(target), bytes);
+      assert.deepEqual(
+        (await readdir(dir)).filter((name) => name.includes(".tmp")),
+        [],
+      );
+
+      const existingDirectory = path.join(dir, "existing");
+      await mkdir(existingDirectory);
+      await assert.rejects(() => writeFileAtomically(existingDirectory, bytes));
+      assert.deepEqual(
+        (await readdir(dir)).filter((name) => name.includes(".tmp")),
+        [],
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("bounds upstream JSON responses before parsing them", async () => {
