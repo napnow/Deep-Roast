@@ -40,30 +40,36 @@ export async function consumeCredits(
   amount: number,
   note: string,
 ): Promise<number> {
-  // 原子扣减：UPDATE ... SET credits = credits - amount WHERE credits >= amount。
-  // 避免并发请求 check-then-act 绕过余额限制（超扣 / 负余额）。
-  const rows = await db
-    .update(users)
-    .set({
-      credits: sql`${users.credits} - ${amount}`,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(users.id, userId), sql`${users.credits} >= ${amount}`))
-    .returning({ id: users.id, credits: users.credits });
+  return db.transaction(async (tx) => {
+    // 原子扣减：UPDATE ... SET credits = credits - amount WHERE credits >= amount。
+    // 避免并发请求 check-then-act 绕过余额限制（超扣 / 负余额）。
+    const rows = await tx
+      .update(users)
+      .set({
+        credits: sql`${users.credits} - ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.id, userId), sql`${users.credits} >= ${amount}`))
+      .returning({ id: users.id, credits: users.credits });
 
-  const row = rows[0];
-  if (!row) {
-    throw new ApiError("积分不足，请先签到或联系管理员", 402, "INSUFFICIENT_CREDITS");
-  }
+    const row = rows[0];
+    if (!row) {
+      throw new ApiError(
+        "积分不足，请先签到或联系管理员",
+        402,
+        "INSUFFICIENT_CREDITS",
+      );
+    }
 
-  await db.insert(creditTransactions).values({
-    userId,
-    type: "consume",
-    amount: -amount,
-    balanceAfter: row.credits,
-    note,
+    await tx.insert(creditTransactions).values({
+      userId,
+      type: "consume",
+      amount: -amount,
+      balanceAfter: row.credits,
+      note,
+    });
+    return row.credits;
   });
-  return row.credits;
 }
 
 export async function refundCredits(
@@ -71,24 +77,67 @@ export async function refundCredits(
   amount: number,
   note: string,
 ): Promise<number> {
-  const rows = await db
-    .update(users)
-    .set({
-      credits: sql`${users.credits} + ${amount}`,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId))
-    .returning({ id: users.id, credits: users.credits });
-  const row = rows[0];
-  if (!row) throw new ApiError("用户不存在", 404);
-  await db.insert(creditTransactions).values({
-    userId,
-    type: "refund",
-    amount,
-    balanceAfter: row.credits,
-    note,
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(users)
+      .set({
+        credits: sql`${users.credits} + ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning({ id: users.id, credits: users.credits });
+    const row = rows[0];
+    if (!row) throw new ApiError("用户不存在", 404);
+    await tx.insert(creditTransactions).values({
+      userId,
+      type: "refund",
+      amount,
+      balanceAfter: row.credits,
+      note,
+    });
+    return row.credits;
   });
-  return row.credits;
+}
+
+export interface CreditReservation {
+  refund(note: string): Promise<void>;
+}
+
+export function createCreditReservation(
+  refundAction: (note: string) => Promise<void>,
+): CreditReservation {
+  let refundPromise: Promise<void> | null = null;
+  let refunded = false;
+
+  return {
+    async refund(note: string) {
+      if (refunded) return;
+
+      if (!refundPromise) {
+        refundPromise = refundAction(note)
+          .then(() => {
+            refunded = true;
+          })
+          .catch((error) => {
+            refundPromise = null;
+            throw error;
+          });
+      }
+
+      await refundPromise;
+    },
+  };
+}
+
+export async function reserveCredits(
+  userId: string,
+  amount: number,
+  debitNote: string,
+): Promise<CreditReservation> {
+  await consumeCredits(userId, amount, debitNote);
+  return createCreditReservation((note) =>
+    refundCredits(userId, amount, note).then(() => undefined),
+  );
 }
 
 /** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +动态签到奖励（原子防并发双签） */
