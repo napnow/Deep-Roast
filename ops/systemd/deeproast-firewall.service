@@ -1,0 +1,13 @@
+[Unit]
+Description=Deep Roast Docker published-port firewall
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/deeproast-current/ops/bin/deeproast-firewall apply
+ExecStop=/opt/deeproast-current/ops/bin/deeproast-firewall remove
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

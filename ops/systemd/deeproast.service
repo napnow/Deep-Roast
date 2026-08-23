@@ -1,0 +1,21 @@
+[Unit]
+Description=Deep Roast Next.js App
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deeproast
+Group=deeproast
+WorkingDirectory=/opt/deeproast-current
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/deeproast/.env.production
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

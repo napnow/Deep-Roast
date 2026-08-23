@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" != "apply" && "${1:-}" != "remove" ]]; then
+    echo "usage: $0 {apply|remove}" >&2
+    exit 2
+fi
+
+action="$1"
+
+add_rule() {
+    local tool="$1"
+    shift
+    if ! "$tool" -C DOCKER-USER "$@" >/dev/null 2>&1; then
+        "$tool" -I DOCKER-USER "$@"
+    fi
+}
+
+remove_rule() {
+    local tool="$1"
+    shift
+    while "$tool" -C DOCKER-USER "$@" >/dev/null 2>&1; do
+        "$tool" -D DOCKER-USER "$@"
+    done
+}
+
+apply_family() {
+    local tool="$1"
+    local loopback="$2"
+    for port in 2567 5661; do
+        add_rule "$tool" -s "$loopback" -p tcp -m conntrack --ctorigdstport "$port" -j ACCEPT
+        add_rule "$tool" -p tcp -m conntrack --ctorigdstport "$port" -j DROP
+    done
+}
+
+remove_family() {
+    local tool="$1"
+    local loopback="$2"
+    for port in 5661 2567; do
+        remove_rule "$tool" -p tcp -m conntrack --ctorigdstport "$port" -j DROP
+        remove_rule "$tool" -s "$loopback" -p tcp -m conntrack --ctorigdstport "$port" -j ACCEPT
+    done
+}
+
+if [[ "$action" == "apply" ]]; then
+    apply_family iptables 127.0.0.1/32
+    apply_family ip6tables ::1/128
+else
+    remove_family iptables 127.0.0.1/32
+    remove_family ip6tables ::1/128
+fi
