@@ -9,6 +9,7 @@ import {
   uuid,
   jsonb,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import type { MessageMetadata } from "@/types";
 
@@ -188,7 +189,9 @@ export const conversations = pgTable("conversations", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userUpdatedIdx: index("conversations_user_updated_idx").on(table.userId, table.updatedAt),
+}));
 
 // ── Messages ──
 export const messages = pgTable("messages", {
@@ -203,7 +206,12 @@ export const messages = pgTable("messages", {
     .notNull()
     .default({}),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  conversationCreatedIdx: index("messages_conversation_created_idx").on(
+    table.conversationId,
+    table.createdAt,
+  ),
+}));
 
 // ── Image Generations ──
 export const imageGenerations = pgTable("image_generations", {
@@ -216,7 +224,12 @@ export const imageGenerations = pgTable("image_generations", {
     .references(() => users.id, { onDelete: "cascade" }),
   size: text("size").notNull().default("1024x1024"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userCreatedIdx: index("image_generations_user_created_idx").on(
+    table.userId,
+    table.createdAt,
+  ),
+}));
 
 // ── 图生图风格预设（管理端维护，published=1 才对普通用户可见） ──
 export const styles = pgTable("styles", {
@@ -255,6 +268,7 @@ export const creditTransactions = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => ({
+    userCreatedIdx: index("credit_transactions_user_created_idx").on(table.userId, table.createdAt),
     reservationIdUnique: uniqueIndex(
       "credit_transactions_reservation_id_unique",
     ).on(table.reservationId),
@@ -285,7 +299,9 @@ export const apiKeys = pgTable("api_keys", {
   creditsConsumed: integer("credits_consumed").notNull().default(0),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userStatusIdx: index("api_keys_user_status_idx").on(table.userId, table.status),
+}));
 
 // ── Cards（卡片功能）──
 export const cards = pgTable("cards", {

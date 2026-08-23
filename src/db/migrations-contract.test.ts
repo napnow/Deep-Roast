@@ -61,3 +61,18 @@ test("invitee reward migration preserves old balances and defaults history to ze
   assert.match(sql, /NON_NEGATIVE|non_negative|>= 0/i);
   assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
 });
+
+test("security performance migration is additive and covers service query order", () => {
+  assert.equal(existsSync("drizzle/0017_security_performance_indexes.sql"), true);
+  const sql = readFileSync("drizzle/0017_security_performance_indexes.sql", "utf8");
+  for (const name of [
+    "conversations_user_updated_idx",
+    "messages_conversation_created_idx",
+    "image_generations_user_created_idx",
+    "credit_transactions_user_created_idx",
+    "api_keys_user_status_idx",
+  ]) {
+    assert.ok(sql.includes('CREATE INDEX IF NOT EXISTS "' + name + '"'));
+  }
+  assert.ok(!/\b(DROP|DELETE|UPDATE|TRUNCATE|ALTER TABLE)\b/i.test(sql));
+});
