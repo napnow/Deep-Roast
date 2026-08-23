@@ -2,9 +2,7 @@ import { db } from "@/db";
 import { conversations, messages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import {
-  defaultTextModelIds,
   getConfig,
-  parseEnabledModels,
 } from "@/lib/config";
 import { ApiError } from "@/server/http";
 import {
@@ -13,6 +11,7 @@ import {
 } from "@/server/providers/llm";
 import { CREDIT_PER_CHAT } from "@/types";
 import { reserveCredits } from "@/server/services/credits";
+import { assertEnabledTextModel } from "@/server/services/model-access";
 
 export const MAX_CHAT_MESSAGE_LENGTH = 20_000;
 const CHAT_STREAM_ERROR = "对话服务暂时不可用，请稍后重试";
@@ -29,37 +28,32 @@ export function createChatChargeState(
   hasContent(): boolean;
 } {
   let contentEmitted = false;
-  let refundStarted = false;
+  let refundCompleted = false;
+  let refundInFlight: Promise<void> | null = null;
 
   return {
     markContent() {
       contentEmitted = true;
     },
     async failBeforeContent(note: string) {
-      if (!reservation || contentEmitted || refundStarted) return;
-      refundStarted = true;
-      await reservation.refund(note);
+      if (!reservation || contentEmitted || refundCompleted) return;
+      if (refundInFlight) return refundInFlight;
+      refundInFlight = reservation.refund(note).then(
+        () => {
+          refundCompleted = true;
+        },
+        (error) => {
+          refundInFlight = null;
+          throw error;
+        },
+      );
+      await refundInFlight;
+      refundInFlight = null;
     },
     hasContent() {
       return contentEmitted;
     },
   };
-}
-
-export function assertEnabledTextModel(
-  value: string,
-  config: Awaited<ReturnType<typeof getConfig>>,
-): string {
-  const model = value.trim();
-  const enabled = parseEnabledModels(
-    config?.enabledTextModels,
-    defaultTextModelIds(),
-    config?.textModel,
-  );
-  if (!model || !enabled.includes(model)) {
-    throw new ApiError("指定的模型不可用", 400);
-  }
-  return model;
 }
 
 async function readUpstreamErrorSnippet(response: Response): Promise<string> {
@@ -186,25 +180,27 @@ export async function createChatStream(
       { role: "user" as const, content: message },
     ];
 
-    await db.insert(messages).values({
-      conversationId,
-      role: "user",
-      content: message,
-    });
+    await db.transaction(async (tx) => {
+      await tx.insert(messages).values({
+        conversationId,
+        role: "user",
+        content: message,
+      });
 
-    if (conv.title === "新对话") {
-      const title =
-        message.slice(0, 30) + (message.length > 30 ? "..." : "");
-      await db
-        .update(conversations)
-        .set({ title, updatedAt: new Date() })
-        .where(eq(conversations.id, conversationId));
-    } else {
-      await db
-        .update(conversations)
-        .set({ updatedAt: new Date() })
-        .where(eq(conversations.id, conversationId));
-    }
+      if (conv.title === "新对话") {
+        const title =
+          message.slice(0, 30) + (message.length > 30 ? "..." : "");
+        await tx
+          .update(conversations)
+          .set({ title, updatedAt: new Date() })
+          .where(eq(conversations.id, conversationId));
+      } else {
+        await tx
+          .update(conversations)
+          .set({ updatedAt: new Date() })
+          .where(eq(conversations.id, conversationId));
+      }
+    });
   } catch (error: unknown) {
     await refundQuietly(chargeState, "对话消息保存失败退款");
     throw error;
@@ -212,14 +208,18 @@ export async function createChatStream(
 
   const encoder = new TextEncoder();
   let clientCancelled = false;
+  let upstreamController: AbortController | undefined;
+  let upstreamReader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
   const stream = new ReadableStream({
     async start(controller) {
       let fullResponse = "";
       try {
+        upstreamController = new AbortController();
+        const timeout = setTimeout(() => upstreamController?.abort(), 180_000);
         const apiRes = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
-          signal: AbortSignal.timeout(180_000),
+          signal: upstreamController.signal,
           redirect: "error",
           headers: {
             "Content-Type": "application/json",
@@ -233,6 +233,7 @@ export async function createChatStream(
             stream: true,
           }),
         });
+        clearTimeout(timeout);
 
         if (!apiRes.ok) {
           const errText = await readUpstreamErrorSnippet(apiRes);
@@ -240,13 +241,13 @@ export async function createChatStream(
           throw new Error("chat upstream request failed");
         }
 
-        const reader = apiRes.body?.getReader();
-        if (!reader) throw new Error("No response stream");
+        upstreamReader = apiRes.body?.getReader();
+        if (!upstreamReader) throw new Error("No response stream");
 
         const decoder = new TextDecoder();
         let buffer = "";
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await upstreamReader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
@@ -323,6 +324,8 @@ export async function createChatStream(
     },
     cancel() {
       clientCancelled = true;
+      upstreamController?.abort();
+      void upstreamReader?.cancel("client cancelled");
     },
   });
 

@@ -6,7 +6,7 @@ import {
   getConfig,
   parseEnabledModels,
 } from "@/lib/config";
-import { writeFile, mkdir, unlink, access } from "fs/promises";
+import { writeFile, mkdir, unlink, access, readFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
@@ -14,9 +14,10 @@ import { ApiError } from "@/server/http";
 import { resolveImageEndpoint } from "@/server/providers/llm";
 import {
   assertEnoughCredits,
-  consumeCredits,
-  refundCredits,
+  reserveCredits,
+  type CreditReservation,
 } from "@/server/services/credits";
+import { requestPublicHttpsBuffer } from "@/server/safe-http";
 import { assertImageGenerationAllowed } from "@/server/services/site-settings";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import {
@@ -28,6 +29,19 @@ import {
 import { executeImageEditTasks } from "./image-edit-runner";
 
 const MAX_PROMPT_LENGTH = 2000;
+
+export const MAX_IMAGE_EDGE = 2048;
+export const MAX_IMAGE_PIXELS = 4_194_304;
+export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+export const MAX_REFERENCE_TOTAL_BYTES = 30 * 1024 * 1024;
+export const IMAGE_UPSTREAM_TIMEOUT_MS = 300_000;
+const MAX_UPSTREAM_JSON_BYTES = 40 * 1024 * 1024;
+
+const SUPPORTED_IMAGE_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
 
 /**
  * gpt-image-2 等 OpenAI 兼容模型的原生支持尺寸。
@@ -45,11 +59,28 @@ const NATIVE_SIZES = [
 const CROP_MODELS = new Set(["gpt-image-2"]);
 const STANDARD_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024"]);
 
+class RetryableImageUpstreamError extends Error {}
+
 export function assertImageSize(size: string, model: string): string {
   const normalized = size.trim();
+  const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
+
   // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
   if (CROP_MODELS.has(model)) {
-    if (!/^\d{2,4}x\d{2,4}$/.test(normalized)) {
+    if (!dimensions) {
+      throw new ApiError("不支持的图片尺寸", 400);
+    }
+    const width = Number(dimensions[1]);
+    const height = Number(dimensions[2]);
+    if (
+      !Number.isSafeInteger(width) ||
+      !Number.isSafeInteger(height) ||
+      width <= 0 ||
+      height <= 0 ||
+      width > MAX_IMAGE_EDGE ||
+      height > MAX_IMAGE_EDGE ||
+      width * height > MAX_IMAGE_PIXELS
+    ) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
     return normalized;
@@ -61,7 +92,15 @@ export function assertImageSize(size: string, model: string): string {
 }
 
 export function shouldRetryImageError(error: unknown): boolean {
-  return !(error instanceof ApiError);
+  if (error instanceof ApiError) return false;
+  if (error instanceof RetryableImageUpstreamError || error instanceof TypeError) {
+    return true;
+  }
+  return (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "TimeoutError"
+  );
 }
 
 function parseSize(size: string): { w: number; h: number } | null {
@@ -106,34 +145,215 @@ async function cropToSize(
       .toBuffer();
     return { buffer: out, size: target };
   } catch {
-    return { buffer, size: target };
+    throw new ApiError("图片裁切失败", 502, "IMAGE_PROCESSING_ERROR");
   }
 }
 
-/**
- * 归一化上游返回的图片 URL。
- * grok2api 等容器化上游可能返回容器内地址（如 http://127.0.0.1:8000/...），
- * 宿主机无法访问；此时用实际请求的 baseUrl 的 origin 替换（含协议/主机/端口）。
- */
-function normalizeUpstreamImageUrl(url: string, baseUrl: string): string {
-  try {
-    const parsed = new URL(url);
-    const hostIsContainer = /127\.0\.0\.1|localhost/.test(parsed.hostname);
-    if (hostIsContainer && parsed.port && baseUrl) {
-      const upstream = new URL(baseUrl);
-      parsed.protocol = upstream.protocol;
-      parsed.hostname = upstream.hostname;
-      parsed.port = upstream.port;
-      return parsed.toString();
-    }
-  } catch {
-    /* 非法 URL 原样返回 */
+export async function preserveOrCropImage(
+  buffer: Buffer,
+  target: string,
+  needsCrop: boolean,
+): Promise<Buffer> {
+  if (!needsCrop) return buffer;
+  return (await cropToSize(buffer, target)).buffer;
+}
+
+function mimeForFormat(format: string | undefined): string | null {
+  if (format === "png") return "image/png";
+  if (format === "jpeg" || format === "jpg") return "image/jpeg";
+  if (format === "webp") return "image/webp";
+  return null;
+}
+
+function headerValue(
+  headers: Record<string, string | string[] | undefined>,
+  name: string,
+): string {
+  const value = headers[name] ?? headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function assertImageByteLimit(bytes: number): void {
+  if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > MAX_IMAGE_BYTES) {
+    throw new ApiError("图片文件过大", 400, "IMAGE_TOO_LARGE");
   }
-  return url;
+}
+
+function decodeBase64(value: string): Buffer {
+  if (
+    !value ||
+    value.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(value) ||
+    (value.includes("=") && !/={1,2}$/.test(value))
+  ) {
+    throw new ApiError("图片数据无效", 400, "INVALID_IMAGE");
+  }
+
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const decodedLength = (value.length / 4) * 3 - padding;
+  assertImageByteLimit(decodedLength);
+
+  const buffer = Buffer.from(value, "base64");
+  if (
+    buffer.length !== decodedLength ||
+    buffer.toString("base64") !== value
+  ) {
+    throw new ApiError("图片数据无效", 400, "INVALID_IMAGE");
+  }
+  return buffer;
+}
+
+async function inspectImage(
+  buffer: Buffer,
+  declaredMime?: string,
+): Promise<string> {
+  assertImageByteLimit(buffer.length);
+  try {
+    const { default: sharp } = await import("sharp");
+    const metadata = await sharp(buffer).metadata();
+    const mime = mimeForFormat(metadata.format);
+    const width = metadata.width || 0;
+    const height = metadata.height || 0;
+    if (
+      !mime ||
+      !SUPPORTED_IMAGE_MIME.has(mime) ||
+      !width ||
+      !height ||
+      width > MAX_IMAGE_EDGE ||
+      height > MAX_IMAGE_EDGE ||
+      width * height > MAX_IMAGE_PIXELS ||
+      (declaredMime && declaredMime !== mime)
+    ) {
+      throw new Error("unsupported image");
+    }
+    return mime;
+  } catch {
+    throw new ApiError("参考图必须是有效的 PNG、JPEG 或 WebP 图片", 400, "INVALID_IMAGE");
+  }
+}
+
+async function readLocalReference(value: string): Promise<Buffer> {
+  const match = /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(value);
+  if (!match) throw new ApiError("参考图地址无效", 400, "INVALID_IMAGE");
+
+  const imagePath = path.join(process.cwd(), "public", "images", match[1]);
+  try {
+    const buffer = await readFile(imagePath);
+    assertImageByteLimit(buffer.length);
+    return buffer;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("参考图不存在", 400, "INVALID_IMAGE");
+  }
+}
+
+async function readReference(value: string): Promise<{
+  buffer: Buffer;
+  declaredMime?: string;
+}> {
+  const dataUrl = /^data:(image\/(?:png|jpeg|webp));base64,(.*)$/i.exec(value);
+  if (dataUrl) {
+    const declaredMime = dataUrl[1]!.toLowerCase();
+    return { buffer: decodeBase64(dataUrl[2]!), declaredMime };
+  }
+
+  if (value.startsWith("/images/")) {
+    return { buffer: await readLocalReference(value) };
+  }
+
+  const result = await requestPublicHttpsBuffer(value, {
+    timeoutMs: IMAGE_UPSTREAM_TIMEOUT_MS,
+    maxBytes: MAX_IMAGE_BYTES,
+  });
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiError("远程参考图下载失败", 400, "INVALID_IMAGE");
+  }
+
+  const contentType = headerValue(result.headers, "content-type")
+    .split(";", 1)[0]!
+    .trim()
+    .toLowerCase();
+  if (!SUPPORTED_IMAGE_MIME.has(contentType)) {
+    throw new ApiError("远程参考图不是支持的图片格式", 400, "INVALID_IMAGE");
+  }
+  return { buffer: result.body, declaredMime: contentType };
+}
+
+export async function normalizeReferenceImages(
+  values: string[],
+): Promise<string[]> {
+  if (!Array.isArray(values) || values.length === 0) {
+    throw new ApiError("至少需要一张参考图", 400, "INVALID_IMAGE");
+  }
+  if (values.length > 5) {
+    throw new ApiError("参考图最多 5 张", 400, "INVALID_IMAGE");
+  }
+
+  const normalized: string[] = [];
+  let totalBytes = 0;
+
+  for (const rawValue of values) {
+    if (typeof rawValue !== "string") {
+      throw new ApiError("参考图参数无效", 400, "INVALID_IMAGE");
+    }
+    const value = rawValue.trim();
+    if (!value) throw new ApiError("参考图参数无效", 400, "INVALID_IMAGE");
+
+    const { buffer, declaredMime } = await readReference(value);
+    assertImageByteLimit(buffer.length);
+    totalBytes += buffer.length;
+    if (totalBytes > MAX_REFERENCE_TOTAL_BYTES) {
+      throw new ApiError("参考图总大小过大", 400, "IMAGE_TOO_LARGE");
+    }
+    const mime = await inspectImage(buffer, declaredMime);
+    normalized.push(`data:${mime};base64,${buffer.toString("base64")}`);
+  }
+
+  return normalized;
+}
+
+export async function readUpstreamImage(
+  item: { b64_json?: string; url?: string },
+  baseUrl: string,
+): Promise<Buffer> {
+  void baseUrl;
+  if (item?.b64_json) {
+    const buffer = decodeBase64(item.b64_json);
+    await inspectImage(buffer);
+    return buffer;
+  }
+  if (!item?.url) throw new Error("上游未返回图片");
+
+  const result = await requestPublicHttpsBuffer(item.url, {
+    timeoutMs: IMAGE_UPSTREAM_TIMEOUT_MS,
+    maxBytes: MAX_IMAGE_BYTES,
+  });
+  if (result.status < 200 || result.status >= 300) {
+    if (result.status === 408 || result.status === 429 || result.status >= 500) {
+      throw new RetryableImageUpstreamError("上游图片下载失败");
+    }
+    throw new ApiError("上游图片下载失败", 502, "UPSTREAM_IMAGE_ERROR");
+  }
+  const contentType = headerValue(result.headers, "content-type")
+    .split(";", 1)[0]!
+    .trim()
+    .toLowerCase();
+  if (!SUPPORTED_IMAGE_MIME.has(contentType)) {
+    throw new ApiError("上游图片格式无效", 502, "UPSTREAM_IMAGE_ERROR");
+  }
+  await inspectImage(result.body, contentType);
+  return result.body;
 }
 
 /** 根据图片 buffer 头字节推断扩展名（grok 返回 JPEG，gpt 返回 PNG） */
-function detectImageExt(buffer: Buffer): ".png" | ".jpg" {
+function detectImageExt(buffer: Buffer): ".png" | ".jpg" | ".webp" {
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return ".webp";
+  }
   if (
     buffer.length > 3 &&
     buffer[0] === 0xff &&
@@ -143,6 +363,119 @@ function detectImageExt(buffer: Buffer): ".png" | ".jpg" {
     return ".jpg";
   }
   return ".png";
+}
+
+async function cleanupWrittenPaths(paths: string[]): Promise<void> {
+  await Promise.all(
+    paths.map(async (filePath) => {
+      try {
+        await unlink(filePath);
+      } catch {
+        /* The path may not have been created or may already be gone. */
+      }
+    }),
+  );
+}
+
+export async function readBoundedJsonResponse<T>(
+  response: Response,
+  maxBytes = MAX_UPSTREAM_JSON_BYTES,
+): Promise<T> {
+  if (!response.body) throw new Error("上游未返回响应体");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        try {
+          await reader.cancel("upstream JSON response too large");
+        } catch {
+          /* Preserve the bounded-response error. */
+        }
+        throw new Error("上游响应过大");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+}
+
+async function refundImageReservation(
+  reservation: CreditReservation,
+  note: string,
+): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await reservation.refund(note);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("退款失败");
+}
+
+async function writeImageArtifacts(buffer: Buffer): Promise<{
+  imageUrl: string;
+  thumbUrl: string;
+  writtenPaths: string[];
+}> {
+  const imagesDir = path.join(process.cwd(), "public", "images");
+  const writtenPaths: string[] = [];
+  try {
+    await mkdir(imagesDir, { recursive: true });
+    const ext = detectImageExt(buffer);
+    const filename = `${crypto.randomUUID()}${ext}`;
+    const imagePath = path.join(imagesDir, filename);
+    await writeFile(imagePath, buffer, { flag: "wx" });
+    writtenPaths.push(imagePath);
+    const imageUrl = `/images/${filename}`;
+
+    let thumbUrl = imageUrl;
+    let thumbPath: string | undefined;
+    try {
+      const { default: sharp } = await import("sharp");
+      const thumbDir = path.join(imagesDir, "thumbs");
+      await mkdir(thumbDir, { recursive: true });
+      const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
+      thumbPath = path.join(thumbDir, thumbName);
+      const thumbnail = await sharp(buffer)
+        .resize(512, 512, { fit: "inside" })
+        .webp({ quality: 80 })
+        .toBuffer();
+      await writeFile(thumbPath, thumbnail, { flag: "wx" });
+      writtenPaths.push(thumbPath);
+      thumbUrl = `/images/thumbs/${thumbName}`;
+    } catch {
+      if (thumbPath && writtenPaths.includes(thumbPath)) {
+        await cleanupWrittenPaths([thumbPath]);
+        writtenPaths.splice(writtenPaths.indexOf(thumbPath), 1);
+      }
+      /* Thumbnail failure does not affect the original image. */
+    }
+
+    return { imageUrl, thumbUrl, writtenPaths };
+  } catch (error) {
+    await cleanupWrittenPaths(writtenPaths);
+    throw error;
+  }
 }
 
 export async function generateImage(opts: {
@@ -215,15 +548,21 @@ export async function generateImage(opts: {
   // 其他模型（seedream/grok 等）直接用请求 size，不裁切
   const needsCrop = CROP_MODELS.has(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
-  let creditsReserved = false;
+  let reservation: CreditReservation | null = null;
   if (userId && chargeCredits) {
-    await consumeCredits(userId, CREDIT_PER_IMAGE, `预扣生成图片: ${prompt.slice(0, 50)}`);
-    creditsReserved = true;
+    reservation = await reserveCredits(
+      userId,
+      CREDIT_PER_IMAGE,
+      `预扣生成图片: ${prompt.slice(0, 50)}`,
+    );
   }
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const writtenPaths: string[] = [];
     try {
       const res = await fetch(`${baseUrl}/images/generations`, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
@@ -238,57 +577,33 @@ export async function generateImage(opts: {
       });
 
       if (!res.ok) {
-        await res.text();
-        throw new Error(`上游图片服务返回 HTTP ${res.status}`);
+        if (res.status === 408 || res.status === 429 || res.status >= 500) {
+          throw new RetryableImageUpstreamError(
+            `上游图片服务返回 HTTP ${res.status}`,
+          );
+        }
+        throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await res.json();
+      const result = await readBoundedJsonResponse<{
+        data?: Array<{ b64_json?: string; url?: string }>;
+      }>(res);
       const item = result.data?.[0];
 
-      let buffer: Buffer;
-      if (item?.b64_json) {
-        buffer = Buffer.from(item.b64_json, "base64");
-      } else if (item?.url) {
-        const imageRes = await fetch(
-          normalizeUpstreamImageUrl(item.url, baseUrl),
-        );
-        buffer = Buffer.from(await imageRes.arrayBuffer());
-      } else {
-        throw new Error("未能生成图片");
-      }
+      let buffer = await readUpstreamImage(item || {}, baseUrl);
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      if (needsCrop) {
-        const cropped = await cropToSize(buffer, size);
-        buffer = cropped.buffer;
-      }
+      buffer = await preserveOrCropImage(buffer, size, needsCrop);
 
-      const imagesDir = path.join(process.cwd(), "public", "images");
-      await mkdir(imagesDir, { recursive: true });
-      const ext = detectImageExt(buffer);
-      const filename = `${crypto.randomUUID()}${ext}`;
-      await writeFile(path.join(imagesDir, filename), buffer);
-      const imageUrl = `/images/${filename}`;
-
-      // 同步生成 webp 缩略图（列表/历史用，省 90%+ 流量；预览仍用原图）
-      let thumbUrl = imageUrl;
-      try {
-        const { default: sharp } = await import("sharp");
-        const thumbDir = path.join(imagesDir, "thumbs");
-        await mkdir(thumbDir, { recursive: true });
-        const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
-        await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
-        thumbUrl = `/images/thumbs/${thumbName}`;
-      } catch {
-        /* 缩略图失败不影响生图主流程 */
-      }
+      const artifacts = await writeImageArtifacts(buffer);
+      writtenPaths.push(...artifacts.writtenPaths);
 
       const [row] = await db
         .insert(imageGenerations)
         .values({
           prompt,
           model,
-          imageUrl,
+          imageUrl: artifacts.imageUrl,
           size,
           userId,
         })
@@ -299,13 +614,14 @@ export async function generateImage(opts: {
       );
       return {
         id: row.id,
-        imageUrl,
-        thumbUrl,
+        imageUrl: artifacts.imageUrl,
+        thumbUrl: artifacts.thumbUrl,
         prompt,
         model,
         size,
       };
     } catch (err) {
+      await cleanupWrittenPaths(writtenPaths);
       console.error(
         `Image gen error (attempt ${attempt}/${maxRetries}):`,
         err instanceof Error ? err.message : err,
@@ -318,12 +634,24 @@ export async function generateImage(opts: {
     }
   }
 
-  if (creditsReserved) {
+  let refundPending = false;
+  if (reservation) {
     try {
-      await refundCredits(userId, CREDIT_PER_IMAGE, `生成失败退回积分: ${prompt.slice(0, 50)}`);
+      await refundImageReservation(
+        reservation,
+        `生成失败退回积分: ${prompt.slice(0, 50)}`,
+      );
     } catch (refundError) {
-      console.error("图片生成退款失败", refundError);
+      refundPending = true;
+      console.error("CRITICAL: 图片生成退款失败，需要人工补偿", refundError);
     }
+  }
+  if (refundPending) {
+    throw new ApiError(
+      "图片生成失败，积分退款未完成，请联系客服处理",
+      503,
+      "CREDIT_REFUND_PENDING",
+    );
   }
   throw new ApiError("图片生成失败，请稍后重试", 502, "UPSTREAM_IMAGE_ERROR");
 }
@@ -358,7 +686,7 @@ async function editImageOnce(opts: {
     image,
     prompt,
     modelOverride,
-    size = "1024x1024",
+    size: requestedSize = "1024x1024",
   } = opts;
   await assertImageGenerationAllowed(role);
   const images = Array.isArray(image)
@@ -387,10 +715,8 @@ async function editImageOnce(opts: {
     throw new ApiError("指定的模型不可用", 400);
   }
 
+  const size = assertImageSize(requestedSize, model);
   const chargeCredits = role !== "admin";
-  if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_IMAGE);
-  }
 
   const { apiKey, baseUrl, maxRetries } = resolveImageEndpoint(
     model,
@@ -408,6 +734,15 @@ async function editImageOnce(opts: {
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
+  const normalizedImages = await normalizeReferenceImages(images);
+  let reservation: CreditReservation | null = null;
+  if (userId && chargeCredits) {
+    reservation = await reserveCredits(
+      userId,
+      CREDIT_PER_IMAGE,
+      `预扣图生图: ${prompt.slice(0, 50)}`,
+    );
+  }
 
   const editPayload = isGrok
     ? {
@@ -415,7 +750,7 @@ async function editImageOnce(opts: {
         prompt,
         size: requestSize,
         n: 1,
-        image: { url: images[0] },
+        image: { url: normalizedImages[0] },
       }
     : {
         model,
@@ -424,12 +759,18 @@ async function editImageOnce(opts: {
         n: 1,
         quality: "high",
         // chatgpt2api /v1/images/edits 支持 JSON 单图或多图引用。
-        image: images.length === 1 ? images[0] : images,
+        image:
+          normalizedImages.length === 1
+            ? normalizedImages[0]
+            : normalizedImages,
       };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const writtenPaths: string[] = [];
     try {
       const res = await fetch(`${baseUrl}/images/edits`, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
@@ -438,91 +779,82 @@ async function editImageOnce(opts: {
       });
 
       if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`${res.status} ${errText}`);
+        if (res.status === 408 || res.status === 429 || res.status >= 500) {
+          throw new RetryableImageUpstreamError(
+            `上游图片服务返回 HTTP ${res.status}`,
+          );
+        }
+        throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await res.json();
+      const result = await readBoundedJsonResponse<{
+        data?: Array<{ b64_json?: string; url?: string }>;
+      }>(res);
       const item = result.data?.[0];
 
-      let buffer: Buffer;
-      if (item?.b64_json) {
-        buffer = Buffer.from(item.b64_json, "base64");
-      } else if (item?.url) {
-        const imageRes = await fetch(
-          normalizeUpstreamImageUrl(item.url, baseUrl),
-        );
-        buffer = Buffer.from(await imageRes.arrayBuffer());
-      } else {
-        throw new Error("未能生成图片");
-      }
+      let buffer = await readUpstreamImage(item || {}, baseUrl);
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      if (needsCrop) {
-        const cropped = await cropToSize(buffer, size);
-        buffer = cropped.buffer;
-      }
+      buffer = await preserveOrCropImage(buffer, size, needsCrop);
 
-      const imagesDir = path.join(process.cwd(), "public", "images");
-      await mkdir(imagesDir, { recursive: true });
-      const ext = detectImageExt(buffer);
-      const filename = `${crypto.randomUUID()}${ext}`;
-      await writeFile(path.join(imagesDir, filename), buffer);
-      const imageUrl = `/images/${filename}`;
-
-      let thumbUrl = imageUrl;
-      try {
-        const { default: sharp } = await import("sharp");
-        const thumbDir = path.join(imagesDir, "thumbs");
-        await mkdir(thumbDir, { recursive: true });
-        const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
-        await sharp(buffer).resize(512, 512, { fit: "inside" }).webp({ quality: 80 }).toFile(path.join(thumbDir, thumbName));
-        thumbUrl = `/images/thumbs/${thumbName}`;
-      } catch {
-        /* 缩略图失败不影响生图主流程 */
-      }
+      const artifacts = await writeImageArtifacts(buffer);
+      writtenPaths.push(...artifacts.writtenPaths);
 
       const [row] = await db
         .insert(imageGenerations)
         .values({
           prompt,
           model,
-          imageUrl,
+          imageUrl: artifacts.imageUrl,
           size,
           userId,
         })
         .returning({ id: imageGenerations.id });
-
-      if (userId && chargeCredits) {
-        await consumeCredits(
-          userId,
-          CREDIT_PER_IMAGE,
-          `图生图: ${prompt.slice(0, 50)}`,
-        );
-      }
 
       console.log(
         `Image edit success (attempt ${attempt}/${maxRetries}): ${model}`,
       );
       return {
         id: row.id,
-        imageUrl,
-        thumbUrl,
+        imageUrl: artifacts.imageUrl,
+        thumbUrl: artifacts.thumbUrl,
         prompt,
         model,
         size,
       };
     } catch (err) {
+      await cleanupWrittenPaths(writtenPaths);
       console.error(
         `Image edit error (attempt ${attempt}/${maxRetries}):`,
         err instanceof Error ? err.message : err,
       );
-      if (attempt < maxRetries) {
+      if (attempt < maxRetries && shouldRetryImageError(err)) {
         await new Promise((r) => setTimeout(r, 1000));
+      } else {
+        break;
       }
     }
   }
 
+  let refundPending = false;
+  if (reservation) {
+    try {
+      await refundImageReservation(
+        reservation,
+        `图生图失败退回积分: ${prompt.slice(0, 50)}`,
+      );
+    } catch (refundError) {
+      refundPending = true;
+      console.error("CRITICAL: 图生图退款失败，需要人工补偿", refundError);
+    }
+  }
+  if (refundPending) {
+    throw new ApiError(
+      "图生图失败，积分退款未完成，请联系客服处理",
+      503,
+      "CREDIT_REFUND_PENDING",
+    );
+  }
   throw new ApiError(PUBLIC_IMAGE_EDIT_ERROR, 502, "UPSTREAM_IMAGE_ERROR");
 }
 
@@ -698,8 +1030,8 @@ export async function deleteImageRecord(userId: string, id: string) {
  * 批量图生图（同参考图 + 描述，生成 N 张变体，最大 5 张）。
  * 积分策略（无竞态）：
  * 1. 生成前一次性校验余额 >= 5 × n，不足直接拒绝（不扣款）
- * 2. 逐张生成，成功一张原子扣 5 积分（consumeCredits 自带 WHERE credits>=amount）
- * 3. 单张失败跳过继续，返回成功/失败计数；已扣积分 = 成功张数，与单张生成一致
+ * 2. 逐张生成，每次用一次性积分预扣；失败时幂等退款
+ * 3. 单张失败跳过继续，返回成功/失败计数；最终扣款 = 成功张数
  */
 export async function editImageBatch(opts: {
   userId: string;
