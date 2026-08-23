@@ -59,4 +59,16 @@ describe("chat credit policy", () => {
 
     assert.equal(charged.hasContent(), true);
   });
+
+  it("keeps the stream timeout active through body consumption and redacts upstream bodies", () => {
+    const timeoutStart = chatSource.indexOf("timeout = setTimeout");
+    const bodyEnd = chatSource.indexOf("    cancel()");
+    assert.ok(timeoutStart >= 0 && bodyEnd > timeoutStart);
+    const streamAttempt = chatSource.slice(timeoutStart, bodyEnd);
+    assert.match(streamAttempt, /finally\s*\{[\s\S]*clearTimeout\(timeout\)/);
+    assert.doesNotMatch(
+      chatSource,
+      /console\.error\("Chat upstream error:", apiRes\.status, errText\)/,
+    );
+  });
 });

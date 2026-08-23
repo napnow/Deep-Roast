@@ -56,37 +56,6 @@ export function createChatChargeState(
   };
 }
 
-async function readUpstreamErrorSnippet(response: Response): Promise<string> {
-  if (!response.body) return "";
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let remaining = 2 * 1024;
-  try {
-    while (remaining > 0) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = value.subarray(0, remaining);
-      chunks.push(chunk);
-      remaining -= chunk.byteLength;
-      if (chunk.byteLength < value.byteLength) {
-        await reader.cancel("upstream error snippet limit");
-        break;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(2 * 1024 - remaining);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes).replace(/\s+/g, " ").slice(0, 2 * 1024);
-}
-
 async function refundQuietly(
   chargeState: ReturnType<typeof createChatChargeState>,
   note: string,
@@ -214,9 +183,10 @@ export async function createChatStream(
   const stream = new ReadableStream({
     async start(controller) {
       let fullResponse = "";
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         upstreamController = new AbortController();
-        const timeout = setTimeout(() => upstreamController?.abort(), 180_000);
+        timeout = setTimeout(() => upstreamController?.abort(), 180_000);
         const apiRes = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
           signal: upstreamController.signal,
@@ -233,11 +203,9 @@ export async function createChatStream(
             stream: true,
           }),
         });
-        clearTimeout(timeout);
 
         if (!apiRes.ok) {
-          const errText = await readUpstreamErrorSnippet(apiRes);
-          console.error("Chat upstream error:", apiRes.status, errText);
+          console.error("Chat upstream error:", apiRes.status);
           throw new Error("chat upstream request failed");
         }
 
@@ -320,6 +288,8 @@ export async function createChatStream(
             // The client may have cancelled the stream while the upstream failed.
           }
         }
+      } finally {
+        if (timeout) clearTimeout(timeout);
       }
     },
     cancel() {
