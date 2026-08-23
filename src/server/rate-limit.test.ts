@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getClientIp } from "./rate-limit";
 
-test("prefers Cloudflare's real client IP over proxy edge addresses", () => {
+test("ignores spoofable Cloudflare and forwarded headers without canonical identity", () => {
   const req = new Request("https://example.test", {
     headers: {
       "cf-connecting-ip": "203.0.113.24",
@@ -11,17 +11,17 @@ test("prefers Cloudflare's real client IP over proxy edge addresses", () => {
     },
   });
 
-  assert.equal(getClientIp(req), "203.0.113.24");
+  assert.equal(getClientIp(req), "172.68.22.77");
 });
 
-test("uses the first forwarded address when Cloudflare's header is absent", () => {
+test("ignores forwarded chains when the canonical header is absent", () => {
   const req = new Request("https://example.test", {
     headers: {
       "x-forwarded-for": "198.51.100.10, 10.0.0.2",
     },
   });
 
-  assert.equal(getClientIp(req), "198.51.100.10");
+  assert.equal(getClientIp(req), "unknown");
 });
 
 test("falls back to x-real-ip and then unknown", () => {

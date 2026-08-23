@@ -99,19 +99,10 @@ function rateLimitError(): ApiError {
 
 /** 获取客户端 IP（兼容反代头） */
 export function getClientIp(req: Request): string {
-  const firstHeaderValue = (value: string | null): string | null => {
-    const first = value?.split(",")[0]?.trim();
-    return first || null;
-  };
-
-  // Prefer Cloudflare's real visitor IP over proxy edge addresses.
-  const cloudflareIp = firstHeaderValue(req.headers.get("cf-connecting-ip"));
-  if (cloudflareIp) return cloudflareIp;
-
-  const forwardedIp = firstHeaderValue(req.headers.get("x-forwarded-for"));
-  if (forwardedIp) return forwardedIp;
-
-  return firstHeaderValue(req.headers.get("x-real-ip")) || "unknown";
+  // Caddy strips inbound identity headers and rebuilds this canonical value from
+  // the trusted proxy chain before the request reaches the application.
+  const canonical = req.headers.get("x-real-ip")?.split(",")[0]?.trim();
+  return canonical || "unknown";
 }
 
 /**

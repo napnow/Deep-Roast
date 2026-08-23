@@ -22,13 +22,23 @@
     }
 }
 
+(deeproast-client-ip) {
+    header_up -CF-Connecting-IP
+    header_up -X-Forwarded-For
+    header_up -X-Real-IP
+    header_up X-Real-IP {http.request.client_ip}
+    header_up X-Forwarded-For {http.request.client_ip}
+}
+
 grok.deeproast.sryze.cc {
     import cloudflare-only
     @videos path /v1/media/videos/*
     route {
         respond @notCloudflare 403
         header @videos Content-Disposition "attachment; filename=\"video.mp4\""
-        reverse_proxy 127.0.0.1:5661
+        reverse_proxy 127.0.0.1:5661 {
+            import deeproast-client-ip
+        }
     }
 }
 
@@ -36,7 +46,9 @@ api.deeproast.sryze.cc {
     import cloudflare-only
     route {
         respond @notCloudflare 403
-        reverse_proxy 127.0.0.1:2567
+        reverse_proxy 127.0.0.1:2567 {
+            import deeproast-client-ip
+        }
     }
 }
 
@@ -56,7 +68,9 @@ deeproast.sryze.cc {
             file_server
         }
         handle {
-            reverse_proxy 127.0.0.1:3000
+            reverse_proxy 127.0.0.1:3000 {
+            import deeproast-client-ip
+        }
         }
     }
 }
