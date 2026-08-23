@@ -197,41 +197,43 @@ export async function performCheckin(userId: string) {
   const today = shanghaiToday();
   const reward = await getCheckinReward();
 
-  const rows = await db
-    .update(users)
-    .set({
-      credits: sql`${users.credits} + ${reward}`,
-      lastCheckinOn: today,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(users.id, userId),
-        sql`COALESCE(${users.lastCheckinOn}, '') <> ${today}`,
-      ),
-    )
-    .returning({ id: users.id, credits: users.credits });
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(users)
+      .set({
+        credits: sql`${users.credits} + ${reward}`,
+        lastCheckinOn: today,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(users.id, userId),
+          sql`COALESCE(${users.lastCheckinOn}, '') <> ${today}`,
+        ),
+      )
+      .returning({ id: users.id, credits: users.credits });
 
-  const row = rows[0];
-  if (!row) {
-    // 已被并发请求抢先签到，或今日已签
-    throw new ApiError("今日已签到", 409);
-  }
+    const row = rows[0];
+    if (!row) {
+      // 已被并发请求抢先签到，或今日已签
+      throw new ApiError("今日已签到", 409);
+    }
 
-  await db.insert(creditTransactions).values({
-    userId,
-    type: "checkin",
-    amount: reward,
-    balanceAfter: row.credits,
-    note: `每日签到 ${today}`,
+    await tx.insert(creditTransactions).values({
+      userId,
+      type: "checkin",
+      amount: reward,
+      balanceAfter: row.credits,
+      note: `每日签到 ${today}`,
+    });
+
+    return {
+      credits: row.credits,
+      checkinOn: today,
+      reward,
+      todayChecked: true,
+    };
   });
-
-  return {
-    credits: row.credits,
-    checkinOn: today,
-    reward,
-    todayChecked: true,
-  };
 }
 
 export function checkinStatusFromUser(user: {
@@ -258,37 +260,42 @@ export async function adjustCredits(
 
   const type = amount > 0 ? "admin_grant" : "admin_deduct";
 
-  // 原子增减：余额不允许扣成负数
-  const rows = await db
-    .update(users)
-    .set({
-      credits: sql`${users.credits} + ${amount}`,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(users.id, userId), sql`${users.credits} + ${amount} >= 0`),
-    )
-    .returning({ id: users.id, credits: users.credits });
+  return db.transaction(async (tx) => {
+    // 原子增减：余额不允许扣成负数
+    const rows = await tx
+      .update(users)
+      .set({
+        credits: sql`${users.credits} + ${amount}`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(users.id, userId), sql`${users.credits} + ${amount} >= 0`),
+      )
+      .returning({ id: users.id, credits: users.credits });
 
-  const row = rows[0];
-  if (!row) {
-    const exists = await getUserRow(userId).catch(() => null);
-    if (!exists) throw new ApiError("用户不存在", 404);
-    throw new ApiError("积分不足，无法扣减", 400);
-  }
+    const row = rows[0];
+    if (!row) {
+      const [exists] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, userId));
+      if (!exists) throw new ApiError("用户不存在", 404);
+      throw new ApiError("积分不足，无法扣减", 400);
+    }
 
-  const [tx] = await db
-    .insert(creditTransactions)
-    .values({
-      userId,
-      type,
-      amount,
-      balanceAfter: row.credits,
-      note: note || "",
-    })
-    .returning();
+    const [transaction] = await tx
+      .insert(creditTransactions)
+      .values({
+        userId,
+        type,
+        amount,
+        balanceAfter: row.credits,
+        note: note || "",
+      })
+      .returning();
 
-  return { balance: row.credits, transaction: tx };
+    return { balance: row.credits, transaction };
+  });
 }
 
 export async function listUserTransactions(userId: string, limit = 50) {
