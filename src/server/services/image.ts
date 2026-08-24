@@ -6,7 +6,7 @@ import {
   getConfig,
   parseEnabledModels,
 } from "@/lib/config";
-import { mkdir, unlink, access, readFile, open, rename, type FileHandle } from "fs/promises";
+import { mkdir, unlink, access, readFile, open, rename, chmod, type FileHandle } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
@@ -377,6 +377,7 @@ export async function writeFileAtomically(
     await handle.sync();
     await handle.close();
     handle = undefined;
+    await chmod(tempPath, 0o644);
     await rename(tempPath, filePath);
   } catch (error) {
     await handle?.close().catch(() => undefined);

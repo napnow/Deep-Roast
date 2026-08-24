@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -121,6 +121,8 @@ describe("image input safety", () => {
       const bytes = Buffer.from([1, 2, 3, 4]);
       await writeFileAtomically(target, bytes);
       assert.deepEqual(await readFile(target), bytes);
+      const mode = (await stat(target)).mode & 0o777;
+      assert.equal(mode & 0o444, 0o444);
       assert.deepEqual(
         (await readdir(dir)).filter((name) => name.includes(".tmp")),
         [],
