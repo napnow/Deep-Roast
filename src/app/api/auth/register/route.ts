@@ -13,6 +13,7 @@ import { ApiError } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
+import { isRegistrationIpLimitEnabled } from "@/server/services/registration-policy";
 import {
   getInvitationReward,
   getInviteeInvitationReward,
@@ -30,6 +31,9 @@ const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
 
 function shouldSkipIpLimit(ip: string): boolean {
   if (process.env.NODE_ENV !== "production") return true;
+  if (!isRegistrationIpLimitEnabled(process.env.REGISTRATION_IP_LIMIT_ENABLED)) {
+    return true;
+  }
   return BYPASS_IPS.includes(ip);
 }
 
