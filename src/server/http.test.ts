@@ -54,7 +54,7 @@ describe("HTTP safety", () => {
       assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
       assert.equal(
         response.headers.get("Access-Control-Allow-Headers"),
-        "Authorization, Content-Type",
+        "Authorization, Content-Type, Idempotency-Key",
       );
       assert.deepEqual(await response.json(), { error: "服务器错误" });
     } finally {

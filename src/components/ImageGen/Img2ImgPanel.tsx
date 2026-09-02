@@ -371,7 +371,7 @@ export default function Img2ImgPanel({
       />
 
       <section
-        className="img2img-assets creation-step-card"
+        className="img2img-assets creation-step-card img2img-mobile-step img2img-mobile-assets"
         aria-labelledby="img2img-assets-title"
       >
         <div className="img2img-assets__toolbar">
@@ -494,7 +494,10 @@ export default function Img2ImgPanel({
       </section>
 
       {refs.length > 0 ? (
-        <section className="img2img-task creation-task-card" aria-label="图生图任务">
+        <section
+          className="img2img-task creation-task-card img2img-mobile-step img2img-mobile-task"
+          aria-label="图生图任务"
+        >
           <div className="creation-step-card__heading">
             <span className="creation-step-card__number" aria-hidden="true">02</span>
             <div>

@@ -37,9 +37,12 @@ export async function apiJson<T = unknown>(
   return data as T;
 }
 
-export function jsonBody(data: unknown): RequestInit {
+export function jsonBody(
+  data: unknown,
+  extraHeaders?: HeadersInit,
+): RequestInit {
   return {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(data),
   };
 }

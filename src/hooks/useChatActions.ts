@@ -119,11 +119,15 @@ export function useChatActions(
 
       const abort = new AbortController();
       abortRef.current = abort;
+      const idempotencyKey = crypto.randomUUID();
 
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+          },
           body: JSON.stringify({ conversationId: convId, message: text }),
           signal: abort.signal,
         });

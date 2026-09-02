@@ -2,6 +2,14 @@ import { requireActiveUser } from "@/server/auth";
 import { handleRoute, jsonOk, readJson } from "@/server/http";
 import { generateImage } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
+import {
+  beginRequest,
+  completeRequest,
+  failRequest,
+  inProgressError,
+  requestErrorBody,
+} from "@/server/services/request-idempotency-store";
+import { readIdempotencyKey } from "@/server/services/request-idempotency";
 
 // 生图限流：每用户 10 次/分钟
 const IMAGE_LIMIT = 10;
@@ -16,13 +24,33 @@ export const POST = handleRoute(async (req) => {
     model?: string;
     size?: string;
   }>(req);
+  const claim = await beginRequest(
+    user.userId,
+    "image-generation",
+    readIdempotencyKey(req),
+  );
+  if (claim.kind === "replay") return jsonOk(claim.body, claim.status);
+  if (claim.kind === "in_progress") throw inProgressError();
 
-  const result = await generateImage({
-    userId: user.userId,
-    role: user.role,
-    prompt: body.prompt || "",
-    modelOverride: body.model,
-    size: body.size,
-  });
-  return jsonOk(result);
+  try {
+    const result = await generateImage({
+      userId: user.userId,
+      role: user.role,
+      prompt: body.prompt || "",
+      modelOverride: body.model,
+      size: body.size,
+      idempotencyKey: claim.key,
+    });
+    await completeRequest(claim.id, 200, result);
+    return jsonOk(result);
+  } catch (error) {
+    await failRequest(
+      claim.id,
+      error instanceof Error && "status" in error
+        ? Number((error as { status?: unknown }).status) || 500
+        : 500,
+      requestErrorBody(error),
+    ).catch((recordError) => console.error("Failed to persist image request failure", recordError));
+    throw error;
+  }
 });

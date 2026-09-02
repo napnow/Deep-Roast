@@ -13,6 +13,7 @@ import { requireAdmin, requireActiveUser } from "@/server/auth";
 import { normalizeBaseUrl } from "@/server/providers/llm";
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 import { isImageGenerationEnabled } from "@/server/services/site-settings";
+import { encryptLlmConfigKey } from "@/server/services/llm-config-crypto";
 
 function mask(key: string) {
   if (!key || key.length < 8) return key ? "****" : "";
@@ -89,7 +90,11 @@ export const PUT = handleRoute(async (req) => {
   if (body.arkApiKey !== undefined) {
     const key = String(body.arkApiKey ?? "").trim();
     if (key && !isMaskedKey(key)) {
-      updates.arkApiKey = key;
+      const encrypted = encryptLlmConfigKey(key);
+      updates.arkApiKey = encrypted.plaintext;
+      updates.arkApiKeyCiphertext = encrypted.ciphertext;
+      updates.arkApiKeyIv = encrypted.iv;
+      updates.arkApiKeyAuthTag = encrypted.authTag;
     }
   }
   if (body.baseUrl !== undefined) {
@@ -149,6 +154,9 @@ export const PUT = handleRoute(async (req) => {
     await db.insert(llmConfig).values({
       id: 1,
       arkApiKey: (updates.arkApiKey as string) || "",
+      arkApiKeyCiphertext: (updates.arkApiKeyCiphertext as string) || null,
+      arkApiKeyIv: (updates.arkApiKeyIv as string) || null,
+      arkApiKeyAuthTag: (updates.arkApiKeyAuthTag as string) || null,
       baseUrl: (updates.baseUrl as string) || "",
       imageModel:
         (updates.imageModel as string) || "doubao-seedream-4-5-251128",

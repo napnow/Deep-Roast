@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { llmConfig } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
+import { resolveLlmConfigKey } from "@/server/services/llm-config-crypto";
 
 const DEFAULT_IMAGE_IDS = DEFAULT_IMAGE_MODELS.map((m) => m.id);
 const DEFAULT_TEXT_IDS = DEFAULT_TEXT_MODELS.map((m) => m.id);
@@ -15,7 +16,10 @@ export async function getConfig() {
   const configs = await db.select().from(llmConfig).where(eq(llmConfig.id, 1));
   const config = configs[0];
   if (!config) return null;
-  return config;
+  return {
+    ...config,
+    arkApiKey: resolveLlmConfigKey(config),
+  };
 }
 
 /** 是否具备任意可用上游凭证（设置页或 env） */

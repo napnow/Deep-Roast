@@ -27,6 +27,14 @@ import {
   normalizeImageEditRequest,
 } from "./image-edit-tasks";
 import { executeImageEditTasks } from "./image-edit-runner";
+import {
+  privateImagePath,
+  privateImageRoot,
+  privateThumbnailPath,
+  protectedLegacyImageUrl,
+  protectedImageUrl,
+} from "./private-images";
+import { providerIdempotencyKey } from "./request-idempotency";
 
 const MAX_PROMPT_LENGTH = 2000;
 
@@ -232,11 +240,29 @@ async function inspectImage(
   }
 }
 
-async function readLocalReference(value: string): Promise<Buffer> {
+async function readLocalReference(value: string, userId: string): Promise<Buffer> {
   const match = /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(value);
-  if (!match) throw new ApiError("参考图地址无效", 400, "INVALID_IMAGE");
+  const protectedMatch = /^\/api\/images\/([A-Za-z0-9][A-Za-z0-9._-]+)$/.exec(value);
+  if (!match && !protectedMatch) throw new ApiError("参考图地址无效", 400, "INVALID_IMAGE");
 
-  const imagePath = path.join(process.cwd(), "public", "images", match[1]);
+  const key = protectedMatch ? protectedMatch[1] : match ? match[1] : "";
+  const [record] = await db
+    .select({ storageKey: imageGenerations.storageKey, imageUrl: imageGenerations.imageUrl })
+    .from(imageGenerations)
+    .where(
+      and(
+        eq(imageGenerations.userId, userId),
+        protectedMatch
+          ? eq(imageGenerations.storageKey, key)
+          : eq(imageGenerations.imageUrl, `/images/${key}`),
+      ),
+    )
+    .limit(1);
+  if (!record) throw new ApiError("参考图不存在", 400, "INVALID_IMAGE");
+
+  const imagePath = record.storageKey
+    ? privateImagePath(privateImageRoot(), record.storageKey)
+    : path.join(process.cwd(), "public", "images", key);
   try {
     const buffer = await readFile(imagePath);
     assertImageByteLimit(buffer.length);
@@ -247,7 +273,7 @@ async function readLocalReference(value: string): Promise<Buffer> {
   }
 }
 
-async function readReference(value: string): Promise<{
+async function readReference(value: string, userId?: string): Promise<{
   buffer: Buffer;
   declaredMime?: string;
 }> {
@@ -257,8 +283,9 @@ async function readReference(value: string): Promise<{
     return { buffer: decodeBase64(dataUrl[2]!), declaredMime };
   }
 
-  if (value.startsWith("/images/")) {
-    return { buffer: await readLocalReference(value) };
+  if (value.startsWith("/images/") || value.startsWith("/api/images/")) {
+    if (!userId) throw new ApiError("参考图地址无效", 400, "INVALID_IMAGE");
+    return { buffer: await readLocalReference(value, userId) };
   }
 
   const result = await requestPublicHttpsBuffer(value, {
@@ -281,6 +308,7 @@ async function readReference(value: string): Promise<{
 
 export async function normalizeReferenceImages(
   values: string[],
+  userId?: string,
 ): Promise<string[]> {
   if (!Array.isArray(values) || values.length === 0) {
     throw new ApiError("至少需要一张参考图", 400, "INVALID_IMAGE");
@@ -299,7 +327,7 @@ export async function normalizeReferenceImages(
     const value = rawValue.trim();
     if (!value) throw new ApiError("参考图参数无效", 400, "INVALID_IMAGE");
 
-    const { buffer, declaredMime } = await readReference(value);
+    const { buffer, declaredMime } = await readReference(value, userId);
     assertImageByteLimit(buffer.length);
     totalBytes += buffer.length;
     if (totalBytes > MAX_REFERENCE_TOTAL_BYTES) {
@@ -458,11 +486,13 @@ async function refundImageReservation(
 }
 
 async function writeImageArtifacts(buffer: Buffer): Promise<{
+  storageKey: string;
+  thumbStorageKey?: string;
   imageUrl: string;
   thumbUrl: string;
   writtenPaths: string[];
 }> {
-  const imagesDir = path.join(process.cwd(), "public", "images");
+  const imagesDir = privateImageRoot();
   const writtenPaths: string[] = [];
   try {
     await mkdir(imagesDir, { recursive: true });
@@ -471,15 +501,18 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
     const imagePath = path.join(imagesDir, filename);
     await writeFileAtomically(imagePath, buffer);
     writtenPaths.push(imagePath);
-    const imageUrl = `/images/${filename}`;
+    const storageKey = filename;
+    const imageUrl = protectedImageUrl(storageKey);
 
     let thumbUrl = imageUrl;
+    let thumbStorageKey: string | undefined;
     let thumbPath: string | undefined;
     try {
       const { default: sharp } = await import("sharp");
       const thumbDir = path.join(imagesDir, "thumbs");
       await mkdir(thumbDir, { recursive: true });
       const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
+      thumbStorageKey = thumbName;
       thumbPath = path.join(thumbDir, thumbName);
       const thumbnail = await sharp(buffer)
         .resize(512, 512, { fit: "inside" })
@@ -487,7 +520,7 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
         .toBuffer();
       await writeFileAtomically(thumbPath, thumbnail);
       writtenPaths.push(thumbPath);
-      thumbUrl = `/images/thumbs/${thumbName}`;
+      thumbUrl = protectedImageUrl(storageKey, true);
     } catch {
       if (thumbPath && writtenPaths.includes(thumbPath)) {
         await cleanupWrittenPaths([thumbPath]);
@@ -496,7 +529,13 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
       /* Thumbnail failure does not affect the original image. */
     }
 
-    return { imageUrl, thumbUrl, writtenPaths };
+    return {
+      storageKey,
+      thumbStorageKey,
+      imageUrl,
+      thumbUrl,
+      writtenPaths,
+    };
   } catch (error) {
     await cleanupWrittenPaths(writtenPaths);
     throw error;
@@ -510,6 +549,7 @@ export async function generateImage(opts: {
   prompt: string;
   modelOverride?: string;
   size?: string;
+  idempotencyKey?: string;
 }) {
   const {
     userId,
@@ -591,6 +631,15 @@ export async function generateImage(opts: {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          ...(opts.idempotencyKey
+            ? {
+                "Idempotency-Key": providerIdempotencyKey(
+                  "image-generation",
+                  opts.idempotencyKey,
+                  attempt,
+                ),
+              }
+            : {}),
         },
         body: JSON.stringify({
           model,
@@ -629,6 +678,8 @@ export async function generateImage(opts: {
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
+          storageKey: artifacts.storageKey,
+          thumbStorageKey: artifacts.thumbStorageKey,
           size,
           userId,
         })
@@ -641,6 +692,7 @@ export async function generateImage(opts: {
         id: row.id,
         imageUrl: artifacts.imageUrl,
         thumbUrl: artifacts.thumbUrl,
+        storageKey: artifacts.storageKey,
         prompt,
         model,
         size,
@@ -693,6 +745,7 @@ export type EditImageResult = {
   prompt: string;
   model: string;
   size: string;
+  storageKey?: string;
 };
 
 /** 执行一次上游图像编辑请求并落盘一个结果。 */
@@ -704,6 +757,8 @@ async function editImageOnce(opts: {
   prompt: string;
   modelOverride?: string;
   size?: string;
+  idempotencyKey?: string;
+  operationIndex?: number;
 }): Promise<EditImageResult> {
   const {
     userId,
@@ -759,7 +814,7 @@ async function editImageOnce(opts: {
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
-  const normalizedImages = await normalizeReferenceImages(images);
+  const normalizedImages = await normalizeReferenceImages(images, userId);
   let reservation: CreditReservation | null = null;
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
@@ -799,6 +854,15 @@ async function editImageOnce(opts: {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          ...(opts.idempotencyKey
+            ? {
+                "Idempotency-Key": providerIdempotencyKey(
+                  "image-edit",
+                  opts.idempotencyKey,
+                  (opts.operationIndex || 0) * maxRetries + attempt,
+                ),
+              }
+            : {}),
         },
         body: JSON.stringify(editPayload),
       });
@@ -831,6 +895,8 @@ async function editImageOnce(opts: {
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
+          storageKey: artifacts.storageKey,
+          thumbStorageKey: artifacts.thumbStorageKey,
           size,
           userId,
         })
@@ -843,6 +909,7 @@ async function editImageOnce(opts: {
         id: row.id,
         imageUrl: artifacts.imageUrl,
         thumbUrl: artifacts.thumbUrl,
+        storageKey: artifacts.storageKey,
         prompt,
         model,
         size,
@@ -894,6 +961,8 @@ export async function editImage(opts: {
   prompt: string;
   modelOverride?: string;
   size?: string;
+  idempotencyKey?: string;
+  operationIndex?: number;
 }): Promise<EditImageResult | EditImageResult[]> {
   const images = Array.isArray(opts.image)
     ? opts.image.filter((value) => value?.trim())
@@ -908,8 +977,14 @@ export async function editImage(opts: {
   }
 
   const results: EditImageResult[] = [];
-  for (const image of images) {
-    results.push(await editImageOnce({ ...opts, image }));
+  for (let index = 0; index < images.length; index += 1) {
+    results.push(
+      await editImageOnce({
+        ...opts,
+        image: images[index],
+        operationIndex: (opts.operationIndex || 0) + index,
+      }),
+    );
   }
   return results;
 }
@@ -921,6 +996,7 @@ export async function runImageEditTasks(opts: {
   modelOverride?: string;
   size?: string;
   count?: number;
+  idempotencyKey?: string;
 }) {
   const {
     userId,
@@ -957,7 +1033,7 @@ export async function runImageEditTasks(opts: {
   const execution = await executeImageEditTasks<EditImageResult>(
     tasks,
     normalizedCount,
-    async (task) =>
+    async (task, taskIndex, variantIndex) =>
       editImageOnce({
         userId,
         role,
@@ -968,6 +1044,8 @@ export async function runImageEditTasks(opts: {
         prompt: task.prompt,
         modelOverride: model,
         size,
+        idempotencyKey: opts.idempotencyKey,
+        operationIndex: taskIndex * normalizedCount + variantIndex,
       }),
   );
 
@@ -992,23 +1070,46 @@ export async function listImageHistory(userId: string, limit = 50) {
     .orderBy(desc(imageGenerations.createdAt))
     .limit(limit);
 
-  // 为已有缩略图的记录附加 thumbUrl（历史图片无缩略图时回落原图）
-  const thumbDir = path.join(process.cwd(), "public", "images", "thumbs");
   return Promise.all(
     rows.map(async (row) => {
-      const base = row.imageUrl.replace(/^\//, "");
+      if (row.storageKey) {
+        const imageUrl = protectedImageUrl(row.storageKey);
+        if (row.thumbStorageKey) {
+          try {
+            await access(privateThumbnailPath(privateImageRoot(), row.storageKey));
+            return {
+              ...row,
+              imageUrl,
+              thumbUrl: protectedImageUrl(row.storageKey, true),
+            };
+          } catch {
+            return { ...row, imageUrl };
+          }
+        }
+        return { ...row, imageUrl };
+      }
+
+      // 兼容迁移前的历史记录；middleware 会阻断其直接静态访问。
+      const legacyKeyMatch =
+        /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp))$/i.exec(
+          row.imageUrl,
+        );
+      if (!legacyKeyMatch) return row;
+      const legacyKey = legacyKeyMatch[1]!;
+      const thumbDir = path.join(process.cwd(), "public", "images", "thumbs");
       const thumbFile = path.join(
         thumbDir,
-        base.replace(/\.(png|jpe?g)$/i, ".webp").replace(/^images\//, ""),
+        legacyKey.replace(/\.(png|jpe?g)$/i, ".webp"),
       );
       try {
         await access(thumbFile);
         return {
           ...row,
-          thumbUrl: `/images/thumbs/${base.replace(/\.(png|jpe?g)$/i, ".webp").replace(/^images\//, "")}`,
+          imageUrl: protectedLegacyImageUrl(legacyKey),
+          thumbUrl: protectedLegacyImageUrl(legacyKey, true),
         };
       } catch {
-        return row;
+        return { ...row, imageUrl: protectedLegacyImageUrl(legacyKey) };
       }
     }),
   );
@@ -1025,23 +1126,27 @@ export async function deleteImageRecord(userId: string, id: string) {
   if (!record) throw new ApiError("记录不存在", 404);
 
   try {
-    const filePath = path.join(process.cwd(), "public", record.imageUrl);
+    const filePath = record.storageKey
+      ? privateImagePath(privateImageRoot(), record.storageKey)
+      : path.join(process.cwd(), "public", record.imageUrl);
     await unlink(filePath);
   } catch {
     /* file may already be gone */
   }
   // 同步删除缩略图（存在才删）
   try {
-    const thumbPath = path.join(
-      process.cwd(),
-      "public",
-      "images",
-      "thumbs",
-      record.imageUrl
-        .split("/")
-        .pop()!
-        .replace(/\.(png|jpe?g)$/i, ".webp"),
-    );
+    const thumbPath = record.storageKey
+      ? privateThumbnailPath(privateImageRoot(), record.storageKey)
+      : path.join(
+          process.cwd(),
+          "public",
+          "images",
+          "thumbs",
+          record.imageUrl
+            .split("/")
+            .pop()!
+            .replace(/\.(png|jpe?g)$/i, ".webp"),
+        );
     await unlink(thumbPath);
   } catch {
     /* thumbnail may not exist */

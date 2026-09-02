@@ -33,7 +33,7 @@ export function privateNoStore(response: Response): Response {
 export const API_V1_CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key",
   "Access-Control-Max-Age": "86400",
 };
 

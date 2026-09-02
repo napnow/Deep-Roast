@@ -10,6 +10,13 @@ import { desc, eq, asc, sql } from "drizzle-orm";
 import { unlink } from "fs/promises";
 import path from "path";
 import { ApiError } from "@/server/http";
+import {
+  privateImagePath,
+  privateImageRoot,
+  privateThumbnailPath,
+  protectedLegacyImageUrl,
+  protectedImageUrl,
+} from "@/server/services/private-images";
 
 export async function listUsersWithStats() {
   const userRows = await db
@@ -126,17 +133,29 @@ export async function deleteUserHard(userId: string) {
   assertNotAdminTarget(target.role);
 
   const images = await db
-    .select({ imageUrl: imageGenerations.imageUrl })
+    .select({
+      imageUrl: imageGenerations.imageUrl,
+      storageKey: imageGenerations.storageKey,
+    })
     .from(imageGenerations)
     .where(eq(imageGenerations.userId, userId));
 
   for (const img of images) {
     try {
-      const rel = img.imageUrl.replace(/^\//, "");
-      await unlink(path.join(process.cwd(), "public", rel));
-    } catch {
-      /* best-effort */
-    }
+        const imagePath = img.storageKey
+          ? privateImagePath(privateImageRoot(), img.storageKey)
+          : path.join(process.cwd(), "public", img.imageUrl.replace(/^\//, ""));
+        await unlink(imagePath);
+      } catch {
+        /* best-effort */
+      }
+      if (img.storageKey) {
+        try {
+          await unlink(privateThumbnailPath(privateImageRoot(), img.storageKey));
+        } catch {
+          /* best-effort */
+        }
+      }
   }
 
   await db.delete(users).where(eq(users.id, userId));
@@ -168,13 +187,24 @@ export async function listUserConversations(userId: string) {
 }
 
 export async function listUserImages(userId: string) {
-  return db
-    .select()
-    .from(imageGenerations)
-    .where(eq(imageGenerations.userId, userId))
-    .orderBy(asc(imageGenerations.createdAt))
-    .limit(100);
-}
+    const rows = await db
+      .select()
+      .from(imageGenerations)
+      .where(eq(imageGenerations.userId, userId))
+      .orderBy(asc(imageGenerations.createdAt))
+      .limit(100);
+    return rows.map((row) => {
+      if (row.storageKey) {
+        return { ...row, imageUrl: protectedImageUrl(row.storageKey) };
+      }
+      const legacyKey = /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp))$/i.exec(
+        row.imageUrl,
+      )?.[1];
+      return legacyKey
+        ? { ...row, imageUrl: protectedLegacyImageUrl(legacyKey) }
+        : row;
+    });
+  }
 
 export async function listConversationMessages(conversationId: string) {
   return db

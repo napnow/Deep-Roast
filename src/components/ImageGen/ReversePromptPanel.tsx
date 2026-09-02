@@ -122,7 +122,7 @@ export default function ReversePromptPanel({
   }
 
   return (
-    <div className="max-w-2xl space-y-3">
+    <div className="reverse-prompt-panel max-w-2xl space-y-3">
       <div className="flex items-center gap-2">
         <span
           className="text-[11px] font-semibold tracking-widest uppercase"
@@ -145,7 +145,7 @@ export default function ReversePromptPanel({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2.5">
+      <div className="reverse-mobile-upload-card flex items-center gap-2.5">
         <input
           ref={fileRef}
           type="file"

@@ -16,6 +16,7 @@ interface HeaderProps {
   onWalletClick: () => void;
   onLogout: () => void;
   onMenuClick?: () => void;
+  mobileTitle?: string;
 }
 
 const WORKSPACE_TABS: ReadonlyArray<{
@@ -37,11 +38,36 @@ export default function Header({
   onWalletClick,
   onLogout,
   onMenuClick,
+  mobileTitle,
 }: HeaderProps) {
   const lowCredits = credits <= 40 && role !== "admin";
 
   return (
-    <header className="workspace-topbar relative z-20 flex items-center justify-between px-3 sm:px-5">
+    <header className="workspace-topbar relative z-20 px-3 sm:px-5">
+      <div className="mobile-app-header md:hidden">
+        {onMenuClick ? (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="打开菜单"
+            className="mobile-app-header__menu"
+          >
+            <AppIcon name="menu" size={22} strokeWidth={1.75} />
+          </button>
+        ) : (
+          <span className="mobile-app-header__spacer" aria-hidden="true" />
+        )}
+
+        <span className="mobile-app-header__brand" aria-label="深焙">
+          深焙
+        </span>
+
+        <div className="mobile-app-header__announcement">
+          <AnnouncementBell />
+        </div>
+      </div>
+
+      <div className="hidden items-center justify-between md:flex">
       <div className="flex min-w-0 items-center gap-2 sm:gap-5">
         {onMenuClick ? (
           <button
@@ -62,6 +88,15 @@ export default function Header({
             Deep Roast
           </span>
         </div>
+
+        {mobileTitle ? (
+          <span
+            className="text-[12px] font-semibold text-[var(--text-muted)] md:hidden"
+            aria-label={`当前工作区：${mobileTitle}`}
+          >
+            {mobileTitle}
+          </span>
+        ) : null}
 
         <div
           className="hidden items-center gap-0.5 rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-0.5 shadow-[var(--shadow-sm)] md:inline-flex"
@@ -146,6 +181,7 @@ export default function Header({
         </button>
 
         <UserMenu username={username} role={role} onLogout={onLogout} />
+      </div>
       </div>
     </header>
   );

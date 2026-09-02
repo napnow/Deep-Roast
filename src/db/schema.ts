@@ -19,6 +19,9 @@ export const llmConfig = pgTable(
   {
     id: integer("id").primaryKey().default(1),
     arkApiKey: text("ark_api_key").notNull().default(""),
+    arkApiKeyCiphertext: text("ark_api_key_ciphertext"),
+    arkApiKeyIv: text("ark_api_key_iv"),
+    arkApiKeyAuthTag: text("ark_api_key_auth_tag"),
     baseUrl: text("base_url")
       .notNull()
       .default(""),
@@ -219,6 +222,8 @@ export const imageGenerations = pgTable("image_generations", {
   prompt: text("prompt").notNull(),
   model: text("model").notNull().default("doubao-seedream-4-5-251128"),
   imageUrl: text("image_url").notNull(),
+  storageKey: text("storage_key"),
+  thumbStorageKey: text("thumb_storage_key"),
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -272,6 +277,35 @@ export const creditTransactions = pgTable(
     reservationIdUnique: uniqueIndex(
       "credit_transactions_reservation_id_unique",
     ).on(table.reservationId),
+  }),
+);
+
+// ── Durable request idempotency ──
+export const requestIdempotency = pgTable(
+  "request_idempotency",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    key: text("key").notNull(),
+    status: text("status").notNull().default("processing"),
+    responseStatus: integer("response_status"),
+    responseBody: jsonb("response_body").$type<Record<string, unknown> | null>(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => ({
+    userScopeKeyUnique: uniqueIndex("request_idempotency_user_scope_key").on(
+      table.userId,
+      table.scope,
+      table.key,
+    ),
+    expiresAtIdx: index("request_idempotency_expires_at_idx").on(
+      table.expiresAt,
+    ),
   }),
 );
 

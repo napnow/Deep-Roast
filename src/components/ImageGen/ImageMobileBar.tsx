@@ -80,9 +80,9 @@ export default function ImageMobileBar({
     isAdmin ? "admin" : "user",
     imageGenerationEnabled,
   );
-  const [toolbarOpen, setToolbarOpen] = useState<"reverse" | "img2img" | null>(
-    null,
-  );
+  const [toolbarOpen, setToolbarOpen] = useState<
+    "reverse" | "img2img" | "size" | null
+  >(null);
   const kbInset = useKeyboardInset();
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -104,9 +104,12 @@ export default function ImageMobileBar({
     return () => ro.disconnect();
   }, [onHeightChange, kbInset]);
 
-  function toggleToolbar(panel: "reverse" | "img2img") {
+  function toggleToolbar(panel: "reverse" | "img2img" | "size") {
     setToolbarOpen((prev) => (prev === panel ? null : panel));
   }
+
+  const selectedSizeLabel =
+    sizeOptions.find((option) => option.value === size)?.label || size;
 
   function autoResize() {
     const ta = taRef.current;
@@ -127,7 +130,9 @@ export default function ImageMobileBar({
     <div
       ref={barRef}
       className="mobile-composer-shell md:hidden fixed z-40"
-      style={{ bottom: kbInset }}
+      style={{
+        bottom: `calc(${kbInset}px + var(--mobile-bottom-nav-height, 0px))`,
+      }}
     >
       {toolbarOpen ? (
         <div
@@ -143,18 +148,30 @@ export default function ImageMobileBar({
           className="mobile-creation-sheet"
           role="dialog"
           aria-modal="true"
-          aria-label={toolbarOpen === "img2img" ? "图生图设置" : "反推设置"}
+          aria-label={
+            toolbarOpen === "img2img"
+              ? "图生图设置"
+              : toolbarOpen === "reverse"
+                ? "反推设置"
+                : "画幅比例"
+          }
         >
           <div className="mobile-creation-sheet__header">
             <span className="mobile-creation-sheet__handle" aria-hidden="true" />
             <div>
               <span className="ui-kicker">
-                {toolbarOpen === "img2img" ? "图生图" : "反推"}
+                {toolbarOpen === "img2img"
+                  ? "图生图"
+                  : toolbarOpen === "reverse"
+                    ? "反推"
+                    : "画幅比例"}
               </span>
               <p className="mobile-creation-sheet__subtitle">
                 {toolbarOpen === "img2img"
                   ? "素材、指令和生成设置"
-                  : "上传图片分析提示词"}
+                  : toolbarOpen === "reverse"
+                    ? "上传图片分析提示词"
+                    : "选择适合当前图片的比例"}
               </p>
             </div>
             <button
@@ -174,7 +191,7 @@ export default function ImageMobileBar({
                 onPrompt={setPrompt}
                 onCloseToolbar={() => setToolbarOpen(null)}
               />
-            ) : (
+            ) : toolbarOpen === "img2img" ? (
               <Img2ImgPanel
                 size={size}
                 sizeOptions={sizeOptions}
@@ -185,6 +202,27 @@ export default function ImageMobileBar({
                 onEditImageBatch={onEditImageBatch}
                 onStopGenerate={onStopGenerate}
               />
+            ) : (
+              <div className="mobile-size-picker" role="listbox" aria-label="图片比例">
+                {sizeOptions.map((option) => {
+                  const selected = option.value === size;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={selected ? "is-active" : undefined}
+                      onClick={() => {
+                        setSize(option.value);
+                        setToolbarOpen(null);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </section>
@@ -218,20 +256,20 @@ export default function ImageMobileBar({
           图生图
         </button>
         <span className="mobile-composer-divider" aria-hidden="true" />
-        <label className="mobile-composer-size">
-          <span className="sr-only">图片比例</span>
-          <select
-            value={size}
-            onChange={(event) => setSize(event.target.value)}
-            aria-label="图片比例"
-          >
-            {sizeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <button
+          type="button"
+          onClick={() => toggleToolbar("size")}
+          aria-expanded={toolbarOpen === "size"}
+          aria-controls="mobile-creation-sheet"
+          className={
+            toolbarOpen === "size"
+              ? "mobile-composer-size is-active"
+              : "mobile-composer-size"
+          }
+        >
+          {selectedSizeLabel}
+          <span aria-hidden="true">⌄</span>
+        </button>
       </div>
 
       {!imageGenerationAvailable ? (

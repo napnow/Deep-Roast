@@ -4,7 +4,11 @@ import {
   publicImageEditError,
 } from "./image-edit-tasks";
 
-export type ImageEditTaskExecutor<T> = (task: ImageEditTask) => Promise<T>;
+export type ImageEditTaskExecutor<T> = (
+  task: ImageEditTask,
+  taskIndex: number,
+  variantIndex: number,
+) => Promise<T>;
 
 export interface ExecutedImageEditResult<T> {
   result: T;
@@ -34,12 +38,8 @@ export async function executeImageEditTasks<T>(
     const task = tasks[taskIndex]!;
     for (let variantIndex = 0; variantIndex < normalizedCount; variantIndex += 1) {
       try {
-        const result = await execute(task);
-        images.push({
-          result,
-          taskIndex,
-          targetIndex: task.targetIndex,
-        });
+        const result = await execute(task, taskIndex, variantIndex);
+        images.push({ result, taskIndex, targetIndex: task.targetIndex });
       } catch (error) {
         failed += 1;
         lastError = publicImageEditError(error);

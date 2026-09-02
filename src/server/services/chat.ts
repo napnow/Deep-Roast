@@ -12,6 +12,11 @@ import {
 import { CREDIT_PER_CHAT } from "@/types";
 import { reserveCredits } from "@/server/services/credits";
 import { assertEnabledTextModel } from "@/server/services/model-access";
+import { providerIdempotencyKey } from "@/server/services/request-idempotency";
+import {
+  completeRequest,
+  failRequest,
+} from "@/server/services/request-idempotency-store";
 
 export const MAX_CHAT_MESSAGE_LENGTH = 20_000;
 const CHAT_STREAM_ERROR = "对话服务暂时不可用，请稍后重试";
@@ -75,6 +80,7 @@ export async function createChatStream(
   role: string,
   conversationId: string,
   message: string,
+  options: { requestId?: string; idempotencyKey?: string } = {},
 ): Promise<Response> {
   if (!conversationId || !message?.trim()) {
     throw new ApiError("conversationId 和 message 为必填项", 400);
@@ -194,6 +200,14 @@ export async function createChatStream(
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
+            ...(options.idempotencyKey
+              ? {
+                  "Idempotency-Key": providerIdempotencyKey(
+                    "chat",
+                    options.idempotencyKey,
+                  ),
+                }
+              : {}),
           },
           body: JSON.stringify({
             model: conv.model,
@@ -266,12 +280,26 @@ export async function createChatStream(
           });
         }
 
+        if (options.requestId) {
+          await completeRequest(options.requestId, 200, {
+            conversationId,
+            text: fullResponse,
+          });
+        }
+
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`),
         );
         controller.close();
       } catch (err: unknown) {
         await refundQuietly(chargeState, "对话上游失败退款");
+        if (options.requestId) {
+          await failRequest(options.requestId, 502, {
+            error: CHAT_STREAM_ERROR,
+          }).catch((recordError) =>
+            console.error("Failed to persist chat request failure", recordError),
+          );
+        }
         console.error(
           "Chat stream error:",
           err instanceof Error ? err.message : "unknown error",
@@ -296,10 +324,33 @@ export async function createChatStream(
       clientCancelled = true;
       upstreamController?.abort();
       void upstreamReader?.cancel("client cancelled");
+      if (options.requestId) {
+        void failRequest(options.requestId, 499, {
+          error: "chat stream cancelled",
+        }).catch((recordError) =>
+          console.error("Failed to persist cancelled chat request", recordError),
+        );
+      }
     },
   });
 
   return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+export function replayChatStream(body: Record<string, unknown>): Response {
+  const text = typeof body.text === "string" ? body.text : "";
+  const encoder = new TextEncoder();
+  const payload =
+    `data: ${JSON.stringify({ type: "token", text })}\n\n` +
+    `data: ${JSON.stringify({ type: "done" })}\n\n`;
+  return new Response(encoder.encode(payload), {
+    status: 200,
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
