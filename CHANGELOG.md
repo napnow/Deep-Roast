@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-02 — Security hardening and repository cleanup
+
+### Security and reliability
+
+- Added durable request idempotency for chat, text-to-image, image-to-image, batch image editing, and the v1 image gateway.
+- Moved new generated images outside `public/`, added authenticated ownership checks, and kept legacy image records behind the protected image route.
+- Encrypted the administrator LLM API key with AES-256-GCM and added the migration command for legacy plaintext configuration.
+- Closed administrator, model-catalog SSRF, credit-transaction, upstream-timeout, and private-image access gaps.
+
+### Operations
+
+- Added migrations `0018_request_idempotency_and_private_images.sql` and `0019_encrypt_llm_config_key.sql`.
+- Added `docs/security-hardening.md` and `docs/operations/private-image-migration.md` with deployment, rollback, and environment-variable guidance.
+
 ## 2026-08-23 — Production security hardening
 
 ### Security and request boundaries

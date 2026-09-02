@@ -45,63 +45,63 @@
 
 ### 1. 安装项目
 
-~~bash
+```bash
 git clone https://github.com/napnow/Deep-Roast.git
 cd Deep-Roast
 npm install
-~~
+```
 
 ### 2. 配置环境变量
 
-~~bash
+```bash
 cp .env.example .env.local
-~~
+```
 
 至少配置：
 
-~~env
+```env
 DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/deep_roast
 JWT_SECRET=replace-with-a-long-random-string
 ADMIN_PASSWORD=replace-with-a-strong-password
-~~
+```
 
 生成随机密钥示例：
 
-~~bash
+```bash
 openssl rand -base64 32
-~~
+```
 
 ### 3. 初始化数据库
 
 创建 PostgreSQL 数据库后执行：
 
-~~bash
+```bash
 npm run db:migrate
 npm run db:seed
-~~
+```
 
 首次 seed 创建管理员时，必须设置 ADMIN_PASSWORD。项目不会使用 admin123 等默认密码；如果管理员账号已经存在，后续 seed 不会修改现有密码。
 
 默认管理员用户名为：
 
-~~text
+```text
 admin
-~~
+```
 
 ### 4. 启动开发环境
 
-~~bash
+```bash
 npm run dev
-~~
+```
 
 打开 <http://localhost:3000>。
 
 ### 5. 构建生产环境
 
-~~bash
+```bash
 npm run build
 npm start
-~~
+```
 
 生产环境建议使用 systemd、Docker 或其他进程管理器，并在前面配置 HTTPS 反向代理。
 
@@ -115,6 +115,8 @@ npm start
 | JWT_SECRET | 是 | JWT 签名密钥，生产环境必须使用强随机值 |
 | ADMIN_PASSWORD | 首次 seed 时 | 新建管理员时使用；已有管理员不会被修改 |
 | API_KEY_ENCRYPTION_KEY | 使用 API Key 功能时 | 32 字节 Base64 密钥，用于 AES-256-GCM 加密 |
+| DEEPROAST_DATA_DIR | 使用私有图库时 | `public/` 之外的持久化数据目录，例如 `/var/lib/deeproast` |
+| IMAGE_URL_SIGNING_KEY | API 网关返回图片 URL 时 | 独立随机密钥；未设置时暂回退到 `JWT_SECRET` |
 | PUBLIC_APP_URL | API 网关/邀请链接时 | HTTPS 根域名，例如 https://example.com |
 | REGISTRATION_BYPASS_IPS | 否 | 允许单 IP 注册多个账号的 IP，逗号分隔 |
 
@@ -131,17 +133,21 @@ npm start
 
 LLM 和图像上游也可以在应用管理设置中配置。生产环境不要把真实密钥提交到 Git。
 
+## 图片访问与请求幂等
+
+新图片写入 `DEEPROAST_DATA_DIR/images`，通过 `/api/images/<key>` 按用户归属读取；不要直接把图片放入 `public/images`。产生上游调用或扣费的请求应发送稳定且唯一的 `Idempotency-Key`，重试同一业务时复用原值。
+
 ## 图生图 API
 
 单图编辑：
 
-~~http
+```http
 POST /api/image-edit
-~~
+```
 
 逐图编辑示例：
 
-~~json
+```json
 {
   "mode": "per-image",
   "items": [
@@ -154,11 +160,11 @@ POST /api/image-edit
   "model": "gpt-image-2",
   "size": "1024x1024"
 }
-~~
+```
 
 目标图 + 参考图示例：
 
-~~json
+```json
 {
   "mode": "reference",
   "targetImage": "data:image/png;base64,...",
@@ -169,13 +175,13 @@ POST /api/image-edit
   "model": "gpt-image-2",
   "size": "1024x1024"
 }
-~~
+```
 
 批量图生图：
 
-~~http
+```http
 POST /api/image-edit/batch
-~~
+```
 
 批量接口返回 images、total、succeeded、failed 和 lastError，支持部分成功结果。上游 5xx 详情不会直接返回给客户端。
 
@@ -206,11 +212,11 @@ POST /api/image-edit/batch
 
 提交修改前建议至少运行：
 
-~~bash
+```bash
 npm test
 npx tsc --noEmit
 npm run lint
-~~
+```
 
 ## 生产安全清单
 
