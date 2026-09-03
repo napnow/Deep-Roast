@@ -10,6 +10,7 @@
 | --- | --- |
 | `next.config.ts` 暴露 `JWT_SECRET` | 已确认当前配置不再写入 `env`；JWT 只在 Node route 内读取。若历史版本曾部署过该配置，必须轮换 JWT_SECRET。 |
 | `PUT /api/config` 缺少 `await requireAdmin` | 已修复并保留管理员校验。 |
+| 管理员无法控制同一 IP 注册限制 | 已在站点设置增加持久化开关，默认开启；关闭只跳过单 IP 注册记录，注册频率限制和 `REGISTRATION_BYPASS_IPS` 规则保持独立。 |
 | `/api/models` 任意 `baseUrl` 搭配服务端 Key 造成 SSRF | 已要求管理员操作；自定义地址必须是公开 HTTPS，且必须显式提供本次请求的 Key，不复用数据库 Key。 |
 | 扣积分与流水不在同一事务 | 已统一使用数据库事务；预扣、退款和流水带有唯一 reservation identity。 |
 | 模型调用、图片落盘、数据库和扣费缺少幂等 | 已增加持久化 `request_idempotency` 表。聊天、文生图、图生图、批量图生图和 v1 生图接口支持 `Idempotency-Key`；上游请求也会收到稳定的幂等键。 |
@@ -27,6 +28,8 @@
 - `IMAGE_URL_SIGNING_KEY`：建议设置为独立随机密钥；未设置时暂回退到 `JWT_SECRET`。
 
 不要把上述值写进 `next.config.ts` 的 `env`、`NEXT_PUBLIC_*` 或前端代码。
+
+管理面板中的“同一 IP 注册限制”保存于 `site_settings.registration_ip_limit_enabled`，默认值为开启。它只控制同一 IP 是否允许创建多个账号，不会关闭注册入口，也不影响每小时注册请求频率限制。
 
 ## API 客户端约定
 
@@ -60,5 +63,6 @@ npx tsx scripts/migrate-llm-config-key.ts
 - 已执行 `scripts/migrate-llm-config-key.ts`；旧明文字段已清空，密文、IV 和认证标签均已写入。
 - 已创建 release /opt/deeproast-releases/20260903-security-hardening，并将 deeproast.service 原子切换到该版本；本次仅重启应用服务，没有重启服务器。
 - 已创建 release /opt/deeproast-releases/20260903-admin-image-access（提交 `66dc094`），修复管理员查看其他用户图片时图片接口错误使用管理员自身归属的问题；切换采用带重试的健康检查。
+- 已恢复“站点与内容 → 站点设置 → 同一 IP 注册限制”开关，默认开启，关闭后允许同一 IP 注册多个账号；历史注册 IP 记录不删除。
 - 已在服务器运行配置中启用持久化目录 /opt/deeproast-data 和独立图片签名密钥，旧图库与上传文件均保留。
 - Caddy 已禁止 /images/* 静态直出；图片统一通过 /api/images/[key] 做登录、用户归属和路径校验。

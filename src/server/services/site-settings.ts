@@ -48,6 +48,7 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     adminContactText: row.adminContactText ?? "",
     adminContactImagePath: row.adminContactImagePath ?? "",
     registrationEnabled: (row.registrationEnabled ?? 1) !== 0,
+    registrationIpLimitEnabled: (row.registrationIpLimitEnabled ?? 1) !== 0,
     imageGenerationEnabled: (row.imageGenerationEnabled ?? 1) !== 0,
     checkinReward: row.checkinReward ?? 50,
     donationEnabled: (row.donationEnabled ?? 1) !== 0,
@@ -68,6 +69,11 @@ export async function getSiteSettings() {
 export async function isRegistrationEnabled(): Promise<boolean> {
   const s = await getSiteSettings();
   return s.registrationEnabled;
+}
+
+export async function isRegistrationIpLimitEnabled(): Promise<boolean> {
+  const s = await getSiteSettings();
+  return s.registrationIpLimitEnabled;
 }
 
 export async function getCheckinReward(): Promise<number> {
@@ -124,6 +130,19 @@ export async function setImageGenerationEnabled(enabled: boolean) {
     .update(siteSettings)
     .set({
       imageGenerationEnabled: enabled ? 1 : 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function setRegistrationIpLimitEnabled(enabled: boolean) {
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({
+      registrationIpLimitEnabled: enabled ? 1 : 0,
       updatedAt: new Date(),
     })
     .where(eq(siteSettings.id, 1))

@@ -8,12 +8,14 @@ import {
   setDonationEnabled,
   setImageGenerationEnabled,
   setRegistrationEnabled,
+  setRegistrationIpLimitEnabled,
   setCheckinReward,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
 import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
 import { parseCheckinSettingsPatch } from "@/server/services/checkin-settings-input";
+import { parseRegistrationIpLimitSettingsPatch } from "@/server/services/registration-ip-limit-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -26,6 +28,7 @@ export const PUT = handleRoute(async (req) => {
     adminContactText?: string;
     clearImage?: boolean;
     registrationEnabled?: boolean;
+    registrationIpLimitEnabled?: boolean;
     imageGenerationEnabled?: boolean;
     donationEnabled?: boolean;
     donationText?: string;
@@ -38,6 +41,7 @@ export const PUT = handleRoute(async (req) => {
 
   const invitationPatch = parseInvitationSettingsPatch(body);
   const checkinPatch = parseCheckinSettingsPatch(body);
+  const registrationIpLimitPatch = parseRegistrationIpLimitSettingsPatch(body);
 
   if (body.clearImage === true) {
     await clearAdminContactImage();
@@ -47,6 +51,11 @@ export const PUT = handleRoute(async (req) => {
   }
   if (typeof body.registrationEnabled === "boolean") {
     await setRegistrationEnabled(body.registrationEnabled);
+  }
+  if (registrationIpLimitPatch.registrationIpLimitEnabled !== undefined) {
+    await setRegistrationIpLimitEnabled(
+      registrationIpLimitPatch.registrationIpLimitEnabled,
+    );
   }
   if (typeof body.imageGenerationEnabled === "boolean") {
     await setImageGenerationEnabled(body.imageGenerationEnabled);

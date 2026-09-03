@@ -17,6 +17,8 @@ import {
   getInvitationReward,
   getInviteeInvitationReward,
 } from "@/server/services/invitation-policy";
+import { isRegistrationIpLimitEnabled } from "@/server/services/site-settings";
+import { shouldEnforceRegistrationIpLimit } from "@/server/services/registration-ip-limit";
 
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
@@ -27,11 +29,6 @@ const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-
-function shouldSkipIpLimit(ip: string): boolean {
-  if (process.env.NODE_ENV !== "production") return true;
-  return BYPASS_IPS.includes(ip);
-}
 
 function errorText(err: unknown): string {
   const e = err as {
@@ -75,14 +72,14 @@ async function registerInTransaction(args: {
   username: string;
   hashedPassword: string;
   inviteCode: string | null;
-  ipLimitActive: boolean;
 }): Promise<RegistrationResult> {
-  const { ip, username, hashedPassword, inviteCode, ipLimitActive } = args;
+  const { ip, username, hashedPassword, inviteCode } = args;
 
   return db.transaction(async (tx) => {
     const [settings] = await tx
       .select({
         registrationEnabled: siteSettings.registrationEnabled,
+        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
         invitationEnabled: siteSettings.invitationEnabled,
         invitationReward: siteSettings.invitationReward,
         invitationInviteeReward: siteSettings.invitationInviteeReward,
@@ -95,6 +92,12 @@ async function registerInTransaction(args: {
       throw new ApiError("暂不开放注册", 403);
     }
 
+    const ipLimitActive = shouldEnforceRegistrationIpLimit(
+      ip,
+      (settings?.registrationIpLimitEnabled ?? 1) !== 0,
+      process.env.NODE_ENV,
+      BYPASS_IPS,
+    );
     if (ipLimitActive) {
       await tx.insert(registrationRecords).values({ ip, username });
     }
@@ -286,7 +289,12 @@ export async function POST(req: Request) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 
-    const ipLimitActive = !shouldSkipIpLimit(ip);
+    const ipLimitActive = shouldEnforceRegistrationIpLimit(
+      ip,
+      await isRegistrationIpLimitEnabled(),
+      process.env.NODE_ENV,
+      BYPASS_IPS,
+    );
     if (ipLimitActive) {
       const [ipRecord] = await db
         .select({ id: registrationRecords.id })
@@ -312,7 +320,6 @@ export async function POST(req: Request) {
           username,
           hashedPassword,
           inviteCode,
-          ipLimitActive,
         });
         break;
       } catch (err) {

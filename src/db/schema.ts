@@ -70,6 +70,10 @@ export const siteSettings = pgTable(
       .default(""),
     /** 是否开放注册；关闭后 register API 与登录页注册入口不可用 */
     registrationEnabled: integer("registration_enabled").notNull().default(1), // 1=开 0=关
+    /** 同一 IP 是否只能注册一个账号（1=开 0=关） */
+    registrationIpLimitEnabled: integer("registration_ip_limit_enabled")
+      .notNull()
+      .default(1),
     /** 普通用户生图总开关；管理员不受影响 */
     imageGenerationEnabled: integer("image_generation_enabled")
       .notNull()

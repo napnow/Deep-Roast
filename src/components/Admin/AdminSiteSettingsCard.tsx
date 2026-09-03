@@ -7,6 +7,8 @@ export default function AdminSiteSettingsCard() {
   const [text, setText] = useState("");
   const [imagePath, setImagePath] = useState("");
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [registrationIpLimitEnabled, setRegistrationIpLimitEnabled] =
+    useState(true);
   const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
   const [invitationEnabled, setInvitationEnabled] = useState(true);
   const [invitationReward, setInvitationReward] = useState("200");
@@ -22,6 +24,7 @@ export default function AdminSiteSettingsCard() {
         adminContactText: string;
         adminContactImagePath: string;
         registrationEnabled?: boolean;
+        registrationIpLimitEnabled?: boolean;
         imageGenerationEnabled?: boolean;
         invitationEnabled?: boolean;
         invitationReward?: number;
@@ -33,6 +36,7 @@ export default function AdminSiteSettingsCard() {
       setText(data.adminContactText || "");
       setImagePath(data.adminContactImagePath || "");
       setRegistrationEnabled(data.registrationEnabled !== false);
+      setRegistrationIpLimitEnabled(data.registrationIpLimitEnabled !== false);
       setImageGenerationEnabled(data.imageGenerationEnabled !== false);
       setInvitationEnabled(data.invitationEnabled !== false);
       setInvitationReward(String(data.invitationReward ?? 200));
@@ -144,6 +148,25 @@ export default function AdminSiteSettingsCard() {
       );
       setImageGenerationEnabled(data.imageGenerationEnabled !== false);
       setMsg(next ? "已开放用户生图" : "已关闭用户生图");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function toggleRegistrationIpLimit(next: boolean) {
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ registrationIpLimitEnabled?: boolean }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ registrationIpLimitEnabled: next }),
+        },
+      );
+      setRegistrationIpLimitEnabled(data.registrationIpLimitEnabled !== false);
+      setMsg(next ? "已开启同一 IP 注册限制" : "已关闭同一 IP 注册限制");
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "更新失败");
     }
@@ -286,6 +309,52 @@ export default function AdminSiteSettingsCard() {
                   }}
                 />
                 {registrationEnabled ? "开放中" : "已关闭"}
+              </button>
+            </div>
+
+            <div
+              className="flex items-center justify-between gap-3 rounded-[var(--radius)] px-3.5 py-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="min-w-0">
+                <p
+                  className="text-[13px] font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  同一 IP 注册限制
+                </p>
+                <p
+                  className="text-[10.5px] mt-0.5"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  开启后同一网络地址只能注册一个账号，关闭后允许多个账号
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() =>
+                  toggleRegistrationIpLimit(!registrationIpLimitEnabled)
+                }
+                className={`admin-btn shrink-0 ${
+                  registrationIpLimitEnabled
+                    ? "admin-btn--accent"
+                    : "admin-btn--danger"
+                }`}
+                aria-pressed={registrationIpLimitEnabled}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{
+                    background: registrationIpLimitEnabled
+                      ? "var(--success)"
+                      : "var(--danger)",
+                  }}
+                />
+                {registrationIpLimitEnabled ? "限制中" : "不限制"}
               </button>
             </div>
 
