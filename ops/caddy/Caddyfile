@@ -59,10 +59,8 @@ deeproast.sryze.cc {
     route {
         respond @notCloudflare 403
 
-        handle /images/* {
-            root * /opt/deeproast-current/public
-            file_server
-        }
+        @privateImages path /images/*
+        respond @privateImages 404
         handle /uploads/* {
             root * /opt/deeproast-current/public
             file_server
