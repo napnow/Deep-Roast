@@ -16,6 +16,7 @@ import {
   privateThumbnailPath,
   protectedLegacyImageUrl,
   protectedImageUrl,
+  withImageOwner,
 } from "@/server/services/private-images";
 
 export async function listUsersWithStats() {
@@ -195,13 +196,22 @@ export async function listUserImages(userId: string) {
       .limit(100);
     return rows.map((row) => {
       if (row.storageKey) {
-        return { ...row, imageUrl: protectedImageUrl(row.storageKey) };
+        return {
+          ...row,
+          imageUrl: withImageOwner(protectedImageUrl(row.storageKey), userId),
+        };
       }
       const legacyKey = /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp))$/i.exec(
         row.imageUrl,
       )?.[1];
       return legacyKey
-        ? { ...row, imageUrl: protectedLegacyImageUrl(legacyKey) }
+        ? {
+            ...row,
+            imageUrl: withImageOwner(
+              protectedLegacyImageUrl(legacyKey),
+              userId,
+            ),
+          }
         : row;
     });
   }

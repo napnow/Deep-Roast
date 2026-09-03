@@ -4,6 +4,7 @@ import {
   assertStorageKey,
   privateImagePath,
   privateThumbnailPath,
+  withImageOwner,
 } from "./private-images";
 
 describe("private image storage", () => {
@@ -28,5 +29,17 @@ describe("private image storage", () => {
       privateThumbnailPath(root, key),
       "D:/deeproast-data/images/thumbs/3f3e3c3b-3a39-4837-8b36-123456789abc.webp",
     );
+  });
+
+  it("adds an encoded owner query for administrator image access", () => {
+    assert.equal(
+      withImageOwner("/api/images/image.png", "user/one"),
+      "/api/images/image.png?owner=user%2Fone",
+    );
+    assert.equal(
+      withImageOwner("/api/images/image.png?thumb=1", "user-one"),
+      "/api/images/image.png?thumb=1&owner=user-one",
+    );
+    assert.throws(() => withImageOwner("/api/images/image.png", "  "));
   });
 });

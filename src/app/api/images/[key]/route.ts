@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/db";
 import { imageGenerations } from "@/db/schema";
-import { requireActiveUser, requireApiUser, type RequestUser } from "@/server/auth";
+import {
+  requireActiveAdmin,
+  requireActiveUser,
+  requireApiUser,
+  type RequestUser,
+} from "@/server/auth";
 import { ApiError, handleRoute } from "@/server/http";
 import {
   assertLegacyImageKey,
@@ -39,6 +44,7 @@ export const GET = handleRoute(async (req, ctx: Ctx) => {
   }
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
+  const owner = url.searchParams.get("owner");
   let userId: string;
 
   if (token) {
@@ -49,6 +55,12 @@ export const GET = handleRoute(async (req, ctx: Ctx) => {
       !verifyImageAccessToken(token, key, userId)
     ) {
       throw new ApiError("Image authorization failed", 403, "IMAGE_ACCESS_DENIED");
+    }
+  } else if (owner !== null) {
+    await requireActiveAdmin(req);
+    userId = owner.trim();
+    if (!userId) {
+      throw new ApiError("Image owner is required", 400, "INVALID_IMAGE_OWNER");
     }
   } else {
     userId = (await resolveUser(req)).userId;

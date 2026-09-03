@@ -46,6 +46,19 @@ export function protectedLegacyImageUrl(key: string, thumbnail = false): string 
   return "/api/images/" + safeKey + (thumbnail ? "?thumb=1" : "");
 }
 
+export function withImageOwner(url: string, ownerId: string): string {
+  const owner = ownerId.trim();
+  if (!owner) {
+    throw new ApiError("Image owner is required", 400, "INVALID_IMAGE_OWNER");
+  }
+  return (
+    url +
+    (url.includes("?") ? "&" : "?") +
+    "owner=" +
+    encodeURIComponent(owner)
+  );
+}
+
 function signingSecret(): string {
   const secret =
     process.env.IMAGE_URL_SIGNING_KEY?.trim() ||
