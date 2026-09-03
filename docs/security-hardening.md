@@ -58,5 +58,6 @@ npx tsx scripts/migrate-llm-config-key.ts
 
 - 已在服务器数据库 `mydb` 应用上述两条 additive migration。
 - 已执行 `scripts/migrate-llm-config-key.ts`；旧明文字段已清空，密文、IV 和认证标签均已写入。
-- 当前 `deeproast.service` 保持运行，仍指向重启前的现有 release；本次没有自动切换 release 或重启服务。
-- 新代码部署前，请先配置 `DEEPROAST_DATA_DIR` 和独立的 `IMAGE_URL_SIGNING_KEY`，并确保 systemd 用户对数据目录有读写权限。
+- 已创建 release /opt/deeproast-releases/20260903-security-hardening，并将 deeproast.service 原子切换到该版本；本次仅重启应用服务，没有重启服务器。
+- 已在服务器运行配置中启用持久化目录 /opt/deeproast-data 和独立图片签名密钥，旧图库与上传文件均保留。
+- Caddy 已禁止 /images/* 静态直出；图片统一通过 /api/images/[key] 做登录、用户归属和路径校验。
