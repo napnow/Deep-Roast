@@ -1,6 +1,6 @@
 # Deep Roast 安全加固说明
 
-更新时间：2026-09-02
+更新时间：2026-09-03
 
 本次修改针对服务器 `/opt/deeproast` 的生产分支完成，并与上游 [napnow/Deep-Roast](https://github.com/napnow/Deep-Roast) 的 `origin/master` 做了对比。上游分支与服务器当前业务线存在较大历史差异，因此保留服务器现有 UI、模型目录和部署改动，只将安全修复作为独立提交叠加，没有直接合并上游全部内容。
 
@@ -13,7 +13,7 @@
 | `/api/models` 任意 `baseUrl` 搭配服务端 Key 造成 SSRF | 已要求管理员操作；自定义地址必须是公开 HTTPS，且必须显式提供本次请求的 Key，不复用数据库 Key。 |
 | 扣积分与流水不在同一事务 | 已统一使用数据库事务；预扣、退款和流水带有唯一 reservation identity。 |
 | 模型调用、图片落盘、数据库和扣费缺少幂等 | 已增加持久化 `request_idempotency` 表。聊天、文生图、图生图、批量图生图和 v1 生图接口支持 `Idempotency-Key`；上游请求也会收到稳定的幂等键。 |
-| 图片位于 `public/images` | 新图片写入 `DEEPROAST_DATA_DIR/images`，通过 `/api/images/[key]` 按用户归属或签名 token 读取；middleware 拒绝 `/images/*` 直出。旧记录保留兼容读取，但旧静态路径也被阻断。 |
+| 图片位于 `public/images` | 新图片写入 `DEEPROAST_DATA_DIR/images`，通过 `/api/images/[key]` 按用户归属或签名 token 读取；管理后台查看其他用户时使用带 `owner` 的受保护地址，图片接口仅允许 active admin 指定该归属，普通用户不能借此跨用户读取；middleware 拒绝 `/images/*` 直出。旧记录保留兼容读取，但旧静态路径也被阻断。 |
 | 模型请求无超时 | 已保留并统一使用上游请求超时、响应体上限和流式聊天最长生命周期。 |
 | LLM API Key 明文写入 PostgreSQL | 新配置使用 AES-256-GCM 字段；迁移脚本会在事务中加密旧 `ark_api_key` 并清空明文。 |
 
@@ -59,5 +59,6 @@ npx tsx scripts/migrate-llm-config-key.ts
 - 已在服务器数据库 `mydb` 应用上述两条 additive migration。
 - 已执行 `scripts/migrate-llm-config-key.ts`；旧明文字段已清空，密文、IV 和认证标签均已写入。
 - 已创建 release /opt/deeproast-releases/20260903-security-hardening，并将 deeproast.service 原子切换到该版本；本次仅重启应用服务，没有重启服务器。
+- 已创建 release /opt/deeproast-releases/20260903-admin-image-access（提交 `66dc094`），修复管理员查看其他用户图片时图片接口错误使用管理员自身归属的问题；切换采用带重试的健康检查。
 - 已在服务器运行配置中启用持久化目录 /opt/deeproast-data 和独立图片签名密钥，旧图库与上传文件均保留。
 - Caddy 已禁止 /images/* 静态直出；图片统一通过 /api/images/[key] 做登录、用户归属和路径校验。
