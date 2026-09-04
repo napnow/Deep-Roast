@@ -5,6 +5,7 @@ import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import type { EditStyle } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import type { ImageToImageDraft } from "@/lib/image-workspace";
 import {
   buildImageEditRequest,
   type ImageEditUiState,
@@ -21,6 +22,7 @@ import {
   toEditStylePreset,
   type EditStylePreset,
 } from "./editStyles";
+import { hydrateImg2ImgDraft } from "./image-to-image-draft";
 
 interface Img2ImgPanelProps {
   size: string;
@@ -28,6 +30,8 @@ interface Img2ImgPanelProps {
   sizeOptions?: { value: string; label: string }[];
   generating: boolean;
   disabled?: boolean;
+  /** 已有生成图的续作草稿；传入时会带入图生图本地表单 */
+  draft?: ImageToImageDraft;
   onGenerate: (prompt: string, size: string) => void;
   /** 图生图：按结构化任务提交编辑 */
   onEditImage?: (request: ImageEditRequest, size: string) => void;
@@ -53,6 +57,7 @@ export default function Img2ImgPanel({
   sizeOptions,
   generating,
   disabled = false,
+  draft,
   onGenerate,
   onEditImage,
   onEditImageBatch,
@@ -83,6 +88,25 @@ export default function Img2ImgPanel({
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
+
+  useEffect(() => {
+    if (!draft || draft.refs.length === 0) return;
+    const next = hydrateImg2ImgDraft(draft);
+    setRefs(next.refs);
+    setEdit(next.edit);
+    setPerImagePrompts(next.perImagePrompts);
+    setEditMode(next.editMode);
+    setTargetIndex(next.targetIndex);
+    setReferenceIndexes(next.referenceIndexes);
+    setEditSize(next.editSize);
+    setBatchCount(next.batchCount);
+    setStyleId(next.styleId);
+    setStyleColor(next.styleColor);
+    setStyleTexture(next.styleTexture);
+    setError("");
+    setProcessing(false);
+    setAnalyzing(false);
+  }, [draft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -370,10 +394,21 @@ export default function Img2ImgPanel({
         className="hidden"
       />
 
-      <section className="img2img-assets" aria-label="参考素材">
+      <section
+        className="img2img-assets creation-step-card img2img-mobile-step img2img-mobile-assets"
+        aria-labelledby="img2img-assets-title"
+      >
         <div className="img2img-assets__toolbar">
-          <div>
-            <span className="creation-section-label">参考素材</span>
+          <div className="creation-step-card__heading">
+            <span className="creation-step-card__number" aria-hidden="true">01</span>
+            <div>
+              <h2 id="img2img-assets-title" className="creation-step-card__title">
+                参考素材
+              </h2>
+              <p className="creation-step-card__description">
+                上传图片，选择目标后描述修改
+              </p>
+            </div>
             <span className="img2img-assets__count">
               {refs.length} / {MAX_REFS}
             </span>
@@ -483,7 +518,19 @@ export default function Img2ImgPanel({
       </section>
 
       {refs.length > 0 ? (
-        <section className="img2img-task" aria-label="图生图任务">
+        <section
+          className="img2img-task creation-task-card img2img-mobile-step img2img-mobile-task"
+          aria-label="图生图任务"
+        >
+          <div className="creation-step-card__heading">
+            <span className="creation-step-card__number" aria-hidden="true">02</span>
+            <div>
+              <h2 className="creation-step-card__title">修改任务</h2>
+              <p className="creation-step-card__description">
+                选择分别修改，或让一张图参考另一张图
+              </p>
+            </div>
+          </div>
           <div className="img2img-task__header">
             <div className="creation-segmented" role="tablist" aria-label="处理方式">
               {(
@@ -595,9 +642,17 @@ export default function Img2ImgPanel({
         </label>
       )}
 
-      <details className="creation-settings">
+      <details className="creation-settings creation-step-card">
         <summary>
-          <span className="creation-settings__title">更多设置</span>
+          <span className="creation-step-card__summary">
+            <span className="creation-step-card__number" aria-hidden="true">03</span>
+            <span>
+              <span className="creation-settings__title">更多设置</span>
+              <span className="creation-step-card__description">
+                风格、比例与生成数量
+              </span>
+            </span>
+          </span>
           <span className="creation-settings__summary">
             {settingsSummary.length > 0
               ? settingsSummary.join(" · ")

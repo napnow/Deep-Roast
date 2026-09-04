@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  MOBILE_PRIMARY_WORKSPACES,
   getMobileCheckinCard,
   getMobilePrimaryWorkspace,
   getMobileWorkspaceTitle,
@@ -14,6 +15,13 @@ describe("mobile workspace UI", () => {
     assert.equal(
       getMobilePrimaryWorkspace("image", "announcements"),
       "generate",
+    );
+  });
+
+  it("uses only existing business areas in the mobile bottom navigation", () => {
+    assert.deepEqual(
+      MOBILE_PRIMARY_WORKSPACES.map((item) => item.label),
+      ["生图", "对话", "作品", "我的"],
     );
   });
 

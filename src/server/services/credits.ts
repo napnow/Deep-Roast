@@ -4,6 +4,7 @@ import { eq, desc, sql, and, type SQL } from "drizzle-orm";
 import { CREDIT_PER_IMAGE, CHECKIN_REWARD } from "@/types";
 import { ApiError } from "@/server/http";
 import { shanghaiToday } from "@/lib/shanghai-date";
+import { getCheckinReward } from "@/server/services/site-settings";
 
 export async function getUserCredits(userId: string): Promise<number> {
   const [user] = await db
@@ -65,7 +66,32 @@ export async function consumeCredits(
   return row.credits;
 }
 
-/** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +CHECKIN_REWARD（原子防并发双签） */
+export async function refundCredits(
+  userId: string,
+  amount: number,
+  note: string,
+): Promise<number> {
+  const rows = await db
+    .update(users)
+    .set({
+      credits: sql`${users.credits} + ${amount}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .returning({ id: users.id, credits: users.credits });
+  const row = rows[0];
+  if (!row) throw new ApiError("用户不存在", 404);
+  await db.insert(creditTransactions).values({
+    userId,
+    type: "refund",
+    amount,
+    balanceAfter: row.credits,
+    note,
+  });
+  return row.credits;
+}
+
+/** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +动态签到奖励（原子防并发双签） */
 export async function performCheckin(userId: string) {
   const user = await getUserRow(userId);
 
@@ -77,11 +103,12 @@ export async function performCheckin(userId: string) {
   }
 
   const today = shanghaiToday();
+  const reward = await getCheckinReward();
 
   const rows = await db
     .update(users)
     .set({
-      credits: sql`${users.credits} + ${CHECKIN_REWARD}`,
+      credits: sql`${users.credits} + ${reward}`,
       lastCheckinOn: today,
       updatedAt: new Date(),
     })
@@ -102,7 +129,7 @@ export async function performCheckin(userId: string) {
   await db.insert(creditTransactions).values({
     userId,
     type: "checkin",
-    amount: CHECKIN_REWARD,
+    amount: reward,
     balanceAfter: row.credits,
     note: `每日签到 ${today}`,
   });
@@ -110,7 +137,7 @@ export async function performCheckin(userId: string) {
   return {
     credits: row.credits,
     checkinOn: today,
-    reward: CHECKIN_REWARD,
+    reward,
     todayChecked: true,
   };
 }
@@ -118,14 +145,14 @@ export async function performCheckin(userId: string) {
 export function checkinStatusFromUser(user: {
   role: string;
   lastCheckinOn: string | null;
-}) {
+}, reward = CHECKIN_REWARD) {
   const today = shanghaiToday();
   const isUser = user.role === "user";
   return {
     eligible: isUser,
     todayChecked: isUser && user.lastCheckinOn === today,
     checkinOn: user.lastCheckinOn,
-    reward: CHECKIN_REWARD,
+    reward,
     today,
   };
 }

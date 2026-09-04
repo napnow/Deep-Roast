@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppModals from "@/components/AppModals";
 import { useAuth } from "@/components/AuthProvider";
 import TextModePanel from "@/components/Chat/TextModePanel";
@@ -9,15 +10,24 @@ import ImageGenView from "@/components/ImageGen/ImageGenView";
 import MobileDrawer from "@/components/ImageGen/MobileDrawer";
 import { useToast } from "@/components/Toast";
 import AppShell from "@/components/Workspace/AppShell";
+import MobileWorkspaceNav from "@/components/Workspace/MobileWorkspaceNav";
+import {
+  getMobilePrimaryWorkspace,
+  getMobileWorkspaceTitle,
+  type MobileImageTab,
+  type MobilePrimaryWorkspace,
+} from "@/components/Workspace/mobile-workspace-ui";
 import { useAppActions } from "@/hooks/useAppActions";
+import { useMobileViewport } from "@/hooks/useMobileViewport";
 import { ApiError, apiJson } from "@/lib/client-api";
+import { softNavigate } from "@/lib/nav-transition";
 import { useDeepRoastStore } from "@/lib/store";
 import {
   parseStoredBoolean,
   parseStoredWorkspaceMode,
   type WorkspaceMode,
 } from "@/lib/workspace-preferences";
-import { CHECKIN_REWARD, type ImageRecord } from "@/types";
+import { type ImageRecord } from "@/types";
 
 const WORKSPACE_STORAGE_KEY = "deep-roast-workspace";
 const INSPECTOR_COLLAPSED_STORAGE_KEY =
@@ -25,15 +35,17 @@ const INSPECTOR_COLLAPSED_STORAGE_KEY =
 
 /** 首页只负责工作区布局；状态在 store，业务在 useAppActions。 */
 export default function Home() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const actions = useAppActions();
   const { toast } = useToast();
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [mobileTab, setMobileTab] = useState<
-    "generate" | "gallery" | "announcements"
-  >("generate");
+  const [mobileTab, setMobileTab] = useState<MobileImageTab>("generate");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  const [donationEnabled, setDonationEnabled] = useState(false);
+  const [donationOpen, setDonationOpen] = useState(false);
+  const mobileViewport = useMobileViewport();
 
   const {
     activeMode,
@@ -51,12 +63,31 @@ export default function Home() {
     imageHistory,
     generating,
     credits,
+    checkinReward,
     checkinEligible,
     todayChecked,
     setCredits,
     setCheckinStatus,
     setWalletOpen,
+    setPwOpen,
+    setApiOpen,
+    setSettingsOpen,
   } = useDeepRoastStore();
+
+  useEffect(() => {
+    let cancelled = false;
+    apiJson<{ enabled?: boolean }>("/api/public/donation")
+      .then((data) => {
+        if (!cancelled) setDonationEnabled(data.enabled === true);
+      })
+      .catch(() => {
+        if (!cancelled) setDonationEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setActiveMode(
@@ -94,8 +125,13 @@ export default function Home() {
         todayChecked?: boolean;
       }>("/api/credits/checkin", { method: "POST" });
       setCredits(data.credits);
-      setCheckinStatus({ todayChecked: true, eligible: true });
-      toast(`签到成功，+${data.reward ?? CHECKIN_REWARD} 积分`, "success");
+      const reward = data.reward ?? checkinReward;
+      setCheckinStatus({
+        todayChecked: true,
+        eligible: true,
+        reward,
+      });
+      toast(`签到成功，+${reward} 积分`, "success");
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         toast(error.message || "签到失败", "error");
@@ -111,6 +147,7 @@ export default function Home() {
     checkinEligible,
     todayChecked,
     checkinLoading,
+    checkinReward,
     setCredits,
     setCheckinStatus,
     toast,
@@ -126,6 +163,11 @@ export default function Home() {
   const hasApiKey = Boolean(config.hasApiKey);
   const role = user?.role || "user";
   const isAdmin = role === "admin";
+  const mobilePrimaryWorkspace = getMobilePrimaryWorkspace(
+    activeMode,
+    mobileTab,
+  );
+  const mobileWorkspaceTitle = getMobileWorkspaceTitle(activeMode, mobileTab);
 
   const handleActiveImageChange = useCallback(
     (image: ImageRecord | null) => {
@@ -152,15 +194,18 @@ export default function Home() {
   );
 
   const handleMenuClick = useCallback(() => {
-    if (activeMode === "chat") {
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 768px)").matches;
+    if (isDesktop && activeMode === "chat") {
       setChatSidebarOpen(true);
-    } else {
-      setDrawerOpen(true);
+      return;
     }
+    setDrawerOpen(true);
   }, [activeMode]);
 
   const handleSelectImageTab = useCallback(
-    (tab: "generate" | "gallery" | "announcements") => {
+    (tab: MobileImageTab) => {
       setActiveMode("image");
       setMobileTab(tab);
       setDrawerOpen(false);
@@ -172,12 +217,38 @@ export default function Home() {
   const handleSwitchChat = useCallback(() => {
     setActiveMode("chat");
     setDrawerOpen(false);
+    setChatSidebarOpen(false);
   }, [setActiveMode]);
 
   const handleSwitchImage = useCallback(() => {
     setActiveMode("image");
     setChatSidebarOpen(false);
   }, [setActiveMode]);
+
+  const handleOpenChatHistory = useCallback(() => {
+    setActiveMode("chat");
+    setDrawerOpen(false);
+    setChatSidebarOpen(true);
+  }, [setActiveMode]);
+
+  const handleOpenAdmin = useCallback(() => {
+    softNavigate(router, "/admin");
+  }, [router]);
+
+  const handleSelectMobileWorkspace = useCallback(
+    (workspace: MobilePrimaryWorkspace) => {
+      if (workspace === "account") {
+        setDrawerOpen(true);
+        return;
+      }
+      if (workspace === "chat") {
+        handleSwitchChat();
+        return;
+      }
+      handleSelectImageTab(workspace);
+    },
+    [handleSelectImageTab, handleSwitchChat],
+  );
 
   const header = (
     <Header
@@ -187,8 +258,11 @@ export default function Home() {
       role={role}
       onLogout={logout}
       credits={credits}
+      donationEnabled={donationEnabled}
+      onDonationClick={() => setDonationOpen(true)}
       onWalletClick={() => setWalletOpen(true)}
       onMenuClick={handleMenuClick}
+      mobileTitle={mobileWorkspaceTitle}
     />
   );
 
@@ -221,10 +295,11 @@ export default function Home() {
           >
             <ImageGenView
               model={currentModel}
-              onGenerate={actions.handleGenerateImage}
+              onGenerate={actions.handleGenerateImageBatch}
               onEditImage={actions.handleEditImage}
               onEditImageBatch={actions.handleEditImageBatch}
               onStopGenerate={actions.handleStopGenerateImage}
+              onRetryGenerate={actions.handleRetryImageTask}
               generating={generating}
               history={imageHistory}
               activeImage={activeImage}
@@ -232,11 +307,11 @@ export default function Home() {
               onDeleteImage={handleDeleteImage}
               credits={credits}
               isAdmin={isAdmin}
-              checkinEligible={checkinEligible}
-              todayChecked={todayChecked}
-              onCheckinClick={handleCheckin}
               onWalletClick={() => setWalletOpen(true)}
               mobileTab={mobileTab}
+              onMobileGenerateTab={() => handleSelectImageTab("generate")}
+              keyboardInset={mobileViewport.keyboardInset}
+              keyboardOpen={mobileViewport.keyboardOpen}
             />
           </section>
 
@@ -267,20 +342,36 @@ export default function Home() {
           </section>
         </div>
 
+        <MobileWorkspaceNav
+          activeWorkspace={mobilePrimaryWorkspace}
+          onSelect={handleSelectMobileWorkspace}
+          hidden={mobileViewport.keyboardOpen}
+        />
+
         <MobileDrawer
           open={drawerOpen}
-          activeMode={activeMode}
-          tab={mobileTab}
-          historyCount={imageHistory.length}
-          chatCount={conversations.length}
-          onSelectImageTab={handleSelectImageTab}
-          onSwitchChat={handleSwitchChat}
+          checkinEligible={checkinEligible}
+          todayChecked={todayChecked}
+          checkinReward={checkinReward}
+          checkinLoading={checkinLoading}
+          donationEnabled={donationEnabled}
+          onOpenWallet={() => setWalletOpen(true)}
+          onOpenPassword={() => setPwOpen(true)}
+          onOpenApiKeys={() => setApiOpen(true)}
+          onOpenDonation={() => setDonationOpen(true)}
+          onOpenAnnouncements={() => handleSelectImageTab("announcements")}
+          onOpenChatHistory={handleOpenChatHistory}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenAdmin={handleOpenAdmin}
+          onCheckin={handleCheckin}
           onClose={() => setDrawerOpen(false)}
         />
 
         <AppModals
           onSaveConfig={actions.handleSaveConfig}
           role={role}
+          donationOpen={donationOpen}
+          onDonationClose={() => setDonationOpen(false)}
           checkinLoading={checkinLoading}
           onCheckinClick={handleCheckin}
         />

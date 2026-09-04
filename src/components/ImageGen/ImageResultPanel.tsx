@@ -3,6 +3,7 @@
 import type { ImageRecord } from "@/types";
 import { downloadImage, formatTime } from "./imageUtils";
 import SmartResultImage from "./SmartResultImage";
+import { ThinkingOrb } from "thinking-orbs";
 
 interface ImageResultPanelProps {
   activeImage: ImageRecord | null;
@@ -141,17 +142,8 @@ export default function ImageResultPanel({
           }}
         >
           <div className="text-center space-y-3">
-            <div className="flex gap-2 justify-center">
-              {[0, 120, 240].map((delay) => (
-                <span
-                  key={delay}
-                  className="w-2 h-2 rounded-full animate-pulse-soft"
-                  style={{
-                    background: "var(--accent)",
-                    animationDelay: `${delay}ms`,
-                  }}
-                />
-              ))}
+            <div className="flex justify-center">
+              <ThinkingOrb state="working" size={64} />
             </div>
             <p
               className="text-sm font-semibold tabular-nums"

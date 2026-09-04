@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { relativeTime } from "@/types";
 import type { Conversation } from "@/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { AppIcon } from "@/components/ui/icons";
+import { filterConversations, groupConversations } from "@/lib/conversation-library";
 
 interface SidebarProps {
   conversations: Conversation[];
@@ -25,6 +27,7 @@ export default function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  onRename,
   open = false,
   onClose,
   onSwitchImage,
@@ -32,6 +35,12 @@ export default function Sidebar({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingDeleteTitle, setPendingDeleteTitle] = useState("");
+  const [query, setQuery] = useState("");
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const groups = useMemo(
+    () => groupConversations(filterConversations(conversations, query)),
+    [conversations, query],
+  );
   return (
     <>
       {open && (
@@ -62,6 +71,14 @@ export default function Sidebar({
         >
           + 新对话
         </button>
+        <label className="chat-search">
+          <AppIcon name="search" size={14} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索对话"
+          />
+        </label>
         {onSwitchImage && (
           <button
             onClick={onSwitchImage}
@@ -104,7 +121,9 @@ export default function Sidebar({
           </div>
         )}
 
-        {conversations.map((conv) => {
+        {groups.flatMap((group) => [
+          <p key={`${group.label}-heading`} className="chat-group-label">{group.label}</p>,
+          ...group.conversations.map((conv) => {
           const isActive = activeId === conv.id;
           return (
             <div
@@ -133,20 +152,28 @@ export default function Sidebar({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setPendingDeleteId(conv.id);
-                    setPendingDeleteTitle(conv.title);
-                    setConfirmOpen(true);
+                    setMenuId((id) => id === conv.id ? null : conv.id);
                   }}
-                  className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center text-xs md:opacity-0 md:group-hover:opacity-100 transition-all duration-150"
-                  style={{
-                    color: "var(--danger)",
-                    background: "var(--danger-surface)",
-                  }}
-                  title="删除"
-                  aria-label={`删除对话 ${conv.title}`}
+                  className="shrink-0 icon-button md:opacity-0 md:group-hover:opacity-100"
+                  aria-label={`更多对话操作 ${conv.title}`}
                 >
-                  ✕
+                  <AppIcon name="more" size={14} />
                 </button>
+                {menuId === conv.id ? (
+                  <div className="chat-row-menu" onClick={(event) => event.stopPropagation()}>
+                    <button onClick={() => {
+                      const title = window.prompt("修改对话标题", conv.title)?.trim();
+                      if (title) onRename(conv.id, title);
+                      setMenuId(null);
+                    }}>重命名</button>
+                    <button className="is-danger" onClick={() => {
+                      setPendingDeleteId(conv.id);
+                      setPendingDeleteTitle(conv.title);
+                      setConfirmOpen(true);
+                      setMenuId(null);
+                    }}>删除</button>
+                  </div>
+                ) : null}
               </div>
               <div
                 className="text-[10px] mt-1 flex items-center gap-1.5"
@@ -158,7 +185,8 @@ export default function Sidebar({
               </div>
             </div>
           );
-        })}
+        }),
+        ])}
       </div>
       </aside>
       <ConfirmDialog

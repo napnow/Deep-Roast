@@ -17,6 +17,10 @@ import AdminCreditsTab from "@/components/Admin/AdminCreditsTab";
 import AdminConversationsTab from "@/components/Admin/AdminConversationsTab";
 import AdminImageDetailModal from "@/components/Admin/AdminImageDetailModal";
 import ResetPasswordModal from "@/components/Admin/ResetPasswordModal";
+import AdminApiKeysTab from "@/components/Admin/AdminApiKeysTab";
+import AdminSiteContentPage from "@/components/Admin/AdminSiteContentPage";
+import AdminAiCapabilitiesPage from "@/components/Admin/AdminAiCapabilitiesPage";
+import MobileAdminUserSheet from "@/components/Admin/MobileAdminUserSheet";
 import { softNavigate } from "@/lib/nav-transition";
 
 export default function AdminPage() {
@@ -35,7 +39,7 @@ export default function AdminPage() {
   const [adjustNote, setAdjustNote] = useState("");
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "images" | "credits" | "conversations"
+    "images" | "credits" | "conversations" | "apiKeys"
   >("images");
   const [convList, setConvList] = useState<Conversation[]>([]);
   const [expandedConv, setExpandedConv] = useState<string | null>(null);
@@ -51,10 +55,11 @@ export default function AdminPage() {
   } | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
   /** 右侧主面板：总览 或 用户详情（选用户时自动切到 detail） */
-  const [mainView, setMainView] = useState<"overview" | "detail">("overview");
+  const [mainView, setMainView] = useState<"overview" | "detail" | "site" | "ai">("overview");
   /** 手动刷新状态与最近刷新时间 */
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
+  const [mobileUserSheetOpen, setMobileUserSheetOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -319,17 +324,41 @@ export default function AdminPage() {
         users={users}
         selectedUser={selectedUser}
         overviewActive={mainView === "overview"}
+        siteActive={mainView === "site"}
+        aiActive={mainView === "ai"}
         loadingUsers={loadingUsers}
         onShowOverview={() => setMainView("overview")}
+        onShowSite={() => setMainView("site")}
+        onShowAi={() => setMainView("ai")}
         onSelect={(u) => {
           setSelectedUser(u);
+          setImageDetail(null);
           setMainView("detail");
         }}
+        onOpenMobileUsers={() => setMobileUserSheetOpen(true)}
         onBack={() => softNavigate(router, "/")}
       />
 
+      <MobileAdminUserSheet
+        open={mobileUserSheetOpen}
+        users={users}
+        selectedUser={selectedUser}
+        loading={loadingUsers}
+        onClose={() => setMobileUserSheetOpen(false)}
+        onSelect={(u) => {
+          setSelectedUser(u);
+          setImageDetail(null);
+          setMainView("detail");
+          setMobileUserSheetOpen(false);
+        }}
+      />
+
       <div className="admin-main">
-        {mainView === "overview" || !selectedUser ? (
+        {mainView === "site" ? (
+          <AdminSiteContentPage />
+        ) : mainView === "ai" ? (
+          <AdminAiCapabilitiesPage />
+        ) : mainView === "overview" || !selectedUser ? (
           <AdminDashboard
             globalStats={globalStats}
             refreshing={refreshing}
@@ -525,6 +554,11 @@ export default function AdminPage() {
                     label: "积分",
                     count: creditTx.length,
                   },
+                  {
+                    key: "apiKeys" as const,
+                    label: "API Key",
+                    count: null,
+                  },
                 ] as const
               ).map((tab) => {
                 const active = activeTab === tab.key;
@@ -550,7 +584,7 @@ export default function AdminPage() {
                     <span
                       className="ml-1.5 tabular-nums text-[10px] opacity-70"
                     >
-                      {loadingDetail ? "…" : tab.count}
+                      {loadingDetail ? "…" : tab.count ?? ""}
                     </span>
                   </button>
                 );
@@ -584,6 +618,9 @@ export default function AdminPage() {
                     onNoteChange={setAdjustNote}
                     onAdjust={handleCreditsAdjust}
                   />
+                )}
+                {activeTab === "apiKeys" && (
+                  <AdminApiKeysTab userId={selectedUser.id} />
                 )}
                 {imageDetail && (
                   <AdminImageDetailModal

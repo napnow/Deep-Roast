@@ -9,11 +9,17 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ApiError } from "@/server/http";
 import { verifyToken } from "@/lib/auth";
+import { resolveApiKeyUser } from "@/server/services/api-keys";
 
 export interface RequestUser {
   userId: string;
   username: string;
   role: string;
+  apiKeyId?: string;
+}
+
+export function assertAdminRole(role: string) {
+  if (role !== "admin") throw new ApiError("无权限", 403);
 }
 
 /** 从请求 Cookie 解析 JWT 并验证，失败返回 null */
@@ -42,6 +48,16 @@ export async function getRequestUser(
   return resolveUserFromRequest(req);
 }
 
+/** 中转网关鉴权：从 Authorization: Bearer <api-key> 解析用户 */
+export async function requireApiUser(req: Request): Promise<RequestUser> {
+  const auth = req.headers.get("authorization") || "";
+  const match = /^Bearer\s+(.+)$/i.exec(auth);
+  if (!match) {
+    throw new ApiError("缺少 Authorization: Bearer <key> 请求头", 401);
+  }
+  return resolveApiKeyUser(match[1].trim());
+}
+
 /** 校验未封禁；业务 API 优先使用 */
 export async function requireActiveUser(req: Request): Promise<RequestUser> {
   const user = await resolveUserFromRequest(req);
@@ -62,14 +78,14 @@ export async function requireActiveUser(req: Request): Promise<RequestUser> {
 /** 管理员校验（route 内部用） */
 export async function requireAdmin(req: Request): Promise<RequestUser> {
   const user = await requireActiveUser(req);
-  if (user.role !== "admin") throw new ApiError("无权限", 403);
+  assertAdminRole(user.role);
   return user;
 }
 
 /** 校验未封禁的管理员（管理后台 API 用） */
 export async function requireActiveAdmin(req: Request): Promise<RequestUser> {
   const user = await requireActiveUser(req);
-  if (user.role !== "admin") throw new ApiError("无权限", 403);
+  assertAdminRole(user.role);
   return user;
 }
 

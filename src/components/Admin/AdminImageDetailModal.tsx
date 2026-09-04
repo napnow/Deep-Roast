@@ -12,87 +12,102 @@ export default function AdminImageDetailModal({
   onClose,
 }: AdminImageDetailModalProps) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-6 animate-fade-in"
-      style={{ background: "rgba(18, 14, 10, 0.55)", backdropFilter: "blur(6px)" }}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 animate-fade-in">
       <div
-        className="rounded-[var(--radius-xl)] border w-full max-w-2xl my-auto overflow-hidden animate-fade-up"
-        style={{
-          background: "var(--bg-surface)",
-          borderColor: "var(--border-strong)",
-          boxShadow: "var(--shadow-lg)",
-          maxHeight: "calc(100vh - 1.5rem)",
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-0"
+        style={{ background: "rgba(18, 14, 10, 0.55)", backdropFilter: "blur(6px)" }}
+        onClick={onClose}
+      />
+      <div
+        className="relative z-10 flex min-h-full items-start justify-center overflow-y-auto p-3 sm:p-6"
+        onClick={onClose}
       >
         <div
-          className="overflow-y-auto"
-          style={{ maxHeight: "calc(100vh - 1.5rem)" }}
+          className="my-auto w-full max-w-2xl overflow-hidden rounded-[var(--radius-xl)] border animate-fade-up"
+          style={{
+            background: "var(--bg-surface)",
+            borderColor: "var(--border-strong)",
+            boxShadow: "var(--shadow-lg)",
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image.imageUrl}
-          alt={image.prompt}
-          className="w-full max-h-[62vh] object-contain"
-          style={{ background: "var(--bg-root)" }}
-        />
-        <div className="p-5 space-y-4">
-          <div>
-            <p className="admin-kicker mb-1.5">Prompt</p>
-            <p
-              className="text-sm leading-relaxed"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {image.prompt}
-            </p>
+          <div
+            data-testid="admin-image-detail-media"
+            className="flex min-h-[30vh] shrink-0 items-center justify-center p-2 sm:min-h-[40vh] sm:p-4"
+            style={{ background: "var(--bg-root)" }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image.imageUrl}
+              alt={image.prompt}
+              className="block h-auto max-h-[70vh] max-w-full object-contain"
+            />
           </div>
           <div
-            className="grid grid-cols-2 gap-3 text-xs"
-            style={{ color: "var(--text-secondary)" }}
+            data-testid="admin-image-detail-info"
+            className="space-y-4 border-t p-4 sm:p-5"
+            style={{ borderColor: "var(--border)" }}
           >
-            <div>
-              <span className="admin-kicker">模型</span>
-              <p className="mt-1 font-medium">{image.model}</p>
-            </div>
-            <div>
-              <span className="admin-kicker">尺寸</span>
-              <p className="mt-1 font-medium tabular-nums">{image.size}</p>
-            </div>
-            {image.createdAt && (
-              <div className="col-span-2">
-                <span className="admin-kicker">生成时间</span>
-                <p className="mt-1 tabular-nums">
-                  {new Date(image.createdAt).toLocaleString("zh-CN", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}
-                </p>
+            <div
+              className="rounded-[var(--radius)] border p-3"
+              style={{
+                background: "var(--bg-root)",
+                borderColor: "var(--border)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="admin-kicker">Prompt</p>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(image.prompt)}
+                  className="admin-btn admin-btn--accent !px-2 !py-1 text-xs"
+                >
+                  复制提示词
+                </button>
               </div>
-            )}
-          </div>
-          <div className="flex gap-2 pt-1">
+              <p
+                className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {image.prompt}
+              </p>
+            </div>
+            <div
+              className="grid grid-cols-2 gap-3 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <div>
+                <span className="admin-kicker">模型</span>
+                <p className="mt-1 font-medium">{image.model}</p>
+              </div>
+              <div>
+                <span className="admin-kicker">尺寸</span>
+                <p className="mt-1 font-medium tabular-nums">{image.size}</p>
+              </div>
+              {image.createdAt && (
+                <div className="col-span-2">
+                  <span className="admin-kicker">生成时间</span>
+                  <p className="mt-1 tabular-nums">
+                    {new Date(image.createdAt).toLocaleString("zh-CN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </p>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="admin-btn admin-btn--ghost flex-1"
+              className="admin-btn admin-btn--ghost w-full"
             >
               关闭
             </button>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(image.prompt)}
-              className="admin-btn admin-btn--accent flex-1"
-            >
-              复制提示词
-            </button>
           </div>
-        </div>
         </div>
       </div>
     </div>

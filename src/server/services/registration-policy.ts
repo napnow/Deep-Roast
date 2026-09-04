@@ -1,3 +1,5 @@
-export function isRegistrationIpLimitEnabled(value?: string): boolean {
-  return value?.trim().toLowerCase() !== "false";
+export function isRegistrationIpLimitEnabled(
+  value: number | null | undefined,
+): boolean {
+  return value === 1;
 }

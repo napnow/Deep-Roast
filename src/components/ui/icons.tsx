@@ -3,6 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type AppIconName =
   | "menu"
   | "image"
+  | "gallery"
   | "chat"
   | "history"
   | "details"
@@ -12,6 +13,7 @@ export type AppIconName =
   | "search"
   | "more"
   | "wallet"
+  | "bell"
   | "announcement"
   | "key"
   | "settings"
@@ -20,7 +22,8 @@ export type AppIconName =
   | "close"
   | "chevron-down"
   | "arrow-left"
-  | "trash";
+  | "trash"
+  | "check";
 
 interface AppIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: AppIconName;
@@ -35,6 +38,13 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
         <rect x="3" y="4" width="18" height="16" rx="2" />
         <path d="m3 16 5-5 4 4 3-3 6 6" />
         <circle cx="15.5" cy="8.5" r="1.5" />
+      </>
+    ),
+    gallery: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="m3 16 5-5 4 4 3-3 6 6" />
+        <path d="M7 4V2m10 2V2" />
       </>
     ),
     chat: <path d="M4 5h16v11H8l-4 3V5Z" />,
@@ -77,6 +87,12 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
         <path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z" />
       </>
     ),
+    bell: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
     announcement: (
       <>
         <path d="m4 13 2 6h3l-1-6M4 9v4h4l9 4V5L8 9H4Z" />
@@ -116,6 +132,7 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
         <path d="M10 11v6M14 11v6" />
       </>
     ),
+    check: <path d="m5 12 5 5L20 7" />,
   };
 
   return (

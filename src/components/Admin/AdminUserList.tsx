@@ -2,14 +2,20 @@
 
 import type { AdminUser } from "@/types";
 import { relativeTime } from "@/types";
+import { AppIcon } from "@/components/ui/icons";
 
 interface AdminUserListProps {
   users: AdminUser[];
   selectedUser: AdminUser | null;
   overviewActive: boolean;
+  siteActive: boolean;
+  aiActive: boolean;
   loadingUsers: boolean;
   onShowOverview: () => void;
+  onShowSite: () => void;
+  onShowAi: () => void;
   onSelect: (user: AdminUser) => void;
+  onOpenMobileUsers: () => void;
   onBack: () => void;
 }
 
@@ -17,9 +23,14 @@ export default function AdminUserList({
   users,
   selectedUser,
   overviewActive,
+  siteActive,
+  aiActive,
   loadingUsers,
   onShowOverview,
+  onShowSite,
+  onShowAi,
   onSelect,
+  onOpenMobileUsers,
   onBack,
 }: AdminUserListProps) {
   return (
@@ -66,7 +77,29 @@ export default function AdminUserList({
         </div>
       </div>
 
-      <div className="px-3 py-3 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+      <nav className="admin-module-nav" aria-label="管理模块">
+        <button className={overviewActive ? "is-active" : ""} onClick={onShowOverview} aria-current={overviewActive ? "page" : undefined}>
+          <AppIcon name="details" />运营总览
+        </button>
+        <button className={siteActive ? "is-active" : ""} onClick={onShowSite} aria-current={siteActive ? "page" : undefined}>
+          <AppIcon name="announcement" />站点与内容
+        </button>
+        <button className={aiActive ? "is-active" : ""} onClick={onShowAi} aria-current={aiActive ? "page" : undefined}>
+          <AppIcon name="settings" />AI 能力
+        </button>
+      </nav>
+
+      <button
+        type="button"
+        onClick={onOpenMobileUsers}
+        className="mobile-admin-user-trigger"
+      >
+        <AppIcon name="user" />
+        用户管理
+        <span>{users.length}</span>
+      </button>
+
+      <div className="hidden px-3 py-3 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <button
           type="button"
           onClick={onShowOverview}
@@ -129,14 +162,14 @@ export default function AdminUserList({
         </button>
       </div>
 
-      <div className="px-4 pt-3 pb-1.5 shrink-0 flex items-baseline justify-between">
+      <div className="admin-user-list px-4 pt-3 pb-1.5 shrink-0 flex items-baseline justify-between">
         <p className="admin-kicker">用户</p>
         <p className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
           {users.length}
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+      <div className="admin-user-list flex-1 min-h-0 overflow-y-auto pb-4">
         {loadingUsers ? (
           <div className="px-4 py-8 text-center">
             <p className="text-xs" style={{ color: "var(--text-muted)" }}>

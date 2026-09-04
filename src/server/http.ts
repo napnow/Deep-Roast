@@ -21,8 +21,36 @@ export class ApiError extends Error {
   }
 }
 
-export function jsonOk<T>(data: T, status = 200): Response {
-  return Response.json(data, { status });
+export function jsonOk<T>(data: T, status = 200, headers?: HeadersInit): Response {
+  return Response.json(data, { status, headers });
+}
+
+export function privateNoStore(response: Response): Response {
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
+export const API_V1_CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+export function addApiV1CorsHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(API_V1_CORS_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+export function apiV1CorsPreflight(): Response {
+  return new Response(null, { status: 204, headers: API_V1_CORS_HEADERS });
 }
 
 export function jsonError(err: unknown, fallback = "服务器错误"): Response {
@@ -45,10 +73,13 @@ export function handleRoute<TContext = unknown>(
   fn: (req: Request, context: TContext) => Promise<Response>,
 ): (req: Request, context: TContext) => Promise<Response> {
   return async (req, context) => {
+    const isApiV1 = new URL(req.url).pathname.startsWith("/api/v1/");
+    const finalize = (response: Response) =>
+      isApiV1 ? addApiV1CorsHeaders(response) : response;
     try {
-      return await fn(req, context);
+      return finalize(await fn(req, context));
     } catch (err) {
-      return jsonError(err);
+      return finalize(jsonError(err));
     }
   };
 }

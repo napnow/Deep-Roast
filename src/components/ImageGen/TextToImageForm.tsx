@@ -36,39 +36,62 @@ export default function TextToImageForm({
 
   return (
     <div className="creation-form">
-      <label className="creation-composer">
-        <span className="creation-section-label">画面描述</span>
-        <textarea
-          className="creation-composer__input ui-field"
-          value={draft.prompt}
-          disabled={disabled}
-          onChange={(event) => onChange({ prompt: event.target.value })}
-          placeholder="描述主体、场景、光线与氛围…"
-          rows={6}
-        />
-        <span className="creation-composer__counter">
-          {draft.prompt.length} / 2000
-        </span>
-      </label>
-
-      {!draft.prompt ? (
-        <div className="creation-suggestions" aria-label="示例提示词">
-          {EXAMPLES.map((example, index) => (
-            <button
-              key={example}
-              type="button"
-              className="creation-example"
-              onClick={() => onChange({ prompt: example })}
-            >
-              灵感 {index + 1}
-            </button>
-          ))}
+      <section className="creation-step-card" aria-labelledby="text-prompt-title">
+        <div className="creation-step-card__heading">
+          <span className="creation-step-card__number" aria-hidden="true">01</span>
+          <div>
+            <h2 id="text-prompt-title" className="creation-step-card__title">
+              画面描述
+            </h2>
+            <p className="creation-step-card__description">
+              先说清主体、场景、光线和你想要的氛围
+            </p>
+          </div>
         </div>
-      ) : null}
 
-      <details className="creation-settings">
+        <label className="creation-composer creation-step-card__composer">
+          <span className="sr-only">画面描述</span>
+          <textarea
+            className="creation-composer__input ui-field"
+            value={draft.prompt}
+            disabled={disabled}
+            onChange={(event) => onChange({ prompt: event.target.value })}
+            placeholder="例如：雨夜霓虹街头，一位撑透明伞的旅人…"
+            rows={6}
+          />
+          <span className="creation-composer__counter">
+            {draft.prompt.length} / 2000
+          </span>
+        </label>
+
+        {!draft.prompt ? (
+          <div className="creation-suggestions" aria-label="示例提示词">
+            <span className="creation-suggestions__label">从灵感开始</span>
+            {EXAMPLES.map((example, index) => (
+              <button
+                key={example}
+                type="button"
+                className="creation-example"
+                onClick={() => onChange({ prompt: example })}
+              >
+                灵感 {index + 1}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <details className="creation-settings creation-step-card">
         <summary>
-          <span className="creation-settings__title">生成设置</span>
+          <span className="creation-step-card__summary">
+            <span className="creation-step-card__number" aria-hidden="true">02</span>
+            <span>
+              <span className="creation-settings__title">生成设置</span>
+              <span className="creation-step-card__description">
+                风格、比例与生成数量
+              </span>
+            </span>
+          </span>
           <span className="creation-settings__summary">
             {settingsSummary.length > 0
               ? settingsSummary.join(" · ")

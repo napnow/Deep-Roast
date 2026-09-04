@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import type { ImageRecord } from "@/types";
 import { getSizeOptions } from "./imageUtils";
 import CreationPanel from "./CreationPanel";
+import CreationPanelResizeHandle from "./CreationPanelResizeHandle";
 import ResultCanvas from "./ResultCanvas";
 import AssetInspector from "./AssetInspector";
 import ImageMobileBar from "./ImageMobileBar";
@@ -12,6 +13,14 @@ import AnnouncementTab from "./AnnouncementTab";
 import ImagePreviewModal from "./ImagePreviewModal";
 import { useDeepRoastStore } from "@/lib/store";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import { createImageContinuationDraft } from "@/lib/image-continuation";
+import {
+  clampCreationPanelWidth,
+  CREATION_PANEL_LAYOUT,
+  getCreationPanelBounds,
+  parseCreationPanelWidth,
+  type CreationPanelBounds,
+} from "./creation-workbench-ui";
 
 type MobileTab = "generate" | "gallery" | "announcements";
 
@@ -38,6 +47,12 @@ interface ImageGenViewProps {
   onWalletClick?: () => void;
   /** 手机端：当前 Tab（生成/图库/公告） */
   mobileTab: MobileTab;
+  /** 切回手机端生图页，以便打开图生图面板 */
+  onMobileGenerateTab?: () => void;
+  /** 手机端键盘占用的可视高度 */
+  keyboardInset: number;
+  /** 手机端键盘是否已打开 */
+  keyboardOpen: boolean;
 }
 
 export default function ImageGenView({
@@ -56,12 +71,17 @@ export default function ImageGenView({
   isAdmin,
   onWalletClick,
   mobileTab,
+  onMobileGenerateTab,
+  keyboardInset,
+  keyboardOpen,
 }: ImageGenViewProps) {
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const imageGenerationEnabled = useDeepRoastStore(
     (state) => state.config.imageGenerationEnabled,
   );
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
+  const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
+  const setImageCreationMode = useDeepRoastStore((state) => state.setImageCreationMode);
   const sizeOptions = getSizeOptions(model);
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(sizeOptions[0]?.value || "1024x1024");
@@ -69,8 +89,17 @@ export default function ImageGenView({
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
+  const [openImageToImage, setOpenImageToImage] = useState(false);
   // 固定输入条的高度（结果区预留，避免被遮挡）
   const [barHeight, setBarHeight] = useState(120);
+  const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
+  const panelStorageReadyRef = useRef(false);
+  const [creationPanelBounds, setCreationPanelBounds] = useState<CreationPanelBounds>(
+    () => getCreationPanelBounds(1440),
+  );
+  const [creationPanelWidth, setCreationPanelWidth] = useState<number>(
+    CREATION_PANEL_LAYOUT.defaultWidth,
+  );
 
   useEffect(() => {
     const opts = getSizeOptions(model);
@@ -78,6 +107,58 @@ export default function ImageGenView({
       setSize(opts[0]?.value || "1024x1024");
     }
   }, [model]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!panelStorageReadyRef.current) return;
+    try {
+      window.localStorage.setItem(
+        CREATION_PANEL_LAYOUT.storageKey,
+        String(creationPanelWidth),
+      );
+    } catch {
+      // 浏览器禁用本地存储时仍保留当前会话内的宽度调整
+    }
+  }, [creationPanelWidth]);
+
+  useEffect(() => {
+    function updatePanelBounds() {
+      const nextBounds = getCreationPanelBounds(window.innerWidth);
+      setCreationPanelBounds(nextBounds);
+      setCreationPanelWidth((current) =>
+        clampCreationPanelWidth(current, nextBounds),
+      );
+    }
+
+    updatePanelBounds();
+    const restoreFrame = window.requestAnimationFrame(() => {
+      try {
+        const savedWidth = window.localStorage.getItem(
+          CREATION_PANEL_LAYOUT.storageKey,
+        );
+        setCreationPanelWidth(
+          parseCreationPanelWidth(
+            savedWidth,
+            getCreationPanelBounds(window.innerWidth),
+          ),
+        );
+      } catch {
+        // 本地存储不可用时回退到默认宽度
+      }
+      panelStorageReadyRef.current = true;
+    });
+    window.addEventListener("resize", updatePanelBounds);
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+      window.removeEventListener("resize", updatePanelBounds);
+    };
+  }, []);
+
+  const handleCreationPanelWidthChange = useCallback(
+    (nextWidth: number) => {
+      setCreationPanelWidth(clampCreationPanelWidth(nextWidth, creationPanelBounds));
+    },
+    [creationPanelBounds],
+  );
 
   useEffect(() => {
     if (generating) {
@@ -121,6 +202,16 @@ export default function ImageGenView({
     clearImageTask();
   }
 
+  function handleContinueEditing(image: ImageRecord) {
+    if (!image.imageUrl) return;
+    setImageToImageDraft(createImageContinuationDraft(image));
+    setImageCreationMode("edit");
+    onActiveImageChange(image);
+    setPreviewImage(null);
+    onMobileGenerateTab?.();
+    setOpenImageToImage(true);
+  }
+
   const taskResults = imageTask.resultIds
     .map((id) => history.find((item) => item.id === id))
     .filter((item): item is ImageRecord => Boolean(item));
@@ -128,7 +219,15 @@ export default function ImageGenView({
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
       {/* 桌面端：三栏布局（md+） */}
-      <div className="hidden md:flex flex-1 min-h-0 min-w-0">
+      <div
+        ref={desktopWorkspaceRef}
+        className="image-workspace-desktop hidden md:flex flex-1 min-h-0 min-w-0"
+        style={
+          {
+            "--creation-panel-width": `${creationPanelWidth}px`,
+          } as CSSProperties
+        }
+      >
         <CreationPanel
           model={model}
           generating={generating}
@@ -146,6 +245,13 @@ export default function ImageGenView({
           onWalletClick={onWalletClick}
         />
 
+        <CreationPanelResizeHandle
+          width={creationPanelWidth}
+          bounds={creationPanelBounds}
+          containerRef={desktopWorkspaceRef}
+          onWidthChange={handleCreationPanelWidthChange}
+        />
+
         <ResultCanvas
           task={imageTask}
           activeImage={activeImage}
@@ -153,6 +259,7 @@ export default function ImageGenView({
           elapsedSeconds={elapsedSeconds}
           lastGenTime={lastGenTime}
           onPreview={setPreviewImage}
+          onContinueEditing={handleContinueEditing}
           onRetry={onRetryGenerate}
           onStop={onStopGenerate}
           onClose={() => {
@@ -165,6 +272,7 @@ export default function ImageGenView({
           history={history}
           activeImage={activeImage}
           onSelect={handleSelectHistory}
+          onContinueEditing={handleContinueEditing}
           onDelete={onDeleteImage}
         />
       </div>
@@ -184,6 +292,7 @@ export default function ImageGenView({
                 elapsedSeconds={elapsedSeconds}
                 lastGenTime={lastGenTime}
                 onPreview={setPreviewImage}
+                onContinueEditing={handleContinueEditing}
                 onRetry={onRetryGenerate}
                 onStop={onStopGenerate}
                 onClose={() => {
@@ -221,6 +330,10 @@ export default function ImageGenView({
           onEditImageBatch={onEditImageBatch}
           onStopGenerate={onStopGenerate}
           onHeightChange={setBarHeight}
+          keyboardInset={keyboardInset}
+          keyboardOpen={keyboardOpen}
+          openImageToImage={openImageToImage}
+          onImageToImageOpened={() => setOpenImageToImage(false)}
         />
       )}
 
@@ -228,6 +341,7 @@ export default function ImageGenView({
       <ImagePreviewModal
         image={previewImage}
         onClose={() => setPreviewImage(null)}
+        onContinueEditing={handleContinueEditing}
         onDelete={onDeleteImage}
       />
     </div>

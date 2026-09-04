@@ -29,11 +29,9 @@ const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
   .map((s) => s.trim())
   .filter(Boolean);
 
-function shouldSkipIpLimit(ip: string): boolean {
+function shouldSkipIpLimit(ip: string, enabled: boolean): boolean {
   if (process.env.NODE_ENV !== "production") return true;
-  if (!isRegistrationIpLimitEnabled(process.env.REGISTRATION_IP_LIMIT_ENABLED)) {
-    return true;
-  }
+  if (!enabled) return true;
   return BYPASS_IPS.includes(ip);
 }
 
@@ -290,7 +288,19 @@ export async function POST(req: Request) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 
-    const ipLimitActive = !shouldSkipIpLimit(ip);
+    const [registrationSettings] = await db
+      .select({
+        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
+      })
+      .from(siteSettings)
+      .where(eq(siteSettings.id, 1))
+      .limit(1);
+    const ipLimitActive = !shouldSkipIpLimit(
+      ip,
+      isRegistrationIpLimitEnabled(
+        registrationSettings?.registrationIpLimitEnabled,
+      ),
+    );
     if (ipLimitActive) {
       const [ipRecord] = await db
         .select({ id: registrationRecords.id })

@@ -101,7 +101,11 @@ export default function AdminStyleTestCard() {
       if (!res.ok) {
         toast(data.error || "生成失败", "error");
       } else {
-        setResult({ imageUrl: data.imageUrl, prompt: data.prompt });
+        const first = data.images?.[0] || data;
+        setResult({
+          imageUrl: first.imageUrl,
+          prompt: first.prompt,
+        });
         toast("生成成功", "success");
       }
     } catch {

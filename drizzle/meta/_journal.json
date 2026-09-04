@@ -71,6 +71,34 @@
       "when": 1787368309093,
       "tag": "0014_invitee_invitation_reward",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787369000000,
+      "tag": "0015_checkin_reward",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787370000000,
+      "tag": "0018_registration_ip_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787529600000,
+      "tag": "0019_model_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788134400000,
+      "tag": "0020_announcement_qr_image",
+      "breakpoints": true
     }
   ]
 }

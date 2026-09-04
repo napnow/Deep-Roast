@@ -4,6 +4,7 @@ import {
   conversations,
   imageGenerations,
   messages,
+  registrationRecords,
 } from "@/db/schema";
 import { desc, eq, asc, sql } from "drizzle-orm";
 import { unlink } from "fs/promises";
@@ -139,6 +140,13 @@ export async function deleteUserHard(userId: string) {
   }
 
   await db.delete(users).where(eq(users.id, userId));
+
+  // 释放该用户占用的注册 IP 记录，使同一 IP 可以重新注册
+  await db
+    .delete(registrationRecords)
+    .where(eq(registrationRecords.username, target.username))
+    .catch(() => {});
+
   return { success: true };
 }
 

@@ -1,15 +1,20 @@
 import type { WorkspaceMode } from "@/lib/workspace-preferences";
 
 export type MobileImageTab = "generate" | "gallery" | "announcements";
-export type MobilePrimaryWorkspace = "generate" | "gallery" | "chat";
+export type MobilePrimaryWorkspace =
+  | "generate"
+  | "chat"
+  | "gallery"
+  | "account";
 
 export const MOBILE_PRIMARY_WORKSPACES: ReadonlyArray<{
   id: MobilePrimaryWorkspace;
   label: string;
 }> = [
   { id: "generate", label: "生图" },
-  { id: "gallery", label: "图库" },
   { id: "chat", label: "对话" },
+  { id: "gallery", label: "作品" },
+  { id: "account", label: "我的" },
 ];
 
 export function getMobilePrimaryWorkspace(

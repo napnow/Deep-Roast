@@ -7,11 +7,14 @@ import {
   updateInvitationSettings,
   setDonationEnabled,
   setImageGenerationEnabled,
+  setRegistrationIpLimitEnabled,
   setRegistrationEnabled,
+  setCheckinReward,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
 import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
+import { parseCheckinSettingsPatch } from "@/server/services/checkin-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -24,6 +27,7 @@ export const PUT = handleRoute(async (req) => {
     adminContactText?: string;
     clearImage?: boolean;
     registrationEnabled?: boolean;
+    registrationIpLimitEnabled?: boolean;
     imageGenerationEnabled?: boolean;
     donationEnabled?: boolean;
     donationText?: string;
@@ -31,9 +35,11 @@ export const PUT = handleRoute(async (req) => {
     invitationEnabled?: boolean;
     invitationReward?: number | string;
     invitationInviteeReward?: number | string;
+    checkinReward?: number | string;
   }>(req);
 
   const invitationPatch = parseInvitationSettingsPatch(body);
+  const checkinPatch = parseCheckinSettingsPatch(body);
 
   if (body.clearImage === true) {
     await clearAdminContactImage();
@@ -44,6 +50,9 @@ export const PUT = handleRoute(async (req) => {
   if (typeof body.registrationEnabled === "boolean") {
     await setRegistrationEnabled(body.registrationEnabled);
   }
+  if (typeof body.registrationIpLimitEnabled === "boolean") {
+    await setRegistrationIpLimitEnabled(body.registrationIpLimitEnabled);
+  }
   if (typeof body.imageGenerationEnabled === "boolean") {
     await setImageGenerationEnabled(body.imageGenerationEnabled);
   }
@@ -52,6 +61,9 @@ export const PUT = handleRoute(async (req) => {
   }
   if (Object.keys(invitationPatch).length > 0) {
     await updateInvitationSettings(invitationPatch);
+  }
+  if (checkinPatch.checkinReward !== undefined) {
+    await setCheckinReward(checkinPatch.checkinReward);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

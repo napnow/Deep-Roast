@@ -5,7 +5,6 @@ import type { CreditTransaction, UserInvitationData } from "@/types";
 import {
   CREDIT_TYPE_LABELS,
   CREDIT_PER_IMAGE,
-  CHECKIN_REWARD,
   RECHARGE_PLANS,
 } from "@/types";
 import DonationModal from "@/components/DonationModal";
@@ -16,6 +15,7 @@ interface CreditWalletModalProps {
   onClose: () => void;
   credits: number;
   role: string;
+  checkinReward: number;
   checkinEligible: boolean;
   todayChecked: boolean;
   checkinLoading?: boolean;
@@ -27,6 +27,7 @@ export default function CreditWalletModal({
   onClose,
   credits,
   role,
+  checkinReward,
   checkinEligible,
   todayChecked,
   checkinLoading,
@@ -179,7 +180,7 @@ export default function CreditWalletModal({
                   ? "签到中…"
                   : todayChecked
                     ? "今日已签"
-                    : `签到 +${CHECKIN_REWARD}`}
+                    : `签到 +${checkinReward}`}
               </button>
             )}
           </div>

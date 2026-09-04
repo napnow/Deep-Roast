@@ -1,6 +1,7 @@
 "use client";
 
 import UserMenu from "@/components/Header/UserMenu";
+import AnnouncementBell from "@/components/Header/AnnouncementBell";
 import { AppIcon } from "@/components/ui/icons";
 import type { WorkspaceMode } from "@/lib/workspace-preferences";
 
@@ -10,9 +11,12 @@ interface HeaderProps {
   username: string;
   role: string;
   credits: number;
+  donationEnabled: boolean;
+  onDonationClick: () => void;
   onWalletClick: () => void;
   onLogout: () => void;
   onMenuClick?: () => void;
+  mobileTitle?: string;
 }
 
 const WORKSPACE_TABS: ReadonlyArray<{
@@ -29,14 +33,41 @@ export default function Header({
   username,
   role,
   credits,
+  donationEnabled,
+  onDonationClick,
   onWalletClick,
   onLogout,
   onMenuClick,
+  mobileTitle,
 }: HeaderProps) {
   const lowCredits = credits <= 40 && role !== "admin";
 
   return (
-    <header className="workspace-topbar relative z-20 flex items-center justify-between px-3 sm:px-5">
+    <header className="workspace-topbar relative z-20 px-3 sm:px-5">
+      <div className="mobile-app-header md:hidden">
+        {onMenuClick ? (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="打开菜单"
+            className="mobile-app-header__menu"
+          >
+            <AppIcon name="menu" size={22} strokeWidth={1.75} />
+          </button>
+        ) : (
+          <span className="mobile-app-header__spacer" aria-hidden="true" />
+        )}
+
+        <span className="mobile-app-header__brand" aria-label="深焙">
+          深焙
+        </span>
+
+        <div className="mobile-app-header__announcement">
+          <AnnouncementBell />
+        </div>
+      </div>
+
+      <div className="hidden items-center justify-between md:flex">
       <div className="flex min-w-0 items-center gap-2 sm:gap-5">
         {onMenuClick ? (
           <button
@@ -57,6 +88,15 @@ export default function Header({
             Deep Roast
           </span>
         </div>
+
+        {mobileTitle ? (
+          <span
+            className="text-[12px] font-semibold text-[var(--text-muted)] md:hidden"
+            aria-label={`当前工作区：${mobileTitle}`}
+          >
+            {mobileTitle}
+          </span>
+        ) : null}
 
         <div
           className="hidden items-center gap-0.5 rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-0.5 shadow-[var(--shadow-sm)] md:inline-flex"
@@ -93,6 +133,26 @@ export default function Header({
       </div>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <AnnouncementBell />
+
+        {donationEnabled ? (
+          <button
+            type="button"
+            onClick={onDonationClick}
+            aria-label="打赏支持"
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-all active:scale-95 sm:px-3"
+            style={{
+              background: "var(--accent-surface)",
+              border:
+                "1px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+              color: "var(--accent)",
+            }}
+          >
+            <span aria-hidden>💝</span>
+            <span className="hidden sm:inline">打赏支持</span>
+          </button>
+        ) : null}
+
         <button
           type="button"
           onClick={onWalletClick}
@@ -121,6 +181,7 @@ export default function Header({
         </button>
 
         <UserMenu username={username} role={role} onLogout={onLogout} />
+      </div>
       </div>
     </header>
   );

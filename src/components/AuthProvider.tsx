@@ -10,7 +10,14 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { getAuth, logout } from "@/lib/auth-client";
 import type { AuthUser } from "@/lib/auth-client";
+import { isLocalMobilePreview } from "@/lib/local-preview";
 import { softNavigate } from "@/lib/nav-transition";
+
+const LOCAL_PREVIEW_USER: AuthUser = {
+  id: "local-mobile-preview",
+  username: "本地预览",
+  role: "admin",
+};
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -63,17 +70,32 @@ export default function AuthProvider({
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const localPreview =
+    typeof window !== "undefined" &&
+    isLocalMobilePreview(window.location.search, process.env.NODE_ENV);
 
   const refresh = useCallback(async () => {
+    if (localPreview) {
+      setUser(LOCAL_PREVIEW_USER);
+      setLoading(false);
+      return LOCAL_PREVIEW_USER;
+    }
     const u = await getAuth();
     setUser(u);
     setLoading(false);
     return u;
-  }, []);
+  }, [localPreview]);
 
   // 只在挂载时检查一次登录态
   useEffect(() => {
     let cancelled = false;
+    if (localPreview) {
+      setUser(LOCAL_PREVIEW_USER);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     getAuth().then((u) => {
       if (cancelled) return;
       setUser(u);
@@ -82,7 +104,7 @@ export default function AuthProvider({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [localPreview]);
 
   // 根据登录态做跳转（带过渡）
   useEffect(() => {
@@ -96,6 +118,7 @@ export default function AuthProvider({
   }, [loading, user, pathname, router]);
 
   async function handleLogout() {
+    if (localPreview) return;
     await logout();
     setUser(null);
     softNavigate(router, "/login", "replace");

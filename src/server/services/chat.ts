@@ -3,12 +3,89 @@ import { conversations, messages } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
-import {
-  resolveChatEndpoint,
-  systemPromptForModel,
-} from "@/server/providers/llm";
+import { systemPromptForModel } from "@/server/providers/llm";
+import { resolveConfiguredEndpoint } from "@/server/services/model-channels";
 import { CREDIT_PER_CHAT } from "@/types";
 import { assertEnoughCredits, consumeCredits } from "@/server/services/credits";
+import {
+  DEFAULT_ASSISTANT_IMAGE_PROMPT,
+  detectAssistantAppearanceIntent,
+} from "@/lib/conversational-image-intent";
+import { generateImage } from "@/server/services/image";
+import {
+  createAssistantImageErrorMessage,
+  createAssistantImageMessage,
+} from "@/server/services/chat-image";
+
+function eventLine(payload: unknown, encoder: TextEncoder) {
+  return encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function createImageChatStream(
+  userId: string,
+  role: string,
+  conversationId: string,
+  userPrompt: string,
+  assistantImagePrompt: string,
+  imageModel: string,
+): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (payload: unknown) =>
+        controller.enqueue(eventLine(payload, encoder));
+      send({ type: "image_started", prompt: userPrompt });
+
+      try {
+        const image = await generateImage({
+          userId,
+          role,
+          prompt: `${assistantImagePrompt || DEFAULT_ASSISTANT_IMAGE_PROMPT}\n\n${userPrompt}`,
+          modelOverride: imageModel,
+          size: "1024x1024",
+        });
+        const assistantMessage = createAssistantImageMessage(image);
+        await db.insert(messages).values({
+          conversationId,
+          role: "assistant",
+          content: assistantMessage.content,
+          metadata: assistantMessage.metadata,
+        });
+        send({ type: "image_done", message: assistantMessage });
+      } catch (err: unknown) {
+        const errorMessage =
+          err instanceof ApiError
+            ? err.message
+            : "图片生成失败，请稍后重试";
+        const errorMessageRecord = createAssistantImageErrorMessage(
+          userPrompt,
+          errorMessage,
+        );
+        await db.insert(messages).values({
+          conversationId,
+          role: "assistant",
+          content: errorMessageRecord.content,
+          metadata: errorMessageRecord.metadata,
+        });
+        send({
+          type: "image_error",
+          message: errorMessageRecord,
+        });
+      }
+
+      send({ type: "done" });
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
 
 export async function createChatStream(
   userId: string,
@@ -34,25 +111,13 @@ export async function createChatStream(
   const conv = convs[0];
   if (!conv) throw new ApiError("对话不存在", 404);
 
-  // 积分：管理员免费；普通用户发送前校验余额（回复成功后才扣）
-  const chargeCredits = role !== "admin";
-  if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_CHAT);
-  }
+  const imageIntent = detectAssistantAppearanceIntent(message);
 
-  // 按模型解析端点后再检查 key（Grok 可用 GROK_API_KEY，不强制 ARK）
-  const { apiKey, baseUrl } = resolveChatEndpoint(conv.model, config || {});
-  if (!apiKey) {
-    const isGrok = conv.model.startsWith("grok-");
-    throw new ApiError(
-      isGrok
-        ? "请在 .env.local 中设置 GROK_API_KEY，或在设置中配置可用的 API Key"
-        : "请先在设置中配置 API Key 或在 .env.local 中设置 ARK_API_KEY",
-      400,
-    );
-  }
-  if (!baseUrl) {
-    throw new ApiError("未配置 API Base URL", 400);
+  // 积分：管理员免费；普通用户发送前校验余额（回复成功后才扣）。
+  // 助手形象生图走图片积分，不预扣对话积分。
+  const chargeCredits = role !== "admin";
+  if (!imageIntent && userId && chargeCredits) {
+    await assertEnoughCredits(userId, CREDIT_PER_CHAT);
   }
 
   const history = await db
@@ -89,6 +154,37 @@ export async function createChatStream(
       .set({ updatedAt: new Date() })
       .where(eq(conversations.id, conversationId));
   }
+
+  if (imageIntent) {
+    return createImageChatStream(
+      userId,
+      role,
+      conversationId,
+      imageIntent.prompt,
+      config?.assistantImagePrompt || "",
+      config?.imageModel || "doubao-seedream-4-5-251128",
+    );
+  }
+
+  // 按模型解析端点后再检查 key（Grok 可用 GROK_API_KEY，不强制 ARK）
+  const { apiKey, baseUrl } = await resolveConfiguredEndpoint(
+    "text",
+    conv.model,
+    config || {},
+  );
+  if (!apiKey) {
+    const isGrok = conv.model.startsWith("grok-");
+    throw new ApiError(
+      isGrok
+        ? "请在 .env.local 中设置 GROK_API_KEY，或在设置中配置可用的 API Key"
+        : "请先在设置中配置 API Key 或在 .env.local 中设置 ARK_API_KEY",
+      400,
+    );
+  }
+  if (!baseUrl) {
+    throw new ApiError("未配置 API Base URL", 400);
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

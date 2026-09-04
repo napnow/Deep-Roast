@@ -10,6 +10,7 @@ import { useDeepRoastStore } from "@/lib/store";
 import { AppIcon } from "@/components/ui/icons";
 import { CREDIT_PER_IMAGE } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import { WORKBENCH_CLASS_NAMES } from "./creation-workbench-ui";
 
 interface CreationPanelProps {
   model: string;
@@ -42,6 +43,7 @@ export default function CreationPanel({
     imageCreationMode,
     setImageCreationMode,
     textToImageDraft,
+    imageToImageDraft,
     setTextToImageDraft,
     config,
   } = useDeepRoastStore();
@@ -74,9 +76,25 @@ export default function CreationPanel({
   }
 
   return (
-    <aside className="creation-panel">
+    <aside
+      className={`${WORKBENCH_CLASS_NAMES.panel} ${WORKBENCH_CLASS_NAMES.roomyPanel} ${WORKBENCH_CLASS_NAMES.richPanel}`}
+    >
       <div className="creation-panel__header">
-        <p className="ui-kicker">创作控制台</p>
+        <div className="creation-panel__title-row">
+          <div>
+            <p className="ui-kicker">创作控制台</p>
+            <p className="creation-panel__lead">把想法变成可继续编辑的画面</p>
+          </div>
+          <span className="creation-panel__mode-mark">AI WORKSPACE</span>
+        </div>
+        <div className="creation-status-strip" aria-label="创作状态">
+          <span className="creation-status-strip__model">
+            {model || "模型未配置"}
+          </span>
+          <span className="creation-status-strip__credits">
+            {isAdmin ? "管理员模式" : `${credits} 积分`}
+          </span>
+        </div>
         <div className="creation-mode-tabs" role="tablist" aria-label="生图方式">
           {MODES.map((mode) => (
             <button
@@ -106,6 +124,7 @@ export default function CreationPanel({
         <div hidden={imageCreationMode !== "edit"}>
           <Img2ImgPanel
             size={normalizedSize}
+            draft={imageToImageDraft}
             sizeOptions={sizeOptions}
             generating={generating}
             disabled={!imageGenerationAvailable}

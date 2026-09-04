@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { CREDIT_PER_CHAT } from "@/types";
 
@@ -14,10 +14,6 @@ export default function ChatInput({ onSend, onStop, disabled }: ChatInputProps) 
   const { user } = useAuth();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (!disabled) textareaRef.current?.focus();
-  }, [disabled]);
 
   function handleSend() {
     const text = input.trim();

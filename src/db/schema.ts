@@ -55,6 +55,52 @@ export const llmConfig = pgTable(
   }),
 );
 
+// ── LLM channels ──
+// 多个上游渠道可以提供同一个模型 ID；默认绑定由服务端按模型类型解析。
+export const llmChannels = pgTable(
+  "llm_channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull().default(""),
+    apiKey: text("api_key").notNull().default(""),
+    enabled: integer("enabled").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    channelNameIndex: uniqueIndex("llm_channels_name_unique").on(table.name),
+  }),
+);
+
+export const llmChannelModels = pgTable(
+  "llm_channel_models",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    channelId: uuid("channel_id")
+      .notNull()
+      .references(() => llmChannels.id, { onDelete: "cascade" }),
+    modelId: text("model_id").notNull(),
+    kind: text("kind").notNull(), // 'text' | 'image'
+    enabled: integer("enabled").notNull().default(1),
+    isDefault: integer("is_default").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    channelModelUnique: uniqueIndex("llm_channel_models_channel_kind_model_unique").on(
+      table.channelId,
+      table.kind,
+      table.modelId,
+    ),
+    defaultModelUnique: uniqueIndex("llm_channel_models_default_kind_model_unique")
+      .on(table.kind, table.modelId)
+      .where(sql`${table.isDefault} = 1`),
+  }),
+);
+
 // ── Site settings (single row): admin contact on login, etc. ──
 export const siteSettings = pgTable(
   "site_settings",
@@ -66,10 +112,16 @@ export const siteSettings = pgTable(
       .default(""),
     /** 是否开放注册；关闭后 register API 与登录页注册入口不可用 */
     registrationEnabled: integer("registration_enabled").notNull().default(1), // 1=开 0=关
+    /** 是否限制同一公网 IP 重复注册（1=限制，0=不限制） */
+    registrationIpLimitEnabled: integer("registration_ip_limit_enabled")
+      .notNull()
+      .default(0),
     /** 普通用户生图总开关；管理员不受影响 */
     imageGenerationEnabled: integer("image_generation_enabled")
       .notNull()
       .default(1),
+    /** 每日签到奖励积分，允许为 0 */
+    checkinReward: integer("checkin_reward").notNull().default(50),
     /** 打赏功能开关（1=开 0=关）；关闭后用户端打赏入口隐藏 */
     donationEnabled: integer("donation_enabled").notNull().default(1),
     /** 打赏收款码图片路径（public/uploads/donation/ 下） */
@@ -95,6 +147,10 @@ export const siteSettings = pgTable(
     invitationInviteeRewardNonNegative: check(
       "site_settings_invitation_invitee_reward_non_negative",
       sql`${table.invitationInviteeReward} >= 0`,
+    ),
+    checkinRewardNonNegative: check(
+      "site_settings_checkin_reward_non_negative",
+      sql`${table.checkinReward} >= 0`,
     ),
   }),
 );
@@ -126,6 +182,7 @@ export const users = pgTable("users", {
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),
   body: text("body").notNull(),
+  imagePath: text("image_path"),
   pinned: boolean("pinned").default(false).notNull(),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",

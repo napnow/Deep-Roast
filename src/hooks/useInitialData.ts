@@ -70,13 +70,18 @@ export function useInitialData() {
     try {
       const data = await apiJson<{
         credits?: number;
-        checkin?: { eligible?: boolean; todayChecked?: boolean };
+        checkin?: {
+          eligible?: boolean;
+          todayChecked?: boolean;
+          reward?: number;
+        };
       }>("/api/auth/me");
       setCredits(data.credits ?? 0);
       if (data.checkin) {
         setCheckinStatus({
           eligible: !!data.checkin.eligible,
           todayChecked: !!data.checkin.todayChecked,
+          reward: data.checkin.reward,
         });
       }
     } catch {

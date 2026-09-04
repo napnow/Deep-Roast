@@ -61,3 +61,26 @@ test("invitee reward migration preserves old balances and defaults history to ze
   assert.match(sql, /NON_NEGATIVE|non_negative|>= 0/i);
   assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
 });
+
+test("registration IP limit migration defaults to the current disabled state", () => {
+  assert.equal(existsSync("drizzle/0018_registration_ip_limit.sql"), true);
+  const sql = readFileSync("drizzle/0018_registration_ip_limit.sql", "utf8");
+  assert.match(
+    sql,
+    /ADD COLUMN "registration_ip_limit_enabled" integer DEFAULT 0 NOT NULL/,
+  );
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});
+
+test("model channels migration preserves legacy config and backfills current defaults", () => {
+  assert.equal(existsSync("drizzle/0019_model_channels.sql"), true);
+  const sql = readFileSync("drizzle/0019_model_channels.sql", "utf8");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS "llm_channels"/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS "llm_channel_models"/);
+  assert.match(sql, /llm_config/);
+  assert.match(sql, /enabled_image_models/);
+  assert.match(sql, /enabled_text_models/);
+  assert.match(sql, /is_default/);
+  assert.match(sql, /EXCEPTION WHEN others/);
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});

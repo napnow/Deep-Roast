@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-*/
 /out/
 
 # production
@@ -69,6 +70,7 @@ docs/AI生图系统提示词-功能文档.md
 .old-chat-wt/
 _dev-test.err
 _dev-test.out
+*.rollback-
 
 # OS / editor
 .idea/

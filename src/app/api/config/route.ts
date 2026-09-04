@@ -12,6 +12,14 @@ import {
 import { requireAdmin, requireActiveUser } from "@/server/auth";
 import { normalizeBaseUrl } from "@/server/providers/llm";
 import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
+import { isImageGenerationEnabled } from "@/server/services/site-settings";
+import { DEFAULT_ASSISTANT_IMAGE_PROMPT } from "@/lib/conversational-image-intent";
+import {
+  listDefaultModelIdsFromViews,
+  listModelChannels,
+  replaceModelChannels,
+  type ChannelPayloadInput,
+} from "@/server/services/model-channels";
 
 function mask(key: string) {
   if (!key || key.length < 8) return key ? "****" : "";
@@ -24,7 +32,20 @@ function isMaskedKey(key: string | undefined): boolean {
 
 function publicConfig(
   config: NonNullable<Awaited<ReturnType<typeof getConfig>>>,
+  channels?: Awaited<ReturnType<typeof listModelChannels>>,
+  configuredChannels = channels,
 ) {
+  const isAdminView = channels !== undefined;
+  const hasChannelCredential = Boolean(
+    configuredChannels?.some((channel) => channel.apiKeyHint),
+  );
+  const hasCredential = hasAnyApiCredential(config) || hasChannelCredential;
+  const channelTextModels = configuredChannels
+    ? listDefaultModelIdsFromViews(configuredChannels, "text")
+    : [];
+  const channelImageModels = configuredChannels
+    ? listDefaultModelIdsFromViews(configuredChannels, "image")
+    : [];
   const enabledTextModels = parseEnabledModels(
     config.enabledTextModels,
     defaultTextModelIds(),
@@ -35,24 +56,44 @@ function publicConfig(
     defaultImageModelIds(),
     config.imageModel,
   );
+  const visibleTextModels = channelTextModels.length
+    ? channelTextModels
+    : enabledTextModels;
+  const visibleImageModels = channelImageModels.length
+    ? channelImageModels
+    : enabledImageModels;
+  const textModel = visibleTextModels.includes(config.textModel)
+    ? config.textModel
+    : visibleTextModels[0] || config.textModel;
+  const imageModel = visibleImageModels.includes(config.imageModel)
+    ? config.imageModel
+    : visibleImageModels[0] || config.imageModel;
 
   return {
     id: config.id,
-    baseUrl: config.baseUrl,
-    textModel: config.textModel,
-    imageModel: config.imageModel,
+    // 普通用户只需要模型 ID；渠道地址与 Key 提示仅返回管理员视图。
+    baseUrl: isAdminView ? config.baseUrl : "",
+    textModel,
+    imageModel,
     imageSystemPrompt: config.imageSystemPrompt,
+    assistantImagePrompt:
+      config.assistantImagePrompt || DEFAULT_ASSISTANT_IMAGE_PROMPT,
     reversePromptModel: config.reversePromptModel || "",
     updatedAt: config.updatedAt,
     arkApiKey: "",
-    hasApiKey: hasAnyApiCredential(config),
-    apiKeyHint: config.arkApiKey
-      ? mask(config.arkApiKey)
-      : hasAnyApiCredential(config)
-        ? "env"
-        : "",
-    enabledTextModels,
-    enabledImageModels,
+    hasApiKey: hasCredential,
+    apiKeyHint: isAdminView
+      ? config.arkApiKey
+        ? mask(config.arkApiKey)
+        : hasChannelCredential
+          ? "渠道"
+          : hasCredential
+            ? "env"
+            : ""
+      : "",
+    enabledTextModels: visibleTextModels,
+    enabledImageModels: visibleImageModels,
+    ...(channels && channels.length > 0 ? { channels } : {}),
   };
 }
 
@@ -70,17 +111,29 @@ function asStringArray(value: unknown): string[] | undefined {
 // GET /api/config
 export const GET = handleRoute(async (req) => {
   // 配置含上游 Base URL 与 key 掩码，仅登录用户可读
-  await requireActiveUser(req);
+  const user = await requireActiveUser(req);
   const config = await getConfig();
   if (!config) throw new ApiError("未找到配置", 404);
-  return jsonOk(publicConfig(config));
+  const configuredChannels = await listModelChannels();
+  const channels = user.role === "admin" ? configuredChannels : undefined;
+  return jsonOk({
+    ...publicConfig(config, channels, configuredChannels),
+    imageGenerationEnabled: await isImageGenerationEnabled(),
+  });
 });
 
 // PUT /api/config — 仅管理员可修改
 export const PUT = handleRoute(async (req) => {
-  requireAdmin(req);
+  await requireAdmin(req);
   const body = await readJson<Record<string, unknown>>(req);
   const updates: Record<string, unknown> = {};
+  const channelPayload =
+    body.channels === undefined
+      ? undefined
+      : (body.channels as ChannelPayloadInput[]);
+  if (channelPayload !== undefined && !Array.isArray(channelPayload)) {
+    throw new ApiError("channels 必须是数组", 400);
+  }
 
   if (body.arkApiKey !== undefined) {
     const key = String(body.arkApiKey ?? "").trim();
@@ -106,6 +159,9 @@ export const PUT = handleRoute(async (req) => {
   if (body.imageSystemPrompt !== undefined) {
     updates.imageSystemPrompt = String(body.imageSystemPrompt ?? "");
   }
+  if (body.assistantImagePrompt !== undefined) {
+    updates.assistantImagePrompt = String(body.assistantImagePrompt ?? "");
+  }
   if (body.reversePromptModel !== undefined) {
     updates.reversePromptModel = String(body.reversePromptModel ?? "").trim();
   }
@@ -126,7 +182,11 @@ export const PUT = handleRoute(async (req) => {
     updates.enabledTextModels = serializeModelIds(enabledText);
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (channelPayload !== undefined) {
+    await replaceModelChannels(channelPayload);
+  }
+
+  if (Object.keys(updates).length === 0 && channelPayload === undefined) {
     throw new ApiError(
       "没有需要更新的字段（若只改 API Key，请重新完整输入）",
       400,
@@ -149,6 +209,8 @@ export const PUT = handleRoute(async (req) => {
       imageModel:
         (updates.imageModel as string) || "doubao-seedream-4-5-251128",
       imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
+      assistantImagePrompt:
+        (updates.assistantImagePrompt as string) || "",
       reversePromptModel: (updates.reversePromptModel as string) || "",
       enabledImageModels:
         (updates.enabledImageModels as string) ||
@@ -191,5 +253,6 @@ export const PUT = handleRoute(async (req) => {
 
   const config = await getConfig();
   if (!config) throw new ApiError("未找到配置", 404);
-  return jsonOk(publicConfig(config));
+  const channels = await listModelChannels();
+  return jsonOk(publicConfig(config, channels, channels));
 });

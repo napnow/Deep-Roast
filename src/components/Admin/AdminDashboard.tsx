@@ -1,9 +1,5 @@
 "use client";
 
-import AdminSiteSettingsCard from "@/components/Admin/AdminSiteSettingsCard";
-import AdminAnnouncementsCard from "@/components/Admin/AdminAnnouncementsCard";
-import AdminStylesCard from "@/components/Admin/AdminStylesCard";
-import AdminStyleTestCard from "@/components/Admin/AdminStyleTestCard";
 import { CREDIT_PER_IMAGE } from "@/types";
 
 interface GlobalStats {
@@ -38,7 +34,7 @@ export default function AdminDashboard({
               className="text-sm mt-2 max-w-xl leading-relaxed"
               style={{ color: "var(--text-secondary)" }}
             >
-              签到与消耗、站点开关与公告。左侧选择用户可审计对话、图片与积分流水。
+              查看核心运营指标。用户、站点内容和 AI 能力已拆分到左侧独立模块。
             </p>
           </div>
           {onRefresh && (
@@ -124,20 +120,6 @@ export default function AdminDashboard({
         </div>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-4 items-start admin-stagger">
-        <AdminSiteSettingsCard />
-        <AdminAnnouncementsCard />
-      </div>
-
-      {/* 风格库：新增/编辑/上架下架 */}
-      <div className="mt-4 admin-stagger">
-        <AdminStylesCard />
-      </div>
-
-      {/* 风格测试：管理员验证生图风格后再开放给用户 */}
-      <div className="mt-4 admin-stagger">
-        <AdminStyleTestCard />
-      </div>
     </div>
   );
 }
