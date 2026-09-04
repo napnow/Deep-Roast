@@ -8,6 +8,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 interface ImagePreviewModalProps {
   image: ImageRecord | null;
   onClose: () => void;
+  onContinueEditing: (image: ImageRecord) => void;
   onDelete: (id: string) => void;
 }
 
@@ -15,6 +16,7 @@ interface ImagePreviewModalProps {
 export default function ImagePreviewModal({
   image,
   onClose,
+  onContinueEditing,
   onDelete,
 }: ImagePreviewModalProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -74,13 +76,24 @@ export default function ImagePreviewModal({
         <p className="text-[10px]" style={{ color: "rgba(245,230,211,0.5)" }}>
           {new Date(image.createdAt).toLocaleString("zh-CN")}
         </p>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => downloadImage(image)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 active:scale-95"
+            onClick={() => onContinueEditing(image)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 active:scale-95"
             style={{
               background: "var(--accent)",
               color: "var(--accent-on)",
+            }}
+          >
+            继续修改
+          </button>
+          <button
+            onClick={() => downloadImage(image)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 active:scale-95"
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              color: "#f5e6d3",
+              border: "1px solid rgba(255,255,255,0.15)",
             }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -90,7 +103,7 @@ export default function ImagePreviewModal({
           </button>
           <button
             onClick={() => navigator.clipboard.writeText(image.prompt)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95"
             style={{
               background: "rgba(255,255,255,0.08)",
               color: "#f5e6d3",
@@ -105,7 +118,7 @@ export default function ImagePreviewModal({
           </button>
           <button
             onClick={() => setConfirmOpen(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95"
             style={{
               background: "rgba(201,68,60,0.15)",
               color: "#e8827b",

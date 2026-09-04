@@ -17,12 +17,18 @@ interface MobileDrawerProps {
   onOpenWallet: () => void;
   /** 打开既有修改密码弹窗 */
   onOpenPassword: () => void;
+  /** 打开既有 API Key 创建与管理弹窗 */
+  onOpenApiKeys: () => void;
   /** 打开既有打赏弹窗 */
   onOpenDonation: () => void;
   /** 打开公告工作区 */
   onOpenAnnouncements: () => void;
   /** 打开对话历史 */
   onOpenChatHistory: () => void;
+  /** 打开管理员已有的模型配置 */
+  onOpenSettings: () => void;
+  /** 进入既有管理控制台 */
+  onOpenAdmin: () => void;
   /** 复用已有签到流程 */
   onCheckin: () => void;
   onClose: () => void;
@@ -42,9 +48,12 @@ export default function MobileDrawer({
   donationEnabled,
   onOpenWallet,
   onOpenPassword,
+  onOpenApiKeys,
   onOpenDonation,
   onOpenAnnouncements,
   onOpenChatHistory,
+  onOpenSettings,
+  onOpenAdmin,
   onCheckin,
   onClose,
 }: MobileDrawerProps) {
@@ -81,7 +90,15 @@ export default function MobileDrawer({
   if (!open) return null;
 
   const menuItems: Array<{
-    key: "wallet" | "password" | "donation" | "announcements" | "chat-history";
+    key:
+      | "wallet"
+      | "password"
+      | "api-keys"
+      | "donation"
+      | "announcements"
+      | "chat-history"
+      | "settings"
+      | "admin";
     label: string;
     icon: AppIconName;
     desc: string;
@@ -99,6 +116,28 @@ export default function MobileDrawer({
       icon: "key",
       desc: "更新登录密码",
     },
+    {
+      key: "api-keys",
+      label: "API 接入",
+      icon: "details",
+      desc: "创建、复制和管理你的 API Key",
+    },
+    ...(role === "admin"
+      ? [
+          {
+            key: "settings" as const,
+            label: "模型配置",
+            icon: "settings" as AppIconName,
+            desc: "管理渠道和可用模型",
+          },
+          {
+            key: "admin" as const,
+            label: "管理控制台",
+            icon: "details" as AppIconName,
+            desc: "运营、用户和站点管理",
+          },
+        ]
+      : []),
     ...(donationEnabled
       ? [
           {
@@ -134,6 +173,18 @@ export default function MobileDrawer({
     }
     if (key === "password") {
       onOpenPassword();
+      return;
+    }
+    if (key === "api-keys") {
+      onOpenApiKeys();
+      return;
+    }
+    if (key === "settings") {
+      onOpenSettings();
+      return;
+    }
+    if (key === "admin") {
+      onOpenAdmin();
       return;
     }
     if (key === "donation") {

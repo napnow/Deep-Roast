@@ -43,6 +43,7 @@ export default function CreationPanel({
     imageCreationMode,
     setImageCreationMode,
     textToImageDraft,
+    imageToImageDraft,
     setTextToImageDraft,
     config,
   } = useDeepRoastStore();
@@ -123,6 +124,7 @@ export default function CreationPanel({
         <div hidden={imageCreationMode !== "edit"}>
           <Img2ImgPanel
             size={normalizedSize}
+            draft={imageToImageDraft}
             sizeOptions={sizeOptions}
             generating={generating}
             disabled={!imageGenerationAvailable}

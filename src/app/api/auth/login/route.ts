@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { comparePassword, signToken, setAuthCookie } from "@/lib/auth";
-import { ApiError, readJson } from "@/server/http";
+import { ApiError } from "@/server/http";
 import {
   enforceRateLimit,
   getClientIp,
@@ -21,10 +21,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req);
     await enforceRateLimit("login-ip", ip, IP_LIMIT, WINDOW);
 
-    const { username, password } = await readJson<{
-      username?: string;
-      password?: string;
-    }>(req);
+    const { username, password } = await req.json();
 
     if (!username || !password) {
       return Response.json({ error: "用户名和密码不能为空" }, { status: 400 });

@@ -59,6 +59,55 @@ export const llmConfig = pgTable(
   }),
 );
 
+// Multiple upstream channels may provide the same model id. The default
+// binding is selected independently for text and image workloads.
+export const llmChannels = pgTable(
+  "llm_channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    baseUrl: text("base_url").notNull().default(""),
+    apiKey: text("api_key").notNull().default(""),
+    apiKeyCiphertext: text("api_key_ciphertext"),
+    apiKeyIv: text("api_key_iv"),
+    apiKeyAuthTag: text("api_key_auth_tag"),
+    enabled: integer("enabled").notNull().default(1),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    channelNameIndex: uniqueIndex("llm_channels_name_unique").on(table.name),
+  }),
+);
+
+export const llmChannelModels = pgTable(
+  "llm_channel_models",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    channelId: uuid("channel_id")
+      .notNull()
+      .references(() => llmChannels.id, { onDelete: "cascade" }),
+    modelId: text("model_id").notNull(),
+    kind: text("kind").notNull(),
+    enabled: integer("enabled").notNull().default(1),
+    isDefault: integer("is_default").notNull().default(0),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    channelModelUnique: uniqueIndex(
+      "llm_channel_models_channel_kind_model_unique",
+    ).on(table.channelId, table.kind, table.modelId),
+    defaultModelUnique: uniqueIndex(
+      "llm_channel_models_default_kind_model_unique",
+    )
+      .on(table.kind, table.modelId)
+      .where(sql`${table.isDefault} = 1`),
+  }),
+);
+
 // ── Site settings (single row): admin contact on login, etc. ──
 export const siteSettings = pgTable(
   "site_settings",
@@ -140,6 +189,7 @@ export const users = pgTable("users", {
 export const announcements = pgTable("announcements", {
   id: uuid("id").defaultRandom().primaryKey(),
   body: text("body").notNull(),
+  imagePath: text("image_path"),
   pinned: boolean("pinned").default(false).notNull(),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",

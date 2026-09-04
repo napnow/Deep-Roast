@@ -5,13 +5,13 @@ import {
   getConfig,
 } from "@/lib/config";
 import { ApiError } from "@/server/http";
-import {
-  resolveChatEndpoint,
-  systemPromptForModel,
-} from "@/server/providers/llm";
+import { systemPromptForModel } from "@/server/providers/llm";
 import { CREDIT_PER_CHAT } from "@/types";
 import { reserveCredits } from "@/server/services/credits";
-import { assertEnabledTextModel } from "@/server/services/model-access";
+import {
+  isConfiguredModelEnabled,
+  resolveConfiguredEndpoint,
+} from "@/server/services/model-channels";
 import { providerIdempotencyKey } from "@/server/services/request-idempotency";
 import {
   completeRequest,
@@ -106,10 +106,17 @@ export async function createChatStream(
   const conv = convs[0];
   if (!conv) throw new ApiError("对话不存在", 404);
 
-  const model = assertEnabledTextModel(conv.model, config);
+  const model = conv.model;
+  if (!(await isConfiguredModelEnabled(config || {}, "text", model))) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
 
   // 按模型解析端点后再检查 key（Grok 可用 GROK_API_KEY，不强制 ARK）
-  const { apiKey, baseUrl } = resolveChatEndpoint(model, config || {});
+  const { apiKey, baseUrl } = await resolveConfiguredEndpoint(
+    "text",
+    model,
+    config || {},
+  );
   if (!apiKey) {
     const isGrok = model.startsWith("grok-");
     throw new ApiError(

@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 // 因此 API 鉴权全部下放到各 route 内部（Node Runtime，读取真实环境变量），
 // middleware 只做 /admin 页面的登录重定向。
 export const config = {
-  matcher: ["/api/:path*", "/admin/:path*", "/images/:path*"],
+  matcher: ["/api/:path*", "/admin/:path*"],
 };
 
 export async function middleware(req: NextRequest) {
@@ -16,11 +16,6 @@ export async function middleware(req: NextRequest) {
   // （Node Runtime 可读 JWT_SECRET，与 /api/auth/me 一致，避免 edge 密钥缺失导致 401）
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
-  }
-
-  // 图片统一经 /api/images/[key] 做用户归属校验，禁止 public/images 直出。
-  if (pathname.startsWith("/images/")) {
-    return new NextResponse(null, { status: 404 });
   }
 
   // /admin 页面：未登录重定向到登录页（仅体验引导，真正的权限在 /api/admin/* 内部校验）

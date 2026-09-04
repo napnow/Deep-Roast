@@ -1,5 +1,7 @@
 # 深焙 Deep Roast
 
+> 2026-09-04：已恢复完整的手机端工作台、手机管理端、注册 IP 限制、模型通道、API Key 管理和公告二维码，同时保留私有图片、请求幂等、事务扣费、SSRF 防护及密钥加密。升级生产环境时需依次执行 `npm run db:migrate`、`npx tsx scripts/migrate-llm-config-key.ts` 和 `npm run db:migrate-channel-keys`。完整说明见 `docs/operations/production-version-recovery-2026-09-04.md`。
+
 深焙（Deep Roast）是一个面向个人和小团队的自托管 AI 创作工作台，支持文生图、图生图、反推提示词、对话和图库管理。
 
 项目地址：[github.com/napnow/Deep-Roast](https://github.com/napnow/Deep-Roast)

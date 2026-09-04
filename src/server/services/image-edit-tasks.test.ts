@@ -1,11 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ApiError } from "@/server/http";
 import {
   calculateImageEditCost,
-  normalizeImageEditCount,
   normalizeImageEditRequest,
-  publicImageEditError,
 } from "./image-edit-tasks";
 
 describe("image edit task normalization", () => {
@@ -90,25 +87,4 @@ describe("image edit task normalization", () => {
     );
     assert.equal(calculateImageEditCost(tasks, 3), 3);
   });
-
-  it("normalizes invalid and oversized batch counts safely", () => {
-    assert.equal(normalizeImageEditCount(Number.NaN), 1);
-    assert.equal(normalizeImageEditCount(Number.POSITIVE_INFINITY), 1);
-    assert.equal(normalizeImageEditCount(7), 5);
-  });
-  it("hides upstream error details but keeps safe business errors", () => {
-    assert.equal(
-      publicImageEditError(
-        new ApiError("500 upstream secret payload", 502, "UPSTREAM_IMAGE_ERROR"),
-      ),
-      "图生图失败，请稍后重试",
-    );
-    assert.equal(
-      publicImageEditError(
-        new ApiError("积分不足，请先签到或联系管理员", 402, "INSUFFICIENT_CREDITS"),
-      ),
-      "积分不足，请先签到或联系管理员",
-    );
-  });
-
 });

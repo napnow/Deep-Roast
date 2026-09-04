@@ -85,6 +85,7 @@ export default function ChatView({
           {messages.map((m, i) => {
             const isUser = m.role === "user";
             const hasReasoning = !!m.reasoning;
+            const image = m.metadata?.image;
             const reasoningOpen = expandedReasoning.has(i);
             // 慢焙蒸汽升腾：每条消息 staggered 出现，索引越大延迟越长（最多 0.4s）
             const msgDelay = Math.min(i * 0.06, 0.4);
@@ -138,32 +139,111 @@ export default function ChatView({
                     </div>
                   )}
 
-                  <div
-                    className={`w-fit max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                      isUser ? "rounded-br-md" : "rounded-bl-md"
-                    }`}
-                    style={
-                      isUser
-                        ? {
-                            background: "var(--accent)",
-                            color: "var(--accent-on)",
-                            boxShadow: "var(--shadow-sm)",
-                          }
-                        : {
-                            background: "var(--bg-surface)",
-                            color: "var(--text-primary)",
-                            border: "1px solid var(--border)",
-                            boxShadow: "var(--shadow-sm)",
-                          }
-                    }
-                  >
-                    <div className="whitespace-pre-wrap break-words">
-                      {m.content}
+                  {image ? (
+                    <div
+                      className="max-w-full overflow-hidden rounded-2xl rounded-bl-md border"
+                      style={{
+                        background: "var(--bg-surface)",
+                        color: "var(--text-primary)",
+                        borderColor:
+                          image.status === "error"
+                            ? "color-mix(in srgb, var(--danger) 35%, var(--border))"
+                            : "var(--border)",
+                        boxShadow: "var(--shadow-sm)",
+                      }}
+                    >
+                      {image.status === "success" && image.imageUrl ? (
+                        <a
+                          href={image.imageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block cursor-zoom-in"
+                          title="查看大图"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image.thumbUrl || image.imageUrl}
+                            alt={image.prompt}
+                            className="block max-h-[28rem] w-full object-contain"
+                            style={{ background: "var(--bg-root)" }}
+                          />
+                        </a>
+                      ) : image.status === "pending" ? (
+                        <div className="flex min-h-44 min-w-64 flex-col items-center justify-center gap-3 px-8 py-8">
+                          <div
+                            className="h-9 w-9 animate-spin rounded-full border-2 border-transparent"
+                            style={{
+                              borderTopColor: "var(--accent)",
+                              borderRightColor: "var(--accent-soft)",
+                            }}
+                          />
+                          <span
+                            className="text-xs"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            正在生成你的形象…
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex min-h-36 min-w-64 flex-col items-center justify-center gap-2 px-6 py-6 text-center">
+                          <p className="text-sm font-medium">生成失败</p>
+                          <p
+                            className="max-w-xs text-xs leading-relaxed"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            {image.error || "请检查 API 设置后重试"}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onSend(image.prompt)}
+                            className="mt-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-transform active:scale-95"
+                            style={{
+                              background: "var(--accent-surface)",
+                              color: "var(--accent)",
+                              border: "1px solid var(--accent)",
+                            }}
+                          >
+                            重试
+                          </button>
+                        </div>
+                      )}
+                      {m.content && image.status === "success" && (
+                        <p
+                          className="px-3.5 py-2 text-sm"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {m.content}
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  ) : (
+                    <div
+                      className={`w-fit max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        isUser ? "rounded-br-md" : "rounded-bl-md"
+                      }`}
+                      style={
+                        isUser
+                          ? {
+                              background: "var(--accent)",
+                              color: "var(--accent-on)",
+                              boxShadow: "var(--shadow-sm)",
+                            }
+                          : {
+                              background: "var(--bg-surface)",
+                              color: "var(--text-primary)",
+                              border: "1px solid var(--border)",
+                              boxShadow: "var(--shadow-sm)",
+                            }
+                      }
+                    >
+                      <div className="whitespace-pre-wrap break-words">
+                        {m.content}
+                      </div>
+                    </div>
+                  )}
 
                   {!isUser && !streaming && (
-                    <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="flex gap-1 mt-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                       <button
                         onClick={() => handleCopy(i, m.content)}
                         className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all active:scale-95"

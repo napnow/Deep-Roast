@@ -62,17 +62,47 @@ test("invitee reward migration preserves old balances and defaults history to ze
   assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
 });
 
-test("security performance migration is additive and covers service query order", () => {
-  assert.equal(existsSync("drizzle/0017_security_performance_indexes.sql"), true);
-  const sql = readFileSync("drizzle/0017_security_performance_indexes.sql", "utf8");
-  for (const name of [
-    "conversations_user_updated_idx",
-    "messages_conversation_created_idx",
-    "image_generations_user_created_idx",
-    "credit_transactions_user_created_idx",
-    "api_keys_user_status_idx",
-  ]) {
-    assert.ok(sql.includes('CREATE INDEX IF NOT EXISTS "' + name + '"'));
-  }
-  assert.ok(!/\b(DROP|DELETE|UPDATE|TRUNCATE|ALTER TABLE)\b/i.test(sql));
+test("registration IP limit migration preserves the current enabled default", () => {
+  assert.equal(existsSync("drizzle/0020_registration_ip_limit.sql"), true);
+  const sql = readFileSync("drizzle/0020_registration_ip_limit.sql", "utf8");
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "registration_ip_limit_enabled" integer NOT NULL DEFAULT 1/,
+  );
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});
+
+test("model channels migration preserves legacy config and backfills current defaults", () => {
+  assert.equal(existsSync("drizzle/0021_model_channels.sql"), true);
+  const sql = readFileSync("drizzle/0021_model_channels.sql", "utf8");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS "llm_channels"/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS "llm_channel_models"/);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS "api_key_ciphertext"/);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS "api_key_iv"/);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS "api_key_auth_tag"/);
+  assert.match(sql, /llm_config/);
+  assert.match(sql, /enabled_image_models/);
+  assert.match(sql, /enabled_text_models/);
+  assert.match(sql, /is_default/);
+  assert.match(sql, /EXCEPTION WHEN others/);
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});
+
+test("announcement image migration is additive", () => {
+  assert.equal(existsSync("drizzle/0022_announcement_qr_image.sql"), true);
+  const sql = readFileSync(
+    "drizzle/0022_announcement_qr_image.sql",
+    "utf8",
+  );
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS "image_path" text/);
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});
+
+test("model channel key migration clears plaintext only after encryption", () => {
+  const source = readFileSync("scripts/migrate-model-channel-keys.ts", "utf8");
+  assert.match(source, /API_KEY_ENCRYPTION_KEY is required/);
+  assert.match(source, /encryptModelChannelKey/);
+  assert.match(source, /apiKey:\s*encrypted\.plaintext/);
+  assert.match(source, /apiKeyCiphertext:\s*encrypted\.ciphertext/);
+  assert.match(source, /db\.transaction/);
 });

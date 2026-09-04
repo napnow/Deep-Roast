@@ -3,6 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type AppIconName =
   | "menu"
   | "image"
+  | "gallery"
   | "chat"
   | "history"
   | "details"
@@ -37,6 +38,13 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
         <rect x="3" y="4" width="18" height="16" rx="2" />
         <path d="m3 16 5-5 4 4 3-3 6 6" />
         <circle cx="15.5" cy="8.5" r="1.5" />
+      </>
+    ),
+    gallery: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="m3 16 5-5 4 4 3-3 6 6" />
+        <path d="M7 4V2m10 2V2" />
       </>
     ),
     chat: <path d="M4 5h16v11H8l-4 3V5Z" />,

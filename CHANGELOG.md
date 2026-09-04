@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-04 — Full production version recovery
+
+### Restored product features
+
+- Restored the complete mobile workspace and mobile administrator console from the preserved pre-hardening production source.
+- Restored administrator-controlled registration IP limits, user/admin API Key management, multi-channel model routing, and announcement QR images.
+- Restored the production image editing, invitation, donation, check-in, chat-history, and responsive administration flows that were absent from the incomplete Git snapshot.
+
+### Security retained
+
+- Kept authenticated private-image delivery, administrator owner-scoped image access, durable request idempotency, transactional credit reservations, bounded upstream requests, and public-HTTPS SSRF validation.
+- Kept AES-256-GCM storage for user API Keys and the primary LLM Key, and extended the same encrypted-at-rest policy to model-channel API Keys.
+- Added additive migrations `0021_model_channels.sql` and `0022_announcement_qr_image.sql`; neither migration drops or rebuilds production tables.
+
+### Verification
+
+- Passed the complete Node test suite, TypeScript checking, ESLint, and the default Next.js 16.3.2 Turbopack production build.
+- See `docs/operations/production-version-recovery-2026-09-04.md` for the exact migration, deployment, verification, and rollback procedure.
+
 ## 2026-09-02 — Security hardening and repository cleanup
 
 ### Security and reliability

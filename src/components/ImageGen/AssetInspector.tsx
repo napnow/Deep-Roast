@@ -19,6 +19,7 @@ interface AssetInspectorProps {
   history: ImageRecord[];
   activeImage: ImageRecord | null;
   onSelect: (image: ImageRecord) => void;
+  onContinueEditing: (image: ImageRecord) => void;
   onDelete: (id: string) => void;
 }
 
@@ -26,6 +27,7 @@ export default function AssetInspector({
   history,
   activeImage,
   onSelect,
+  onContinueEditing,
   onDelete,
 }: AssetInspectorProps) {
   const {
@@ -34,7 +36,6 @@ export default function AssetInspector({
     setInspectorTab,
     setInspectorCollapsed,
     setTextToImageDraft,
-    setImageToImageDraft,
     setImageCreationMode,
     setSelectedImageModel,
   } = useDeepRoastStore();
@@ -65,16 +66,6 @@ export default function AssetInspector({
     setTextToImageDraft({ prompt: next.prompt, size: next.size });
     setSelectedImageModel(next.model);
     setImageCreationMode("text");
-  };
-
-  const edit = () => {
-    if (!activeImage) return;
-    setImageToImageDraft({
-      prompt: activeImage.prompt,
-      size: activeImage.size,
-      refs: [{ preview: activeImage.imageUrl, base64: activeImage.imageUrl }],
-    });
-    setImageCreationMode("edit");
   };
 
   return (
@@ -174,7 +165,7 @@ export default function AssetInspector({
               </dl>
               <div className="asset-details__actions">
                 <button className="ui-button" onClick={reuse}><AppIcon name="copy" />复用参数</button>
-                <button className="ui-button" onClick={edit}><AppIcon name="edit" />进入图生图</button>
+                <button className="ui-button" onClick={() => onContinueEditing(activeImage)}><AppIcon name="edit" />继续修改</button>
                 <button className="ui-button" onClick={() => downloadImage(activeImage)}><AppIcon name="download" />下载</button>
                 <ImageActionMenu onDelete={() => {
                   if (window.confirm("确认删除这张图片？")) onDelete(activeImage.id);

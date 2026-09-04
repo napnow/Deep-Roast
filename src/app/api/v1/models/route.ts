@@ -1,6 +1,7 @@
 import { requireApiUser } from "@/server/auth";
 import { apiV1CorsPreflight, handleRoute, jsonOk } from "@/server/http";
-import { getConfig, defaultImageModelIds, parseEnabledModels } from "@/lib/config";
+import { getConfig } from "@/lib/config";
+import { listConfiguredModelIds } from "@/server/services/model-channels";
 
 export const OPTIONS = apiV1CorsPreflight;
 
@@ -8,11 +9,7 @@ export const OPTIONS = apiV1CorsPreflight;
 export const GET = handleRoute(async (req) => {
   await requireApiUser(req);
   const config = await getConfig();
-  const enabled = parseEnabledModels(
-    config?.enabledImageModels,
-    defaultImageModelIds(),
-    config?.imageModel,
-  );
+  const enabled = await listConfiguredModelIds(config || {}, "image");
   return jsonOk({
     object: "list",
     data: enabled.map((id) => ({

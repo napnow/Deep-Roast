@@ -107,6 +107,7 @@ export interface UserInvitationData {
 export interface Announcement {
   id: string;
   body: string;
+  imageUrl?: string | null;
   pinned?: boolean;
   createdAt: string;
   createdBy?: string | null;
@@ -146,6 +147,29 @@ export interface Config {
   enabledTextModels?: string[];
   /** 普通用户是否可生图；管理员始终可用 */
   imageGenerationEnabled?: boolean;
+  /** 管理员可见的模型渠道配置；普通用户响应不会包含该字段 */
+  channels?: ModelChannel[];
+}
+
+export type ModelChannelKind = "text" | "image";
+
+export interface ModelChannelModel {
+  id?: string;
+  modelId: string;
+  kind: ModelChannelKind;
+  enabled: boolean;
+  isDefault: boolean;
+  sortOrder?: number;
+}
+
+export interface ModelChannel {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKeyHint: string;
+  enabled: boolean;
+  sortOrder: number;
+  models: ModelChannelModel[];
 }
 
 /**

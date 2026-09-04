@@ -89,7 +89,7 @@ export default function AdminApiKeysTab({ userId }: { userId: string }) {
             可创建、停用或删除该用户的中转密钥；完整 Key 仅用户本人可查看和复制。
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="admin-api-key-create flex gap-2">
           <input className="ui-field flex-1 px-3" value={name} onChange={(event) => setName(event.target.value)} placeholder="Key 名称" />
           <button className="ui-button ui-button--primary" disabled={!name.trim() || busy !== null} onClick={createKey}>
             <AppIcon name="key" />{busy === "create" ? "创建中…" : "创建 Key"}

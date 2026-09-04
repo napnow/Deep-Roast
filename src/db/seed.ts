@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import { db } from "./index";
 import { llmConfig, styles, users } from "./schema";
 import { eq } from "drizzle-orm";
-import { requireAdminSeedPassword } from "./seed-policy";
 
 // 图生图风格预设：与旧版前端硬编码（editStyles.ts）一致；
 // published=1 已公开，0 = 仅管理端测试可见（新风格先下架，测试通过后上架）。
@@ -204,7 +203,7 @@ async function seed() {
     .where(eq(users.username, "admin"));
 
   if (existingAdmin.length === 0) {
-    const adminPassword = requireAdminSeedPassword(process.env.ADMIN_PASSWORD);
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
     await db.insert(users).values({
@@ -213,7 +212,15 @@ async function seed() {
       role: "admin",
     });
 
-    console.log("✓ Admin user seeded");
+    if (!process.env.ADMIN_PASSWORD) {
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("  ⚠️  未设置 ADMIN_PASSWORD 环境变量");
+      console.log("  默认管理员密码: admin123");
+      console.log("  请登录后尽快修改密码！");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    } else {
+      console.log("✓ Admin user seeded");
+    }
   } else {
     console.log("✓ Admin user already exists");
   }

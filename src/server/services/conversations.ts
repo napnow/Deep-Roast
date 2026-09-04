@@ -3,7 +3,6 @@ import { conversations, messages } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
-import { assertEnabledTextModel } from "@/server/services/model-access";
 
 export async function listConversations(userId: string) {
   return db
@@ -27,12 +26,11 @@ export async function createConversation(
   opts: { title?: string; model?: string } = {},
 ) {
   const title = opts.title?.trim() || "新对话";
-  const config = await getConfig();
   let model = opts.model?.trim();
   if (!model) {
+    const config = await getConfig();
     model = config?.textModel || "doubao-seed-2-0-pro-260215";
   }
-  model = assertEnabledTextModel(model, config);
   const [conv] = await db
     .insert(conversations)
     .values({ title, model, userId })
@@ -65,7 +63,6 @@ export async function updateConversation(
   id: string,
   updates: { title?: string; model?: string },
 ) {
-  const config = updates.model !== undefined ? await getConfig() : null;
   const patch: { title?: string; model?: string; updatedAt: Date } = {
     updatedAt: new Date(),
   };
@@ -75,7 +72,7 @@ export async function updateConversation(
   }
   if (updates.model !== undefined) {
     if (!updates.model.trim()) throw new ApiError("model 不能为空", 400);
-    patch.model = assertEnabledTextModel(updates.model, config);
+    patch.model = updates.model.trim();
   }
   if (patch.title === undefined && patch.model === undefined) {
     throw new ApiError("没有需要更新的字段", 400);

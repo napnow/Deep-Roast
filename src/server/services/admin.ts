@@ -143,20 +143,20 @@ export async function deleteUserHard(userId: string) {
 
   for (const img of images) {
     try {
-        const imagePath = img.storageKey
-          ? privateImagePath(privateImageRoot(), img.storageKey)
-          : path.join(process.cwd(), "public", img.imageUrl.replace(/^\//, ""));
-        await unlink(imagePath);
+      const imagePath = img.storageKey
+        ? privateImagePath(privateImageRoot(), img.storageKey)
+        : path.join(process.cwd(), "public", img.imageUrl.replace(/^\//, ""));
+      await unlink(imagePath);
+    } catch {
+      /* best-effort */
+    }
+    if (img.storageKey) {
+      try {
+        await unlink(privateThumbnailPath(privateImageRoot(), img.storageKey));
       } catch {
         /* best-effort */
       }
-      if (img.storageKey) {
-        try {
-          await unlink(privateThumbnailPath(privateImageRoot(), img.storageKey));
-        } catch {
-          /* best-effort */
-        }
-      }
+    }
   }
 
   await db.delete(users).where(eq(users.id, userId));
@@ -188,33 +188,31 @@ export async function listUserConversations(userId: string) {
 }
 
 export async function listUserImages(userId: string) {
-    const rows = await db
-      .select()
-      .from(imageGenerations)
-      .where(eq(imageGenerations.userId, userId))
-      .orderBy(asc(imageGenerations.createdAt))
-      .limit(100);
-    return rows.map((row) => {
-      if (row.storageKey) {
-        return {
-          ...row,
-          imageUrl: withImageOwner(protectedImageUrl(row.storageKey), userId),
-        };
-      }
-      const legacyKey = /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp))$/i.exec(
+  const rows = await db
+    .select()
+    .from(imageGenerations)
+    .where(eq(imageGenerations.userId, userId))
+    .orderBy(asc(imageGenerations.createdAt))
+    .limit(100);
+  return rows.map((row) => {
+    if (row.storageKey) {
+      return {
+        ...row,
+        imageUrl: withImageOwner(protectedImageUrl(row.storageKey), userId),
+      };
+    }
+    const legacyKey =
+      /^\/images\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp))$/i.exec(
         row.imageUrl,
       )?.[1];
-      return legacyKey
-        ? {
-            ...row,
-            imageUrl: withImageOwner(
-              protectedLegacyImageUrl(legacyKey),
-              userId,
-            ),
-          }
-        : row;
-    });
-  }
+    return legacyKey
+      ? {
+          ...row,
+          imageUrl: withImageOwner(protectedLegacyImageUrl(legacyKey), userId),
+        }
+      : row;
+  });
+}
 
 export async function listConversationMessages(conversationId: string) {
   return db

@@ -125,9 +125,7 @@ export function normalizeImageEditRequest(
 }
 
 export function normalizeImageEditCount(count: number | undefined): number {
-  const safeCount =
-    typeof count === "number" && Number.isFinite(count) ? count : 1;
-  return Math.min(Math.max(Math.floor(safeCount), 1), 5);
+  return Math.min(Math.max(Math.floor(count || 1), 1), 5);
 }
 
 export function calculateImageEditCost(

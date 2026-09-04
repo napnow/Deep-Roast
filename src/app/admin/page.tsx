@@ -20,6 +20,7 @@ import ResetPasswordModal from "@/components/Admin/ResetPasswordModal";
 import AdminApiKeysTab from "@/components/Admin/AdminApiKeysTab";
 import AdminSiteContentPage from "@/components/Admin/AdminSiteContentPage";
 import AdminAiCapabilitiesPage from "@/components/Admin/AdminAiCapabilitiesPage";
+import MobileAdminUserSheet from "@/components/Admin/MobileAdminUserSheet";
 import { softNavigate } from "@/lib/nav-transition";
 
 export default function AdminPage() {
@@ -58,6 +59,7 @@ export default function AdminPage() {
   /** 手动刷新状态与最近刷新时间 */
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
+  const [mobileUserSheetOpen, setMobileUserSheetOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -333,7 +335,22 @@ export default function AdminPage() {
           setImageDetail(null);
           setMainView("detail");
         }}
+        onOpenMobileUsers={() => setMobileUserSheetOpen(true)}
         onBack={() => softNavigate(router, "/")}
+      />
+
+      <MobileAdminUserSheet
+        open={mobileUserSheetOpen}
+        users={users}
+        selectedUser={selectedUser}
+        loading={loadingUsers}
+        onClose={() => setMobileUserSheetOpen(false)}
+        onSelect={(u) => {
+          setSelectedUser(u);
+          setImageDetail(null);
+          setMainView("detail");
+          setMobileUserSheetOpen(false);
+        }}
       />
 
       <div className="admin-main">

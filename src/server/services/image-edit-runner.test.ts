@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { executeImageEditTasks } from "./image-edit-runner";
 import type { ImageEditTask } from "@/lib/image-edit-contract";
+import { ApiError } from "@/server/http";
 
 type Output = {
   id: string;
@@ -78,5 +79,32 @@ describe("image edit task runner", () => {
       ["target", "ref-a", "ref-b"],
       ["target", "ref-a", "ref-b"],
     ]);
+  });
+
+  it("passes stable attempt indexes and hides upstream server errors", async () => {
+    const calls: Array<[number, number]> = [];
+    const tasks: ImageEditTask[] = [
+      {
+        mode: "per-image",
+        targetImage: "target",
+        prompt: "edit",
+        targetIndex: 0,
+      },
+    ];
+
+    const result = await executeImageEditTasks(
+      tasks,
+      2,
+      async (_task, taskIndex, variantIndex) => {
+        calls.push([taskIndex, variantIndex]);
+        throw new ApiError("upstream leaked details", 502);
+      },
+    );
+
+    assert.deepEqual(calls, [
+      [0, 0],
+      [0, 1],
+    ]);
+    assert.equal(result.lastError, "图生图失败，请稍后重试");
   });
 });

@@ -13,6 +13,7 @@ import AnnouncementTab from "./AnnouncementTab";
 import ImagePreviewModal from "./ImagePreviewModal";
 import { useDeepRoastStore } from "@/lib/store";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import { createImageContinuationDraft } from "@/lib/image-continuation";
 import {
   clampCreationPanelWidth,
   CREATION_PANEL_LAYOUT,
@@ -46,6 +47,12 @@ interface ImageGenViewProps {
   onWalletClick?: () => void;
   /** 手机端：当前 Tab（生成/图库/公告） */
   mobileTab: MobileTab;
+  /** 切回手机端生图页，以便打开图生图面板 */
+  onMobileGenerateTab?: () => void;
+  /** 手机端键盘占用的可视高度 */
+  keyboardInset: number;
+  /** 手机端键盘是否已打开 */
+  keyboardOpen: boolean;
 }
 
 export default function ImageGenView({
@@ -64,12 +71,17 @@ export default function ImageGenView({
   isAdmin,
   onWalletClick,
   mobileTab,
+  onMobileGenerateTab,
+  keyboardInset,
+  keyboardOpen,
 }: ImageGenViewProps) {
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const imageGenerationEnabled = useDeepRoastStore(
     (state) => state.config.imageGenerationEnabled,
   );
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
+  const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
+  const setImageCreationMode = useDeepRoastStore((state) => state.setImageCreationMode);
   const sizeOptions = getSizeOptions(model);
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(sizeOptions[0]?.value || "1024x1024");
@@ -77,6 +89,7 @@ export default function ImageGenView({
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
+  const [openImageToImage, setOpenImageToImage] = useState(false);
   // 固定输入条的高度（结果区预留，避免被遮挡）
   const [barHeight, setBarHeight] = useState(120);
   const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
@@ -189,6 +202,16 @@ export default function ImageGenView({
     clearImageTask();
   }
 
+  function handleContinueEditing(image: ImageRecord) {
+    if (!image.imageUrl) return;
+    setImageToImageDraft(createImageContinuationDraft(image));
+    setImageCreationMode("edit");
+    onActiveImageChange(image);
+    setPreviewImage(null);
+    onMobileGenerateTab?.();
+    setOpenImageToImage(true);
+  }
+
   const taskResults = imageTask.resultIds
     .map((id) => history.find((item) => item.id === id))
     .filter((item): item is ImageRecord => Boolean(item));
@@ -236,6 +259,7 @@ export default function ImageGenView({
           elapsedSeconds={elapsedSeconds}
           lastGenTime={lastGenTime}
           onPreview={setPreviewImage}
+          onContinueEditing={handleContinueEditing}
           onRetry={onRetryGenerate}
           onStop={onStopGenerate}
           onClose={() => {
@@ -248,6 +272,7 @@ export default function ImageGenView({
           history={history}
           activeImage={activeImage}
           onSelect={handleSelectHistory}
+          onContinueEditing={handleContinueEditing}
           onDelete={onDeleteImage}
         />
       </div>
@@ -267,6 +292,7 @@ export default function ImageGenView({
                 elapsedSeconds={elapsedSeconds}
                 lastGenTime={lastGenTime}
                 onPreview={setPreviewImage}
+                onContinueEditing={handleContinueEditing}
                 onRetry={onRetryGenerate}
                 onStop={onStopGenerate}
                 onClose={() => {
@@ -304,6 +330,10 @@ export default function ImageGenView({
           onEditImageBatch={onEditImageBatch}
           onStopGenerate={onStopGenerate}
           onHeightChange={setBarHeight}
+          keyboardInset={keyboardInset}
+          keyboardOpen={keyboardOpen}
+          openImageToImage={openImageToImage}
+          onImageToImageOpened={() => setOpenImageToImage(false)}
         />
       )}
 
@@ -311,6 +341,7 @@ export default function ImageGenView({
       <ImagePreviewModal
         image={previewImage}
         onClose={() => setPreviewImage(null)}
+        onContinueEditing={handleContinueEditing}
         onDelete={onDeleteImage}
       />
     </div>

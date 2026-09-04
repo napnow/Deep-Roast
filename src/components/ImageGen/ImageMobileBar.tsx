@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CREDIT_PER_IMAGE } from "@/types";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
+import { useDeepRoastStore } from "@/lib/store";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
@@ -30,32 +31,16 @@ interface ImageMobileBarProps {
   onStopGenerate: () => void;
   /** 输入条实际高度（结果区预留底部空间） */
   onHeightChange?: (height: number) => void;
-}
-
-/** iOS 键盘弹出高度（overlay 键盘时 visualViewport 收缩） */
-function useKeyboardInset(): number {
-  const [inset, setInset] = useState(0);
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      const diff = Math.max(0, (window.innerHeight || 0) - vv.height);
-      setInset(diff);
-    };
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    update();
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-    };
-  }, []);
-  return inset;
+  keyboardInset: number;
+  keyboardOpen: boolean;
+  /** 外部请求直接打开图生图面板（用于对已有生成图继续修改） */
+  openImageToImage: boolean;
+  onImageToImageOpened?: () => void;
 }
 
 /**
  * 手机端底部输入条（ChatGPT 风格，fixed 定位）：
- * - fixed 固定在视口底部，键盘弹出时自动顶在键盘上方（visualViewport 补偿），
+ * - fixed 固定在视口底部，iOS 键盘弹出时由 visual viewport 自动顶在键盘上方，
  *   页面不会整体滚动偏移
  * - 高度变化通过 ResizeObserver 上报，内容区同步预留空间
  */
@@ -74,7 +59,12 @@ export default function ImageMobileBar({
   onEditImageBatch,
   onStopGenerate,
   onHeightChange,
+  keyboardInset,
+  keyboardOpen,
+  openImageToImage,
+  onImageToImageOpened,
 }: ImageMobileBarProps) {
+  const imageToImageDraft = useDeepRoastStore((state) => state.imageToImageDraft);
   const canAfford = isAdmin || credits >= CREDIT_PER_IMAGE;
   const imageGenerationAvailable = canUseImageGeneration(
     isAdmin ? "admin" : "user",
@@ -83,9 +73,14 @@ export default function ImageMobileBar({
   const [toolbarOpen, setToolbarOpen] = useState<
     "reverse" | "img2img" | "size" | null
   >(null);
-  const kbInset = useKeyboardInset();
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!openImageToImage) return;
+    setToolbarOpen("img2img");
+    onImageToImageOpened?.();
+  }, [onImageToImageOpened, openImageToImage]);
 
   useEffect(() => {
     if (!toolbarOpen) return;
@@ -102,7 +97,7 @@ export default function ImageMobileBar({
     const ro = new ResizeObserver(report);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [onHeightChange, kbInset]);
+  }, [onHeightChange, keyboardInset]);
 
   function toggleToolbar(panel: "reverse" | "img2img" | "size") {
     setToolbarOpen((prev) => (prev === panel ? null : panel));
@@ -131,7 +126,9 @@ export default function ImageMobileBar({
       ref={barRef}
       className="mobile-composer-shell md:hidden fixed z-40"
       style={{
-        bottom: `calc(${kbInset}px + var(--mobile-bottom-nav-height, 0px))`,
+        bottom: keyboardOpen
+          ? "0px"
+          : "var(--mobile-bottom-nav-height, 0px)",
       }}
     >
       {toolbarOpen ? (
@@ -194,6 +191,7 @@ export default function ImageMobileBar({
             ) : toolbarOpen === "img2img" ? (
               <Img2ImgPanel
                 size={size}
+                draft={imageToImageDraft}
                 sizeOptions={sizeOptions}
                 generating={generating}
                 disabled={!imageGenerationAvailable}
@@ -288,11 +286,7 @@ export default function ImageMobileBar({
                 setPrompt(event.target.value);
                 autoResize();
               }}
-              onFocus={() => {
-                autoResize();
-                lockPageScroll();
-              }}
-              onBlur={unlockPageScroll}
+              onFocus={autoResize}
               placeholder="描述你想要生成的图片…"
               rows={1}
               disabled={generating || !imageGenerationAvailable}

@@ -1,17 +1,16 @@
 import { db } from "@/db";
 import { imageGenerations } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import {
-  defaultImageModelIds,
-  getConfig,
-  parseEnabledModels,
-} from "@/lib/config";
+import { getConfig } from "@/lib/config";
 import { mkdir, unlink, access, readFile, open, rename, chmod, type FileHandle } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { CREDIT_PER_IMAGE } from "@/types";
 import { ApiError } from "@/server/http";
-import { resolveImageEndpoint } from "@/server/providers/llm";
+import {
+  isConfiguredModelEnabled,
+  resolveConfiguredEndpoint,
+} from "@/server/services/model-channels";
 import {
   assertEnoughCredits,
   reserveCredits,
@@ -571,12 +570,7 @@ export async function generateImage(opts: {
 
   // 越权防护：模型必须属于管理员启用的列表，
   // 防止普通用户通过 modelOverride 指定任意模型（绕过模型配置 / 调用未授权上游）。
-  const enabledModels = parseEnabledModels(
-    config?.enabledImageModels,
-    defaultImageModelIds(),
-    config?.imageModel,
-  );
-  if (!enabledModels.includes(model)) {
+  if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
   const size = assertImageSize(requestedSize, model);
@@ -588,7 +582,8 @@ export async function generateImage(opts: {
     ? `${systemPrompt}\n\n${prompt}`
     : prompt;
 
-  const { apiKey, baseUrl, maxRetries } = resolveImageEndpoint(
+  const { apiKey, baseUrl, maxRetries } = await resolveConfiguredEndpoint(
+    "image",
     model,
     config || {},
   );
@@ -786,19 +781,15 @@ async function editImageOnce(opts: {
     modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
 
   // 越权防护：模型必须属于管理员启用的列表
-  const enabledModels = parseEnabledModels(
-    config?.enabledImageModels,
-    defaultImageModelIds(),
-    config?.imageModel,
-  );
-  if (!enabledModels.includes(model)) {
+  if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
 
   const size = assertImageSize(requestedSize, model);
   const chargeCredits = role !== "admin";
 
-  const { apiKey, baseUrl, maxRetries } = resolveImageEndpoint(
+  const { apiKey, baseUrl, maxRetries } = await resolveConfiguredEndpoint(
+    "image",
     model,
     config || {},
   );
@@ -1011,12 +1002,7 @@ export async function runImageEditTasks(opts: {
   const config = await getConfig();
   const model =
     modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
-  const enabledModels = parseEnabledModels(
-    config?.enabledImageModels,
-    defaultImageModelIds(),
-    config?.imageModel,
-  );
-  if (!enabledModels.includes(model)) {
+  if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
 

@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Config } from "@/types";
-import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS } from "@/types";
-import ModelManager from "@/components/Settings/ModelManager";
+import ChannelManager, {
+  createChannelDrafts,
+  type ChannelDraft,
+} from "@/components/Settings/ChannelManager";
 import ReversePromptModelPicker from "@/components/Settings/ReversePromptModelPicker";
 
 interface SettingsModalProps {
@@ -13,6 +15,12 @@ interface SettingsModalProps {
   onSave: (config: Record<string, unknown>) => Promise<void>;
 }
 
+const inputStyle = {
+  background: "var(--bg-root)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
+};
+
 /** 管理员专属：生图/对话配置（API Key / 模型 / 系统提示词） */
 export default function SettingsModal({
   open,
@@ -20,25 +28,17 @@ export default function SettingsModal({
   config,
   onSave,
 }: SettingsModalProps) {
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState(config.baseUrl);
-  const [textModel, setTextModel] = useState(
-    config.textModel || "doubao-seed-2-0-pro-260215",
+  const [channels, setChannels] = useState<ChannelDraft[]>(() =>
+    createChannelDrafts(config),
   );
-  const [imageModel, setImageModel] = useState(config.imageModel);
   const [imageSystemPrompt, setImageSystemPrompt] = useState(
     config.imageSystemPrompt || "",
   );
+  const [assistantImagePrompt, setAssistantImagePrompt] = useState(
+    config.assistantImagePrompt || "",
+  );
   const [reversePromptModel, setReversePromptModel] = useState(
     config.reversePromptModel || "",
-  );
-  const [enabledText, setEnabledText] = useState<string[]>(
-    config.enabledTextModels?.length
-      ? config.enabledTextModels
-      : DEFAULT_TEXT_MODELS.map((m) => m.id),
-  );
-  const [enabledImage, setEnabledImage] = useState<string[]>(
-    config.enabledImageModels || DEFAULT_IMAGE_MODELS.map((m) => m.id),
   );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,22 +46,10 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setApiKey("");
-      setBaseUrl(config.baseUrl);
-      setTextModel(config.textModel || "doubao-seed-2-0-pro-260215");
-      setImageModel(config.imageModel);
+      setChannels(createChannelDrafts(config));
       setImageSystemPrompt(config.imageSystemPrompt || "");
+      setAssistantImagePrompt(config.assistantImagePrompt || "");
       setReversePromptModel(config.reversePromptModel || "");
-      setEnabledText(
-        config.enabledTextModels?.length
-          ? config.enabledTextModels
-          : DEFAULT_TEXT_MODELS.map((m) => m.id),
-      );
-      setEnabledImage(
-        config.enabledImageModels?.length
-          ? config.enabledImageModels
-          : DEFAULT_IMAGE_MODELS.map((m) => m.id),
-      );
       setMessage("");
     }
     wasOpen.current = open;
@@ -71,21 +59,45 @@ export default function SettingsModal({
     setSaving(true);
     setMessage("");
     try {
+      const channelModels = (kind: "text" | "image") =>
+        channels
+          .filter((channel) => channel.enabled)
+          .flatMap((channel) =>
+            channel.models
+              .filter((model) => model.kind === kind && model.enabled)
+              .map((model) => model.modelId),
+          );
+      const defaultModel = (kind: "text" | "image", fallback: string) =>
+        channels
+          .flatMap((channel) => channel.models)
+          .find((model) => model.kind === kind && model.enabled && model.isDefault)
+          ?.modelId || fallback;
+
       const payload: Record<string, unknown> = {
-        baseUrl,
-        textModel,
-        imageModel,
+        channels: channels.map(({ id, name, baseUrl, apiKey, apiKeyHint, enabled, sortOrder, models }) => ({
+          id,
+          name,
+          baseUrl,
+          apiKey,
+          apiKeyHint,
+          enabled,
+          sortOrder,
+          models,
+        })),
+        // 保留旧字段，兼容尚未切换到渠道读取的客户端与回滚场景。
+        textModel: defaultModel("text", config.textModel),
+        imageModel: defaultModel("image", config.imageModel),
         imageSystemPrompt,
+        assistantImagePrompt,
         // 允许留空：运行时回落默认视觉模型
         reversePromptModel: reversePromptModel.trim(),
-        enabledTextModels: enabledText,
-        enabledImageModels: enabledImage,
+        enabledTextModels: channelModels("text"),
+        enabledImageModels: channelModels("image"),
       };
-      if (apiKey.trim()) {
-        payload.arkApiKey = apiKey.trim();
-      }
       await onSave(payload);
-      setApiKey("");
+      setChannels((current) =>
+        current.map((channel) => ({ ...channel, apiKey: "" })),
+      );
       setMessage("✓ 保存成功");
     } catch (err: unknown) {
       const msg =
@@ -97,15 +109,13 @@ export default function SettingsModal({
 
   if (!open) return null;
 
-  const inputStyle = {
-    background: "var(--bg-root)",
-    border: "1px solid var(--border)",
-    color: "var(--text-primary)",
-  };
-
-  const keyPlaceholder = config.hasApiKey
-    ? `已配置 ${config.apiKeyHint || "****"}，留空则不修改`
-    : "输入 API Key…";
+  const primaryChannel =
+    channels.find((channel) => channel.enabled) || channels[0];
+  const reverseBaseUrl = primaryChannel?.baseUrl || config.baseUrl;
+  const reverseApiKey = primaryChannel?.apiKey || "";
+  const reverseHasSavedKey = Boolean(
+    primaryChannel?.apiKeyHint || config.hasApiKey,
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -150,66 +160,15 @@ export default function SettingsModal({
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto">
-          <Field
-            label="API Key"
-            hint="此处配置优先于 .env；留空保存表示不修改已有 Key"
-          >
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={keyPlaceholder}
-              autoComplete="off"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm transition-colors duration-200"
-              style={inputStyle}
-            />
-          </Field>
-
-          <Field
-            label="API Base URL"
-            hint="OpenAI 兼容地址，可只填主机（会自动补 /v1）"
-          >
-            <input
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://example.com/v1"
-              className="w-full rounded-xl px-3.5 py-2.5 text-sm transition-colors duration-200"
-              style={inputStyle}
-            />
-          </Field>
-
-          <ModelManager
-            kind="text"
-            enabled={enabledText}
-            onChange={setEnabledText}
-            defaultModel={textModel}
-            onDefaultModelChange={setTextModel}
-            baseUrl={baseUrl}
-            savedBaseUrl={config.baseUrl}
-            apiKey={apiKey}
-            hasSavedApiKey={!!config.hasApiKey}
-          />
-
-          <ModelManager
-            kind="image"
-            enabled={enabledImage}
-            onChange={setEnabledImage}
-            defaultModel={imageModel}
-            onDefaultModelChange={setImageModel}
-            baseUrl={baseUrl}
-            savedBaseUrl={config.baseUrl}
-            apiKey={apiKey}
-            hasSavedApiKey={!!config.hasApiKey}
-          />
+          <ChannelManager value={channels} onChange={setChannels} />
 
           <ReversePromptModelPicker
             value={reversePromptModel}
             onChange={setReversePromptModel}
-            baseUrl={baseUrl}
+            baseUrl={reverseBaseUrl}
             savedBaseUrl={config.baseUrl}
-            apiKey={apiKey}
-            hasSavedApiKey={!!config.hasApiKey}
+            apiKey={reverseApiKey}
+            hasSavedApiKey={reverseHasSavedKey}
           />
 
           <Field
@@ -220,6 +179,20 @@ export default function SettingsModal({
               value={imageSystemPrompt}
               onChange={(e) => setImageSystemPrompt(e.target.value)}
               placeholder="例如：高质量、8K分辨率、构图精美、光影自然"
+              rows={3}
+              className="w-full rounded-xl px-3.5 py-2.5 text-sm resize-none transition-colors duration-200"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field
+            label="助手形象提示词"
+            hint="用户在对话中说“我想看看你”时，会用这段提示词生成固定助手形象"
+          >
+            <textarea
+              value={assistantImagePrompt}
+              onChange={(e) => setAssistantImagePrompt(e.target.value)}
+              placeholder="例如：虚构的成年 AI 助手，短发，温和微笑，现代简洁穿搭，自然光"
               rows={3}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm resize-none transition-colors duration-200"
               style={inputStyle}

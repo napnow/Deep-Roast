@@ -9,16 +9,15 @@ import {
 import { and, eq, or, sql } from "drizzle-orm";
 import { hashPassword, setAuthCookie, signToken } from "@/lib/auth";
 import { normalizeInviteCode } from "@/lib/invitation";
-import { ApiError, readJson } from "@/server/http";
+import { ApiError } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
+import { isRegistrationIpLimitEnabled } from "@/server/services/registration-policy";
 import {
   getInvitationReward,
   getInviteeInvitationReward,
 } from "@/server/services/invitation-policy";
-import { isRegistrationIpLimitEnabled } from "@/server/services/site-settings";
-import { shouldEnforceRegistrationIpLimit } from "@/server/services/registration-ip-limit";
 
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
@@ -29,6 +28,12 @@ const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+function shouldSkipIpLimit(ip: string, enabled: boolean): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  if (!enabled) return true;
+  return BYPASS_IPS.includes(ip);
+}
 
 function errorText(err: unknown): string {
   const e = err as {
@@ -72,14 +77,14 @@ async function registerInTransaction(args: {
   username: string;
   hashedPassword: string;
   inviteCode: string | null;
+  ipLimitActive: boolean;
 }): Promise<RegistrationResult> {
-  const { ip, username, hashedPassword, inviteCode } = args;
+  const { ip, username, hashedPassword, inviteCode, ipLimitActive } = args;
 
   return db.transaction(async (tx) => {
     const [settings] = await tx
       .select({
         registrationEnabled: siteSettings.registrationEnabled,
-        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
         invitationEnabled: siteSettings.invitationEnabled,
         invitationReward: siteSettings.invitationReward,
         invitationInviteeReward: siteSettings.invitationInviteeReward,
@@ -92,12 +97,6 @@ async function registerInTransaction(args: {
       throw new ApiError("暂不开放注册", 403);
     }
 
-    const ipLimitActive = shouldEnforceRegistrationIpLimit(
-      ip,
-      (settings?.registrationIpLimitEnabled ?? 1) !== 0,
-      process.env.NODE_ENV,
-      BYPASS_IPS,
-    );
     if (ipLimitActive) {
       await tx.insert(registrationRecords).values({ ip, username });
     }
@@ -255,11 +254,11 @@ export async function POST(req: Request) {
       REGISTER_WINDOW,
     );
 
-    const body = await readJson<{
+    const body = (await req.json()) as {
       username?: unknown;
       password?: unknown;
       inviteCode?: unknown;
-    }>(req);
+    };
     const username = typeof body.username === "string" ? body.username : "";
     const password = typeof body.password === "string" ? body.password : "";
 
@@ -289,11 +288,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 
-    const ipLimitActive = shouldEnforceRegistrationIpLimit(
+    const [registrationSettings] = await db
+      .select({
+        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
+      })
+      .from(siteSettings)
+      .where(eq(siteSettings.id, 1))
+      .limit(1);
+    const ipLimitActive = !shouldSkipIpLimit(
       ip,
-      await isRegistrationIpLimitEnabled(),
-      process.env.NODE_ENV,
-      BYPASS_IPS,
+      isRegistrationIpLimitEnabled(
+        registrationSettings?.registrationIpLimitEnabled,
+      ),
     );
     if (ipLimitActive) {
       const [ipRecord] = await db
@@ -320,6 +326,7 @@ export async function POST(req: Request) {
           username,
           hashedPassword,
           inviteCode,
+          ipLimitActive,
         });
         break;
       } catch (err) {

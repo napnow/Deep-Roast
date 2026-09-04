@@ -9,6 +9,7 @@ import { AppIcon, type AppIconName } from "@/components/ui/icons";
 interface MobileWorkspaceNavProps {
   activeWorkspace: MobilePrimaryWorkspace;
   onSelect: (workspace: MobilePrimaryWorkspace) => void;
+  hidden?: boolean;
 }
 
 const WORKSPACE_ICONS: Record<MobilePrimaryWorkspace, AppIconName> = {
@@ -21,7 +22,10 @@ const WORKSPACE_ICONS: Record<MobilePrimaryWorkspace, AppIconName> = {
 export default function MobileWorkspaceNav({
   activeWorkspace,
   onSelect,
+  hidden = false,
 }: MobileWorkspaceNavProps) {
+  if (hidden) return null;
+
   return (
     <nav className="mobile-workspace-nav md:hidden" aria-label="主工作区">
       <div role="tablist" className="mobile-workspace-nav__tabs">

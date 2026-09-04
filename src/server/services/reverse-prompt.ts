@@ -1,6 +1,6 @@
 import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
-import { resolveVisionEndpoint } from "@/server/providers/llm";
+import { resolveConfiguredEndpoint } from "@/server/services/model-channels";
 
 export async function reversePromptFromImage(opts: {
   imageBase64: string;
@@ -27,7 +27,7 @@ export async function reversePromptFromImage(opts: {
     );
   }
 
-  const { apiKey, baseUrl } = resolveVisionEndpoint(model, {
+  const { apiKey, baseUrl } = await resolveConfiguredEndpoint("vision", model, {
     arkApiKey: config?.arkApiKey,
     baseUrl: config?.baseUrl,
   });

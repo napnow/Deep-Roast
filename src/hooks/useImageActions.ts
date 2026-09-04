@@ -22,10 +22,6 @@ function resolveRequestModel(): string {
   return config.imageModel;
 }
 
-function idempotencyHeaders(): HeadersInit {
-  return { "Idempotency-Key": crypto.randomUUID() };
-}
-
 export function useImageActions(loadCredits: () => Promise<void>) {
   const { toast } = useToast();
   const imageAbortRef = useRef<AbortController | null>(null);
@@ -60,7 +56,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }),
           signal: abort.signal,
         });
         setImageHistory((prev) => [
@@ -136,7 +132,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             size: string;
           }>("/api/image", {
             method: "POST",
-            ...jsonBody({ prompt, size, model: resolveRequestModel() }, idempotencyHeaders()),
+            ...jsonBody({ prompt, size, model: resolveRequestModel() }),
             signal: abort.signal,
           });
           results.push({
@@ -229,7 +225,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }),
           signal: abort.signal,
         });
         const list = (data.images || []).map((img) => ({
@@ -317,7 +313,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             size,
             count,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }),
           signal: abort.signal,
         });
         const list = (data.images || []).map((img) => ({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppModals from "@/components/AppModals";
 import { useAuth } from "@/components/AuthProvider";
 import TextModePanel from "@/components/Chat/TextModePanel";
@@ -17,7 +18,9 @@ import {
   type MobilePrimaryWorkspace,
 } from "@/components/Workspace/mobile-workspace-ui";
 import { useAppActions } from "@/hooks/useAppActions";
+import { useMobileViewport } from "@/hooks/useMobileViewport";
 import { ApiError, apiJson } from "@/lib/client-api";
+import { softNavigate } from "@/lib/nav-transition";
 import { useDeepRoastStore } from "@/lib/store";
 import {
   parseStoredBoolean,
@@ -32,6 +35,7 @@ const INSPECTOR_COLLAPSED_STORAGE_KEY =
 
 /** 首页只负责工作区布局；状态在 store，业务在 useAppActions。 */
 export default function Home() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const actions = useAppActions();
   const { toast } = useToast();
@@ -41,6 +45,7 @@ export default function Home() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
   const [donationEnabled, setDonationEnabled] = useState(false);
   const [donationOpen, setDonationOpen] = useState(false);
+  const mobileViewport = useMobileViewport();
 
   const {
     activeMode,
@@ -65,6 +70,8 @@ export default function Home() {
     setCheckinStatus,
     setWalletOpen,
     setPwOpen,
+    setApiOpen,
+    setSettingsOpen,
   } = useDeepRoastStore();
 
   useEffect(() => {
@@ -224,6 +231,10 @@ export default function Home() {
     setChatSidebarOpen(true);
   }, [setActiveMode]);
 
+  const handleOpenAdmin = useCallback(() => {
+    softNavigate(router, "/admin");
+  }, [router]);
+
   const handleSelectMobileWorkspace = useCallback(
     (workspace: MobilePrimaryWorkspace) => {
       if (workspace === "account") {
@@ -298,6 +309,9 @@ export default function Home() {
               isAdmin={isAdmin}
               onWalletClick={() => setWalletOpen(true)}
               mobileTab={mobileTab}
+              onMobileGenerateTab={() => handleSelectImageTab("generate")}
+              keyboardInset={mobileViewport.keyboardInset}
+              keyboardOpen={mobileViewport.keyboardOpen}
             />
           </section>
 
@@ -331,6 +345,7 @@ export default function Home() {
         <MobileWorkspaceNav
           activeWorkspace={mobilePrimaryWorkspace}
           onSelect={handleSelectMobileWorkspace}
+          hidden={mobileViewport.keyboardOpen}
         />
 
         <MobileDrawer
@@ -342,9 +357,12 @@ export default function Home() {
           donationEnabled={donationEnabled}
           onOpenWallet={() => setWalletOpen(true)}
           onOpenPassword={() => setPwOpen(true)}
+          onOpenApiKeys={() => setApiOpen(true)}
           onOpenDonation={() => setDonationOpen(true)}
           onOpenAnnouncements={() => handleSelectImageTab("announcements")}
           onOpenChatHistory={handleOpenChatHistory}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenAdmin={handleOpenAdmin}
           onCheckin={handleCheckin}
           onClose={() => setDrawerOpen(false)}
         />

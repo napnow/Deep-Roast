@@ -15,6 +15,7 @@ interface ResultCanvasProps {
   elapsedSeconds: number;
   lastGenTime: number | null;
   onPreview: (item: ImageRecord) => void;
+  onContinueEditing: (item: ImageRecord) => void;
   onRetry: () => void;
   onStop: () => void;
   onClose: () => void;
@@ -27,6 +28,7 @@ export default function ResultCanvas({
   elapsedSeconds,
   lastGenTime,
   onPreview,
+  onContinueEditing,
   onRetry,
   onStop,
   onClose,
@@ -92,6 +94,7 @@ export default function ResultCanvas({
             image={image}
             lastGenTime={lastGenTime}
             onPreview={onPreview}
+            onContinueEditing={onContinueEditing}
             onClose={onClose}
           />
         ))}
@@ -104,11 +107,13 @@ function ResultCard({
   image,
   lastGenTime,
   onPreview,
+  onContinueEditing,
   onClose,
 }: {
   image: ImageRecord;
   lastGenTime: number | null;
   onPreview: (item: ImageRecord) => void;
+  onContinueEditing: (item: ImageRecord) => void;
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -152,6 +157,15 @@ function ResultCard({
           </p>
         </div>
         <div className="result-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => onContinueEditing(image)}
+            aria-label="继续修改"
+            title="继续修改"
+          >
+            <AppIcon name="edit" />
+          </button>
           <button
             type="button"
             className={`icon-button ${copied ? "is-success" : ""}`}
