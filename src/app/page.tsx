@@ -371,6 +371,7 @@ export default function Home() {
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenAdmin={handleOpenAdmin}
           onCheckin={handleCheckin}
+          onLogout={logout}
           onClose={() => setDrawerOpen(false)}
         />
 

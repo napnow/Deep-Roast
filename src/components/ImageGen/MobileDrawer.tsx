@@ -31,6 +31,8 @@ interface MobileDrawerProps {
   onOpenAdmin: () => void;
   /** 复用已有签到流程 */
   onCheckin: () => void;
+  /** 复用已有退出登录流程 */
+  onLogout: () => void;
   onClose: () => void;
 }
 
@@ -55,6 +57,7 @@ export default function MobileDrawer({
   onOpenSettings,
   onOpenAdmin,
   onCheckin,
+  onLogout,
   onClose,
 }: MobileDrawerProps) {
   const { user } = useAuth();
@@ -79,6 +82,11 @@ export default function MobileDrawer({
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
     setIsDark(next);
+  }
+
+  function handleLogout() {
+    onClose();
+    onLogout();
   }
 
   // 打开抽屉时刷新公告红点
@@ -387,6 +395,19 @@ export default function MobileDrawer({
                 }}
               />
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
+            style={{
+              background: "var(--danger-surface)",
+              border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
+              color: "var(--danger)",
+            }}
+          >
+            <AppIcon name="arrow-left" size={16} strokeWidth={1.8} />
+            <span className="text-[13px] font-semibold">退出登录</span>
           </button>
           <p className="text-[10px] px-1" style={{ color: "var(--text-muted)" }}>
             深焙 Deep Roast · 慢工出好图

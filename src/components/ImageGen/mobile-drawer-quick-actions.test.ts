@@ -28,6 +28,20 @@ test("mobile drawer exposes API key management to authenticated users", () => {
   assert.match(drawer, /创建、复制和管理你的 API Key/);
   assert.match(drawer, /onOpenApiKeys/);
 });
+
+test("mobile drawer exposes logout and reuses the authenticated logout flow", () => {
+  const drawer = readFileSync(
+    "src/components/ImageGen/MobileDrawer.tsx",
+    "utf8",
+  );
+  const home = readFileSync("src/app/page.tsx", "utf8");
+
+  assert.match(drawer, /onLogout: \(\) => void/);
+  assert.match(drawer, /onClick=\{handleLogout\}/);
+  assert.match(drawer, /onLogout\(\)/);
+  assert.match(home, /onLogout=\{logout\}/);
+});
+
 test("mobile drawer leaves primary workspaces to the persistent navigation", () => {
   const drawer = readFileSync(
     "src/components/ImageGen/MobileDrawer.tsx",
