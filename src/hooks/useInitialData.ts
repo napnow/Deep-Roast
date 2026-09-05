@@ -20,9 +20,8 @@ export function useInitialData() {
 
   const applyEnabledImageModels = useCallback(
     (cfg: Config) => {
-      const ids = cfg.enabledImageModels?.length
-        ? cfg.enabledImageModels
-        : DEFAULT_IMAGE_MODELS.map((m) => m.id);
+      const ids =
+        cfg.enabledImageModels ?? DEFAULT_IMAGE_MODELS.map((m) => m.id);
       setImageModels(ids.map((id) => ({ id })));
     },
     [setImageModels],
@@ -35,11 +34,12 @@ export function useInitialData() {
       applyEnabledImageModels(cfg);
       // 所选模型跟随默认模型初始化（仅首次/默认值未在启用列表时）
       const { selectedImageModel } = useDeepRoastStore.getState();
-      const enabled = cfg.enabledImageModels?.length
-        ? cfg.enabledImageModels
-        : DEFAULT_IMAGE_MODELS.map((m) => m.id);
+      const enabled =
+        cfg.enabledImageModels ?? DEFAULT_IMAGE_MODELS.map((m) => m.id);
       if (!enabled.includes(selectedImageModel)) {
-        setSelectedImageModel(cfg.imageModel || enabled[0] || "");
+        setSelectedImageModel(
+          enabled.includes(cfg.imageModel) ? cfg.imageModel : enabled[0] || "",
+        );
       }
     } catch {
       console.error("Failed to load config");

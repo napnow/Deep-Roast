@@ -1,10 +1,14 @@
 import { and, eq, lte } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { requestIdempotency } from "@/db/schema";
 import { ApiError } from "@/server/http";
 import { normalizeIdempotencyKey } from "./request-idempotency";
 
-const PROCESSING_TIMEOUT_MS = 15 * 60 * 1000;
+// Covers the longest supported batch (five sequential image edits with
+// bounded retries). Expired claims are failed, never reclaimed, so an old
+// worker and a replacement can never execute the same key concurrently.
+const PROCESSING_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export type RequestReplay = {
@@ -14,9 +18,12 @@ export type RequestReplay = {
 };
 
 export type RequestClaim =
-  | { kind: "new"; id: string; key: string }
+  | { kind: "new"; id: string; key: string; leaseToken: string }
   | RequestReplay
   | { kind: "in_progress" };
+
+type TransactionCallback = Parameters<typeof db.transaction>[0];
+export type IdempotencyTransaction = Parameters<TransactionCallback>[0];
 
 export async function beginRequest(
   userId: string,
@@ -26,6 +33,7 @@ export async function beginRequest(
   const key = normalizeIdempotencyKey(rawKey);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + PROCESSING_TIMEOUT_MS);
+  const leaseToken = randomUUID();
 
   const [inserted] = await db
     .insert(requestIdempotency)
@@ -33,6 +41,7 @@ export async function beginRequest(
       userId,
       scope,
       key,
+      leaseToken,
       status: "processing",
       expiresAt,
       createdAt: now,
@@ -47,7 +56,7 @@ export async function beginRequest(
     })
     .returning({ id: requestIdempotency.id });
 
-  if (inserted) return { kind: "new", id: inserted.id, key };
+  if (inserted) return { kind: "new", id: inserted.id, key, leaseToken };
 
   const [existing] = await db
     .select({
@@ -84,14 +93,18 @@ export async function beginRequest(
   }
 
   if (existing.status === "processing" && existing.expiresAt <= now) {
-    const [claimed] = await db
+    const staleBody = {
+      error: "先前的同 ID 请求已超时，请使用新的请求 ID 重试",
+      code: "IDEMPOTENCY_STALE_REQUEST",
+    };
+    const [expired] = await db
       .update(requestIdempotency)
       .set({
-        status: "processing",
-        responseStatus: null,
-        responseBody: null,
+        status: "failed",
+        responseStatus: 409,
+        responseBody: staleBody,
         updatedAt: now,
-        expiresAt,
+        expiresAt: new Date(now.getTime() + COMPLETED_RETENTION_MS),
       })
       .where(
         and(
@@ -101,7 +114,7 @@ export async function beginRequest(
         ),
       )
       .returning({ id: requestIdempotency.id });
-    if (claimed) return { kind: "new", id: claimed.id, key };
+    if (expired) return { kind: "replay", status: 409, body: staleBody };
   }
 
   return { kind: "in_progress" };
@@ -109,10 +122,13 @@ export async function beginRequest(
 
 export async function completeRequest(
   id: string,
+  leaseToken: string,
   status: number,
   body: Record<string, unknown>,
+  tx?: IdempotencyTransaction,
 ): Promise<void> {
-  await db
+  const executor = tx ?? db;
+  const [updated] = await executor
     .update(requestIdempotency)
     .set({
       status: "succeeded",
@@ -124,17 +140,23 @@ export async function completeRequest(
     .where(
       and(
         eq(requestIdempotency.id, id),
+        eq(requestIdempotency.leaseToken, leaseToken),
         eq(requestIdempotency.status, "processing"),
       ),
-    );
+    )
+    .returning({ id: requestIdempotency.id });
+  if (!updated) throw inProgressError();
 }
 
 export async function failRequest(
   id: string,
+  leaseToken: string,
   status: number,
   body: Record<string, unknown>,
+  tx?: IdempotencyTransaction,
 ): Promise<void> {
-  await db
+  const executor = tx ?? db;
+  const [updated] = await executor
     .update(requestIdempotency)
     .set({
       status: "failed",
@@ -146,9 +168,12 @@ export async function failRequest(
     .where(
       and(
         eq(requestIdempotency.id, id),
+        eq(requestIdempotency.leaseToken, leaseToken),
         eq(requestIdempotency.status, "processing"),
       ),
-    );
+    )
+    .returning({ id: requestIdempotency.id });
+  if (!updated) throw inProgressError();
 }
 
 export function inProgressError(): ApiError {
@@ -164,4 +189,8 @@ export function requestErrorBody(error: unknown): Record<string, unknown> {
     return { error: error.message, ...(error.code ? { code: error.code } : {}) };
   }
   return { error: "服务器错误" };
+}
+
+export function requestErrorStatus(error: unknown): number {
+  return error instanceof ApiError ? error.status : 500;
 }

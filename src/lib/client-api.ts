@@ -37,9 +37,11 @@ export async function apiJson<T = unknown>(
   return data as T;
 }
 
-export function jsonBody(data: unknown): RequestInit {
+export function jsonBody(data: unknown, headers?: HeadersInit): RequestInit {
+  const mergedHeaders = new Headers(headers);
+  mergedHeaders.set("Content-Type", "application/json");
   return {
-    headers: { "Content-Type": "application/json" },
+    headers: mergedHeaders,
     body: JSON.stringify(data),
   };
 }

@@ -59,7 +59,7 @@ export default function CreationPanel({
   const imageGenerationAvailable = canUseImageGeneration(
     isAdmin ? "admin" : "user",
     config.imageGenerationEnabled !== false,
-  );
+  ) && Boolean(model);
 
   function submitText() {
     const prompt = textToImageDraft.prompt.trim();

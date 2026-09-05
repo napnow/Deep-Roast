@@ -14,12 +14,26 @@ import {
 } from "@/server/services/model-channels";
 import { providerIdempotencyKey } from "@/server/services/request-idempotency";
 import {
+  DEFAULT_ASSISTANT_IMAGE_PROMPT,
+  detectAssistantAppearanceIntent,
+} from "@/lib/conversational-image-intent";
+import {
+  generateImage,
+  IMAGE_UPSTREAM_TIMEOUT_MS,
+} from "@/server/services/image";
+import {
+  createAssistantImageErrorMessage,
+  createAssistantImageMessage,
+} from "@/server/services/chat-image";
+import {
   completeRequest,
   failRequest,
 } from "@/server/services/request-idempotency-store";
+import { requestPublicHttpsResponse } from "@/server/safe-http";
 
 export const MAX_CHAT_MESSAGE_LENGTH = 20_000;
 const CHAT_STREAM_ERROR = "对话服务暂时不可用，请稍后重试";
+const MAX_CHAT_UPSTREAM_BYTES = 4 * 1024 * 1024;
 
 interface ChatCreditReservation {
   refund(note: string): Promise<void>;
@@ -75,12 +89,134 @@ async function refundQuietly(
   }
 }
 
+function eventLine(payload: unknown, encoder: TextEncoder) {
+  return encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function createImageChatStream(
+  userId: string,
+  role: string,
+  conversationId: string,
+  userPrompt: string,
+  assistantImagePrompt: string,
+  imageModel: string,
+  options: {
+    requestId?: string;
+    requestLeaseToken?: string;
+    idempotencyKey?: string;
+  },
+): Response {
+  const encoder = new TextEncoder();
+  const events: Array<Record<string, unknown>> = [];
+  const operationController = new AbortController();
+  const operationSignal = AbortSignal.any([
+    operationController.signal,
+    AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS),
+  ]);
+  let clientCancelled = false;
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (payload: Record<string, unknown>) => {
+        events.push(payload);
+        if (!clientCancelled) controller.enqueue(eventLine(payload, encoder));
+      };
+      send({ type: "image_started", prompt: userPrompt });
+
+      let assistantMessage: ReturnType<typeof createAssistantImageMessage>;
+      let terminalEvent: Record<string, unknown>;
+      try {
+        const image = await generateImage({
+          userId,
+          role,
+          prompt: `${assistantImagePrompt || DEFAULT_ASSISTANT_IMAGE_PROMPT}\n\n${userPrompt}`,
+          modelOverride: imageModel,
+          size: "1024x1024",
+          idempotencyKey: options.idempotencyKey
+            ? providerIdempotencyKey("chat-image", options.idempotencyKey)
+            : undefined,
+          signal: operationSignal,
+        });
+        assistantMessage = createAssistantImageMessage(image);
+        terminalEvent = { type: "image_done", message: assistantMessage };
+      } catch (error: unknown) {
+        const publicMessage =
+          error instanceof ApiError ? error.message : "图片生成失败，请稍后重试";
+        assistantMessage = createAssistantImageErrorMessage(
+          userPrompt,
+          publicMessage,
+        );
+        terminalEvent = { type: "image_error", message: assistantMessage };
+      }
+
+      const finalEvents = [...events, terminalEvent, { type: "done" }];
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(messages).values({
+            conversationId,
+            role: "assistant",
+            content: assistantMessage.content,
+            metadata: assistantMessage.metadata,
+          });
+          if (options.requestId && options.requestLeaseToken) {
+            await completeRequest(
+              options.requestId,
+              options.requestLeaseToken,
+              200,
+              { events: finalEvents },
+              tx,
+            );
+          }
+        });
+      } catch (error) {
+        if (options.requestId && options.requestLeaseToken) {
+          await failRequest(
+            options.requestId,
+            options.requestLeaseToken,
+            500,
+            {
+              error: "图片消息保存失败，请使用新的请求 ID 重试",
+              code: "CHAT_IMAGE_FINALIZATION_FAILED",
+            },
+          ).catch((recordError) =>
+            console.error("Failed to persist image chat finalization", recordError),
+          );
+        }
+        console.error(
+          "Image chat finalization failed:",
+          error instanceof Error ? error.message : "unknown error",
+        );
+        if (!clientCancelled) controller.error(new Error("image chat failed"));
+        return;
+      }
+      send(terminalEvent);
+      send({ type: "done" });
+      if (!clientCancelled) controller.close();
+    },
+    cancel() {
+      clientCancelled = true;
+      operationController.abort();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
 export async function createChatStream(
   userId: string,
   role: string,
   conversationId: string,
   message: string,
-  options: { requestId?: string; idempotencyKey?: string } = {},
+  options: {
+    requestId?: string;
+    requestLeaseToken?: string;
+    idempotencyKey?: string;
+  } = {},
 ): Promise<Response> {
   if (!conversationId || !message?.trim()) {
     throw new ApiError("conversationId 和 message 为必填项", 400);
@@ -106,13 +242,41 @@ export async function createChatStream(
   const conv = convs[0];
   if (!conv) throw new ApiError("对话不存在", 404);
 
+  const imageIntent = detectAssistantAppearanceIntent(message);
+  if (imageIntent) {
+    await db.transaction(async (tx) => {
+      await tx.insert(messages).values({
+        conversationId,
+        role: "user",
+        content: message,
+      });
+      const title =
+        conv.title === "新对话"
+          ? message.slice(0, 30) + (message.length > 30 ? "..." : "")
+          : conv.title;
+      await tx
+        .update(conversations)
+        .set({ title, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    });
+    return createImageChatStream(
+      userId,
+      role,
+      conversationId,
+      imageIntent.prompt,
+      config?.assistantImagePrompt || "",
+      config?.imageModel || "doubao-seedream-4-5-251128",
+      options,
+    );
+  }
+
   const model = conv.model;
   if (!(await isConfiguredModelEnabled(config || {}, "text", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
 
   // 按模型解析端点后再检查 key（Grok 可用 GROK_API_KEY，不强制 ARK）
-  const { apiKey, baseUrl } = await resolveConfiguredEndpoint(
+  const { apiKey, baseUrl, enforcePublicHttps } = await resolveConfiguredEndpoint(
     "text",
     model,
     config || {},
@@ -196,33 +360,50 @@ export async function createChatStream(
   const stream = new ReadableStream({
     async start(controller) {
       let fullResponse = "";
+      const events: Array<Record<string, unknown>> = [];
+      const send = (payload: Record<string, unknown>) => {
+        events.push(payload);
+        if (!clientCancelled) controller.enqueue(eventLine(payload, encoder));
+      };
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         upstreamController = new AbortController();
         timeout = setTimeout(() => upstreamController?.abort(), 180_000);
-        const apiRes = await fetch(`${baseUrl}/chat/completions`, {
+        const upstreamUrl = `${baseUrl}/chat/completions`;
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          ...(options.idempotencyKey
+            ? {
+                "Idempotency-Key": providerIdempotencyKey(
+                  "chat",
+                  options.idempotencyKey,
+                ),
+              }
+            : {}),
+        };
+        const body = JSON.stringify({
+          model: conv.model,
+          messages: chatMessages,
+          temperature: 0.7,
+          max_tokens: 4000,
+          stream: true,
+        });
+        const apiRes = enforcePublicHttps
+          ? await requestPublicHttpsResponse(upstreamUrl, {
+              method: "POST",
+              signal: upstreamController.signal,
+              headers,
+              body,
+              timeoutMs: 180_000,
+              maxBytes: MAX_CHAT_UPSTREAM_BYTES,
+            })
+          : await fetch(upstreamUrl, {
           method: "POST",
           signal: upstreamController.signal,
           redirect: "error",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-            ...(options.idempotencyKey
-              ? {
-                  "Idempotency-Key": providerIdempotencyKey(
-                    "chat",
-                    options.idempotencyKey,
-                  ),
-                }
-              : {}),
-          },
-          body: JSON.stringify({
-            model: conv.model,
-            messages: chatMessages,
-            temperature: 0.7,
-            max_tokens: 4000,
-            stream: true,
-          }),
+          headers,
+          body,
         });
 
         if (!apiRes.ok) {
@@ -251,22 +432,14 @@ export async function createChatStream(
               if (typeof delta?.content === "string" && delta.content) {
                 chargeState.markContent();
                 fullResponse += delta.content;
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: "token", text: delta.content })}\n\n`,
-                  ),
-                );
+                send({ type: "token", text: delta.content });
               }
               if (
                 typeof delta?.reasoning_content === "string" &&
                 delta.reasoning_content
               ) {
                 chargeState.markContent();
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: "reasoning", text: delta.reasoning_content })}\n\n`,
-                  ),
-                );
+                send({ type: "reasoning", text: delta.reasoning_content });
               }
             } catch {
               /* skip malformed */
@@ -279,50 +452,46 @@ export async function createChatStream(
           throw new Error("chat upstream returned no content");
         }
 
-        if (fullResponse) {
-          await db.insert(messages).values({
-            conversationId,
-            role: "assistant",
-            content: fullResponse,
-          });
-        }
-
-        if (options.requestId) {
-          await completeRequest(options.requestId, 200, {
-            conversationId,
-            text: fullResponse,
-          });
-        }
-
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`),
-        );
-        controller.close();
+        const finalEvents = [...events, { type: "done" }];
+        await db.transaction(async (tx) => {
+          if (fullResponse) {
+            await tx.insert(messages).values({
+              conversationId,
+              role: "assistant",
+              content: fullResponse,
+            });
+          }
+          if (options.requestId && options.requestLeaseToken) {
+            await completeRequest(
+              options.requestId,
+              options.requestLeaseToken,
+              200,
+              { events: finalEvents },
+              tx,
+            );
+          }
+        });
+        send({ type: "done" });
+        if (!clientCancelled) controller.close();
       } catch (err: unknown) {
         await refundQuietly(chargeState, "对话上游失败退款");
-        if (options.requestId) {
-          await failRequest(options.requestId, 502, {
-            error: CHAT_STREAM_ERROR,
-          }).catch((recordError) =>
-            console.error("Failed to persist chat request failure", recordError),
-          );
-        }
         console.error(
           "Chat stream error:",
           err instanceof Error ? err.message : "unknown error",
         );
-        if (!clientCancelled) {
-          try {
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "error", text: CHAT_STREAM_ERROR })}\n\n`,
-              ),
-            );
-            controller.close();
-          } catch {
-            // The client may have cancelled the stream while the upstream failed.
-          }
+        send({ type: "error", text: CHAT_STREAM_ERROR });
+        if (options.requestId && options.requestLeaseToken) {
+          await completeRequest(
+            options.requestId,
+            options.requestLeaseToken,
+            200,
+            { events },
+          ).catch(
+            (recordError) =>
+              console.error("Failed to persist chat request failure", recordError),
+          );
         }
+        if (!clientCancelled) controller.close();
       } finally {
         if (timeout) clearTimeout(timeout);
       }
@@ -331,13 +500,6 @@ export async function createChatStream(
       clientCancelled = true;
       upstreamController?.abort();
       void upstreamReader?.cancel("client cancelled");
-      if (options.requestId) {
-        void failRequest(options.requestId, 499, {
-          error: "chat stream cancelled",
-        }).catch((recordError) =>
-          console.error("Failed to persist cancelled chat request", recordError),
-        );
-      }
     },
   });
 
@@ -351,11 +513,21 @@ export async function createChatStream(
 }
 
 export function replayChatStream(body: Record<string, unknown>): Response {
-  const text = typeof body.text === "string" ? body.text : "";
   const encoder = new TextEncoder();
-  const payload =
-    `data: ${JSON.stringify({ type: "token", text })}\n\n` +
-    `data: ${JSON.stringify({ type: "done" })}\n\n`;
+  const events = Array.isArray(body.events)
+    ? body.events.filter(
+        (event): event is Record<string, unknown> =>
+          typeof event === "object" && event !== null,
+      )
+    : null;
+  const text = typeof body.text === "string" ? body.text : "";
+  const replayEvents = events ?? [
+    { type: "token", text },
+    { type: "done" },
+  ];
+  const payload = replayEvents
+    .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+    .join("");
   return new Response(encoder.encode(payload), {
     status: 200,
     headers: {

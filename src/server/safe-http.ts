@@ -10,6 +10,12 @@ export interface SafeHttpOptions {
   maxBytes: number;
 }
 
+export interface SafeHttpRequestOptions extends SafeHttpOptions {
+  method?: "GET" | "POST";
+  body?: string | Buffer;
+  signal?: AbortSignal;
+}
+
 export interface SafeHttpResult {
   status: number;
   headers: IncomingHttpHeaders;
@@ -226,7 +232,7 @@ async function lookupWithTimeout(
 
 export async function requestPublicHttpsBuffer(
   value: string,
-  options: SafeHttpOptions,
+  options: SafeHttpOptions & { signal?: AbortSignal },
 ): Promise<SafeHttpResult> {
   const url = assertPublicHttpsUrl(value);
   if (
@@ -275,6 +281,7 @@ export async function requestPublicHttpsBuffer(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
       if (error) reject(error);
       else if (result) resolve(result);
     };
@@ -332,10 +339,215 @@ export async function requestPublicHttpsBuffer(
     );
 
     request.on("error", () => finish(requestFailed()));
-    const timer = setTimeout(() => {
+    const abort = () => {
       finish(requestTimedOut());
       request.destroy();
-    }, remainingMs);
+    };
+    const timer = setTimeout(abort, remainingMs);
+    if (options.signal?.aborted) {
+      abort();
+      return;
+    }
+    options.signal?.addEventListener("abort", abort, { once: true });
     request.end();
+  });
+}
+
+export async function requestPublicHttpsResponse(
+  value: string,
+  options: SafeHttpRequestOptions,
+): Promise<Response> {
+  const url = assertPublicHttpsUrl(value);
+  if (
+    !Number.isFinite(options.timeoutMs) ||
+    options.timeoutMs <= 0 ||
+    !Number.isSafeInteger(options.maxBytes) ||
+    options.maxBytes <= 0
+  ) {
+    throw new ApiError("安全请求参数无效", 500);
+  }
+
+  const startedAt = Date.now();
+  const hostname = hostnameWithoutBrackets(url.hostname);
+  const answers = await lookupWithTimeout(hostname, options.timeoutMs);
+  if (
+    answers.length === 0 ||
+    answers.some(
+      (answer) =>
+        answer.family !== isIP(answer.address) || isNonPublicIp(answer.address),
+    )
+  ) {
+    throw invalidTarget();
+  }
+
+  const selected = answers[0];
+  const remainingMs = options.timeoutMs - (Date.now() - startedAt);
+  if (remainingMs <= 0) throw requestTimedOut();
+
+  const pinnedLookup: LookupFunction = (_hostname, _lookupOptions, callback) => {
+    callback(null, selected.address, selected.family);
+  };
+  const headers = { ...options.headers };
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "host") delete headers[key];
+  }
+  headers.Host = url.host;
+
+  return new Promise<Response>((resolve, reject) => {
+    let responseController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let responseResolved = false;
+    let finished = false;
+    let totalBytes = 0;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
+    };
+    const fail = (error: ApiError) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      if (responseResolved && responseController) {
+        responseController.error(error);
+      } else {
+        reject(error);
+      }
+    };
+
+    const request = https.request(
+      url,
+      {
+        method: options.method || "GET",
+        headers,
+        lookup: pinnedLookup,
+        family: selected.family,
+        agent: false,
+        ...(isIP(hostname) ? {} : { servername: hostname }),
+      },
+      (response) => {
+        const status = response.statusCode || 502;
+        if (status >= 300 && status < 400) {
+          response.resume();
+          fail(new ApiError("远程服务重定向已被拒绝", 400));
+          request.destroy();
+          return;
+        }
+
+        if (status < 200 || status > 599) {
+          response.destroy();
+          fail(requestFailed());
+          request.destroy();
+          return;
+        }
+
+        const declaredLength = Number(response.headers["content-length"] || 0);
+        if (Number.isFinite(declaredLength) && declaredLength > options.maxBytes) {
+          fail(responseTooLarge());
+          response.destroy();
+          request.destroy();
+          return;
+        }
+
+        const responseHeaders = new Headers();
+        for (const [name, rawValue] of Object.entries(response.headers)) {
+          if (Array.isArray(rawValue)) {
+            for (const item of rawValue) responseHeaders.append(name, item);
+          } else if (rawValue !== undefined) {
+            responseHeaders.set(name, String(rawValue));
+          }
+        }
+
+        if (status === 204 || status === 205 || status === 304) {
+          try {
+            const webResponse = new Response(null, {
+              status,
+              headers: responseHeaders,
+            });
+            responseResolved = true;
+            finished = true;
+            cleanup();
+            response.destroy();
+            resolve(webResponse);
+          } catch {
+            response.destroy();
+            fail(requestFailed());
+            request.destroy();
+          }
+          return;
+        }
+
+        response.pause();
+        const iterator = response[Symbol.asyncIterator]();
+        const body = new ReadableStream<Uint8Array>(
+          {
+            start(controller) {
+              responseController = controller;
+            },
+            async pull(controller) {
+              if (finished) return;
+              try {
+                const item = await iterator.next();
+                if (item.done) {
+                  finished = true;
+                  cleanup();
+                  controller.close();
+                  return;
+                }
+                const buffer = Buffer.isBuffer(item.value)
+                  ? item.value
+                  : Buffer.from(item.value);
+                totalBytes += buffer.length;
+                if (totalBytes > options.maxBytes) {
+                  fail(responseTooLarge());
+                  response.destroy();
+                  request.destroy();
+                  return;
+                }
+                controller.enqueue(buffer);
+              } catch {
+                fail(requestFailed());
+                response.destroy();
+                request.destroy();
+              }
+            },
+            async cancel() {
+              if (finished) return;
+              finished = true;
+              cleanup();
+              await iterator.return?.();
+              response.destroy();
+              request.destroy();
+            },
+          },
+          { highWaterMark: 0 },
+        );
+
+        try {
+          const webResponse = new Response(body, {
+            status,
+            headers: responseHeaders,
+          });
+          responseResolved = true;
+          resolve(webResponse);
+        } catch {
+          response.destroy();
+          fail(requestFailed());
+          request.destroy();
+        }
+      },
+    );
+
+    request.on("error", () => fail(requestFailed()));
+    const abort = () => {
+      fail(requestTimedOut());
+      request.destroy();
+    };
+    const timer = setTimeout(abort, remainingMs);
+    if (options.signal?.aborted) {
+      abort();
+      return;
+    }
+    options.signal?.addEventListener("abort", abort, { once: true });
+    request.end(options.body);
   });
 }

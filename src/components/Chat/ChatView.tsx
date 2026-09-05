@@ -11,6 +11,7 @@ interface ChatViewProps {
   streamingText: string;
   onSend: (text: string) => void;
   onStop: () => void;
+  modelAvailable?: boolean;
 }
 
 export default function ChatView({
@@ -19,6 +20,7 @@ export default function ChatView({
   streamingText,
   onSend,
   onStop,
+  modelAvailable = true,
 }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(
@@ -329,7 +331,12 @@ export default function ChatView({
         </div>
       </div>
 
-      <ChatInput onSend={onSend} onStop={onStop} disabled={streaming} />
+      <ChatInput
+        onSend={onSend}
+        onStop={onStop}
+        disabled={streaming}
+        unavailable={!modelAvailable}
+      />
     </div>
   );
 }

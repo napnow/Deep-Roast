@@ -16,6 +16,7 @@ interface TextModePanelProps {
   onRename: (id: string, title: string) => void;
   onSend: (text: string) => void;
   onStop: () => void;
+  modelAvailable: boolean;
   sidebarOpen?: boolean;
   onSidebarClose?: () => void;
   /** 手机端：对话侧栏顶部返回文生图 */
@@ -34,6 +35,7 @@ export default function TextModePanel({
   onRename,
   onSend,
   onStop,
+  modelAvailable,
   sidebarOpen = false,
   onSidebarClose,
   onSwitchImage,
@@ -60,6 +62,7 @@ export default function TextModePanel({
           streamingText={streamingText}
           onSend={onSend}
           onStop={onStop}
+          modelAvailable={modelAvailable}
         />
       ) : (
         <div className="dr-canvas flex-1 flex items-center justify-center">
@@ -92,10 +95,13 @@ export default function TextModePanel({
                 className="text-xs mt-2"
                 style={{ color: "var(--text-muted)" }}
               >
-                在左侧点「新对话」开始
+                {modelAvailable
+                  ? "在左侧点「新对话」开始"
+                  : "管理员暂未启用对话模型"}
               </p>
               <button
                 onClick={onNew}
+                disabled={!modelAvailable}
                 className="mt-5 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 hover:scale-[1.02]"
                 style={{
                   background: "var(--accent)",

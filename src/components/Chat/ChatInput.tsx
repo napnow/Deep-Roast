@@ -8,16 +8,22 @@ interface ChatInputProps {
   onSend: (text: string) => void;
   onStop: () => void;
   disabled: boolean;
+  unavailable?: boolean;
 }
 
-export default function ChatInput({ onSend, onStop, disabled }: ChatInputProps) {
+export default function ChatInput({
+  onSend,
+  onStop,
+  disabled,
+  unavailable = false,
+}: ChatInputProps) {
   const { user } = useAuth();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function handleSend() {
     const text = input.trim();
-    if (!text || disabled) return;
+    if (!text || disabled || unavailable) return;
     setInput("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -39,7 +45,7 @@ export default function ChatInput({ onSend, onStop, disabled }: ChatInputProps) 
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }
 
-  const canSend = !!input.trim() && !disabled;
+  const canSend = !!input.trim() && !disabled && !unavailable;
 
   return (
     <div
@@ -63,9 +69,13 @@ export default function ChatInput({ onSend, onStop, disabled }: ChatInputProps) 
           value={input}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="输入消息… Enter 发送 · Shift+Enter 换行"
+          placeholder={
+            unavailable
+              ? "管理员暂未启用对话模型"
+              : "输入消息… Enter 发送 · Shift+Enter 换行"
+          }
           rows={1}
-          disabled={disabled}
+          disabled={disabled || unavailable}
           className="flex-1 rounded-xl px-3 py-2.5 text-sm resize-none transition-all duration-200 disabled:opacity-40 outline-none bg-transparent"
           style={{
             color: "var(--text-primary)",

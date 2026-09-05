@@ -10,7 +10,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yzgao2732-droid/ShenBei-AI.git"
+    "url": "https://github.com/napnow/Deep-Roast.git"
   },
   "scripts": {
     "dev": "next dev",
@@ -21,6 +21,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate-channel-keys": "tsx scripts/migrate-model-channel-keys.ts",
+    "db:migrate-site-assets": "tsx scripts/migrate-site-assets.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio"

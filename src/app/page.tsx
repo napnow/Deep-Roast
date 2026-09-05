@@ -157,6 +157,12 @@ export default function Home() {
     selectedImageModel && config.enabledImageModels?.includes(selectedImageModel)
       ? selectedImageModel
       : config.imageModel;
+  const textModelAvailable =
+    config.enabledTextModels === undefined
+      ? Boolean(config.textModel)
+      : Boolean(
+          config.textModel && config.enabledTextModels.includes(config.textModel),
+        );
   const activeImage = activeImageId
     ? imageHistory.find((image) => image.id === activeImageId) ?? null
     : null;
@@ -335,6 +341,7 @@ export default function Home() {
               onRename={actions.handleRenameConversation}
               onSend={actions.handleSendMessage}
               onStop={actions.handleStopChat}
+              modelAvailable={textModelAvailable}
               sidebarOpen={chatSidebarOpen}
               onSidebarClose={() => setChatSidebarOpen(false)}
               onSwitchImage={handleSwitchImage}

@@ -9,6 +9,7 @@ import { test } from "node:test";
 import {
   assertPublicHttpsUrl,
   requestPublicHttpsBuffer,
+  requestPublicHttpsResponse,
 } from "./safe-http";
 
 test("accepts public HTTPS URLs without embedded credentials", () => {
@@ -242,4 +243,134 @@ test("aborts requests that exceed timeoutMs", async (t) => {
     }),
   );
   assert.equal(requestDestroyed, true);
+});
+
+test("safe POST requests pin DNS, reject redirects, and write the supplied body", async (t) => {
+  t.mock.method(dns, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 as const },
+  ]);
+  let method = "";
+  let writtenBody = "";
+
+  t.mock.method(https, "request", ((
+    _url: URL,
+    options: RequestOptions,
+    onResponse: ((response: IncomingMessage) => void) | undefined,
+  ) => {
+    method = String(options.method || "");
+    const req = new EventEmitter() as EventEmitter & {
+      destroy(error?: Error): void;
+      end(data?: string | Buffer): void;
+    };
+    req.destroy = (error?: Error) => {
+      if (error) queueMicrotask(() => req.emit("error", error));
+    };
+    req.end = (data?: string | Buffer) => {
+      writtenBody = data?.toString() || "";
+      const res = new PassThrough() as PassThrough & {
+        statusCode: number;
+        headers: Record<string, string>;
+      };
+      res.statusCode = 200;
+      res.headers = { "content-type": "application/json" };
+      onResponse?.(res as unknown as IncomingMessage);
+      res.end('{"ok":true}');
+    };
+    return req;
+  }) as unknown as typeof https.request);
+
+  const response = await requestPublicHttpsResponse(
+    "https://models.example/v1/chat/completions",
+    {
+      method: "POST",
+      body: '{"stream":true}',
+      timeoutMs: 100,
+      maxBytes: 1024,
+    },
+  );
+
+  assert.equal(method, "POST");
+  assert.equal(writtenBody, '{"stream":true}');
+  assert.equal(await response.text(), '{"ok":true}');
+});
+
+test("safe response transport accepts null-body statuses without throwing", async (t) => {
+  t.mock.method(dns, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 as const },
+  ]);
+
+  t.mock.method(https, "request", ((
+    _url: URL,
+    _options: RequestOptions,
+    onResponse: ((response: IncomingMessage) => void) | undefined,
+  ) => {
+    const req = new EventEmitter() as EventEmitter & {
+      destroy(error?: Error): void;
+      end(): void;
+    };
+    req.destroy = (error?: Error) => {
+      if (error) queueMicrotask(() => req.emit("error", error));
+    };
+    req.end = () => {
+      const res = new PassThrough() as PassThrough & {
+        statusCode: number;
+        headers: Record<string, string>;
+      };
+      res.statusCode = 204;
+      res.headers = {};
+      onResponse?.(res as unknown as IncomingMessage);
+      res.end();
+    };
+    return req;
+  }) as unknown as typeof https.request);
+
+  const response = await requestPublicHttpsResponse(
+    "https://models.example/v1/chat/completions",
+    { method: "POST", timeoutMs: 100, maxBytes: 1024 },
+  );
+
+  assert.equal(response.status, 204);
+  assert.equal(await response.text(), "");
+});
+
+test("safe response transport does not drain the upstream before consumers pull", async (t) => {
+  t.mock.method(dns, "lookup", async () => [
+    { address: "93.184.216.34", family: 4 as const },
+  ]);
+  let responseStream: PassThrough | undefined;
+
+  t.mock.method(https, "request", ((
+    _url: URL,
+    _options: RequestOptions,
+    onResponse: ((response: IncomingMessage) => void) | undefined,
+  ) => {
+    const req = new EventEmitter() as EventEmitter & {
+      destroy(error?: Error): void;
+      end(): void;
+    };
+    req.destroy = (error?: Error) => {
+      if (error) queueMicrotask(() => req.emit("error", error));
+    };
+    req.end = () => {
+      responseStream = new PassThrough({ highWaterMark: 16 });
+      const res = responseStream as PassThrough & {
+        statusCode: number;
+        headers: Record<string, string>;
+      };
+      res.statusCode = 200;
+      res.headers = {};
+      onResponse?.(res as unknown as IncomingMessage);
+      res.write(Buffer.alloc(64));
+    };
+    return req;
+  }) as unknown as typeof https.request);
+
+  const response = await requestPublicHttpsResponse(
+    "https://models.example/v1/chat/completions",
+    { method: "POST", timeoutMs: 1_000, maxBytes: 1024 },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(responseStream?.readableFlowing, false);
+
+  await response.body?.cancel();
 });

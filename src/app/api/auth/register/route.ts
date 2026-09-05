@@ -9,7 +9,7 @@ import {
 import { and, eq, or, sql } from "drizzle-orm";
 import { hashPassword, setAuthCookie, signToken } from "@/lib/auth";
 import { normalizeInviteCode } from "@/lib/invitation";
-import { ApiError } from "@/server/http";
+import { ApiError, readJson } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
@@ -77,9 +77,8 @@ async function registerInTransaction(args: {
   username: string;
   hashedPassword: string;
   inviteCode: string | null;
-  ipLimitActive: boolean;
 }): Promise<RegistrationResult> {
-  const { ip, username, hashedPassword, inviteCode, ipLimitActive } = args;
+  const { ip, username, hashedPassword, inviteCode } = args;
 
   return db.transaction(async (tx) => {
     const [settings] = await tx
@@ -88,6 +87,7 @@ async function registerInTransaction(args: {
         invitationEnabled: siteSettings.invitationEnabled,
         invitationReward: siteSettings.invitationReward,
         invitationInviteeReward: siteSettings.invitationInviteeReward,
+        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
       })
       .from(siteSettings)
       .where(eq(siteSettings.id, 1))
@@ -97,6 +97,10 @@ async function registerInTransaction(args: {
       throw new ApiError("暂不开放注册", 403);
     }
 
+    const ipLimitActive = !shouldSkipIpLimit(
+      ip,
+      isRegistrationIpLimitEnabled(settings?.registrationIpLimitEnabled),
+    );
     if (ipLimitActive) {
       await tx.insert(registrationRecords).values({ ip, username });
     }
@@ -254,11 +258,11 @@ export async function POST(req: Request) {
       REGISTER_WINDOW,
     );
 
-    const body = (await req.json()) as {
+    const body = await readJson<{
       username?: unknown;
       password?: unknown;
       inviteCode?: unknown;
-    };
+    }>(req);
     const username = typeof body.username === "string" ? body.username : "";
     const password = typeof body.password === "string" ? body.password : "";
 
@@ -288,33 +292,6 @@ export async function POST(req: Request) {
       return Response.json({ error: "用户名已存在" }, { status: 409 });
     }
 
-    const [registrationSettings] = await db
-      .select({
-        registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
-      })
-      .from(siteSettings)
-      .where(eq(siteSettings.id, 1))
-      .limit(1);
-    const ipLimitActive = !shouldSkipIpLimit(
-      ip,
-      isRegistrationIpLimitEnabled(
-        registrationSettings?.registrationIpLimitEnabled,
-      ),
-    );
-    if (ipLimitActive) {
-      const [ipRecord] = await db
-        .select({ id: registrationRecords.id })
-        .from(registrationRecords)
-        .where(eq(registrationRecords.ip, ip))
-        .limit(1);
-      if (ipRecord) {
-        return Response.json(
-          { error: "该网络地址已注册过账号，如有疑问请联系管理员" },
-          { status: 403 },
-        );
-      }
-    }
-
     const hashedPassword = await hashPassword(password);
     const inviteCode = normalizeInviteCode(body.inviteCode);
     let user: RegistrationResult | null = null;
@@ -326,7 +303,6 @@ export async function POST(req: Request) {
           username,
           hashedPassword,
           inviteCode,
-          ipLimitActive,
         });
         break;
       } catch (err) {

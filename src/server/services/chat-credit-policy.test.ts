@@ -14,9 +14,7 @@ describe("chat credit policy", () => {
 
   it("reserves before the upstream chat request and never double-charges", () => {
     const reservePosition = chatSource.indexOf("await reserveCredits(");
-    const fetchPosition = chatSource.indexOf(
-      "fetch(`${baseUrl}/chat/completions`",
-    );
+    const fetchPosition = chatSource.indexOf("const apiRes = enforcePublicHttps");
 
     assert.notEqual(reservePosition, -1);
     assert.notEqual(fetchPosition, -1);
@@ -62,7 +60,7 @@ describe("chat credit policy", () => {
 
   it("keeps the stream timeout active through body consumption and redacts upstream bodies", () => {
     const timeoutStart = chatSource.indexOf("timeout = setTimeout");
-    const bodyEnd = chatSource.indexOf("    cancel()");
+    const bodyEnd = chatSource.indexOf("    cancel()", timeoutStart);
     assert.ok(timeoutStart >= 0 && bodyEnd > timeoutStart);
     const streamAttempt = chatSource.slice(timeoutStart, bodyEnd);
     assert.match(streamAttempt, /finally\s*\{[\s\S]*clearTimeout\(timeout\)/);

@@ -9,6 +9,7 @@ import {
   type UpstreamEndpoint,
 } from "@/server/providers/llm";
 import { assertPublicHttpsUrl } from "@/server/safe-http";
+import { ApiError } from "@/server/http";
 import {
   decryptLlmConfigKey,
   encryptLlmConfigKey,
@@ -198,7 +199,7 @@ export function normalizeChannelPayload(
   channels: ChannelPayloadInput[],
 ): ChannelPayloadInput[] {
   if (!Array.isArray(channels) || channels.length === 0) {
-    throw new Error("至少保留一个模型渠道");
+    throw new ApiError("至少保留一个模型渠道", 400);
   }
 
   const defaults = new Set<string>();
@@ -207,10 +208,10 @@ export function normalizeChannelPayload(
   return channels.map((channel, channelIndex) => {
     const name = String(channel.name ?? "").trim();
     const baseUrl = normalizeBaseUrl(String(channel.baseUrl ?? ""));
-    if (!name) throw new Error(`第 ${channelIndex + 1} 个渠道名称不能为空`);
-    if (seenNames.has(name)) throw new Error(`渠道名称重复：${name}`);
+    if (!name) throw new ApiError(`第 ${channelIndex + 1} 个渠道名称不能为空`, 400);
+    if (seenNames.has(name)) throw new ApiError(`渠道名称重复：${name}`, 400);
     seenNames.add(name);
-    if (!baseUrl) throw new Error(`渠道“${name}”的 Base URL 不能为空`);
+    if (!baseUrl) throw new ApiError(`渠道“${name}”的 Base URL 不能为空`, 400);
     assertPublicHttpsUrl(baseUrl);
     const channelEnabled = channel.enabled !== false;
 
@@ -220,26 +221,26 @@ export function normalizeChannelPayload(
         const modelId = String(model.modelId ?? "").trim();
         const kind = model.kind;
         if (!modelId) {
-          throw new Error(`渠道“${name}”第 ${modelIndex + 1} 个模型 ID 不能为空`);
+          throw new ApiError(`渠道“${name}”第 ${modelIndex + 1} 个模型 ID 不能为空`, 400);
         }
         if (kind !== "text" && kind !== "image") {
-          throw new Error(`渠道“${name}”包含无效模型类型`);
+          throw new ApiError(`渠道“${name}”包含无效模型类型`, 400);
         }
         const modelKey = `${kind}:${modelId}`;
         if (seenModels.has(modelKey)) {
-          throw new Error(`渠道“${name}”中的模型重复：${modelId}`);
+          throw new ApiError(`渠道“${name}”中的模型重复：${modelId}`, 400);
         }
         seenModels.add(modelKey);
 
         const enabled = model.enabled !== false;
         const isDefault = model.isDefault === true;
         if (isDefault && (!enabled || !channelEnabled)) {
-          throw new Error(`默认模型“${modelId}”必须处于启用状态`);
+          throw new ApiError(`默认模型“${modelId}”必须处于启用状态`, 400);
         }
         if (isDefault) {
           const defaultKey = `${kind}:${modelId}`;
           if (defaults.has(defaultKey)) {
-            throw new Error(`模型“${modelId}”只能设置一个默认渠道`);
+            throw new ApiError(`模型“${modelId}”只能设置一个默认渠道`, 400);
           }
           defaults.add(defaultKey);
         }
@@ -270,8 +271,17 @@ export function normalizeChannelPayload(
   });
 }
 
-export async function listChannelBindings(): Promise<ChannelBindingRecord[]> {
+async function readChannelBindings(): Promise<ChannelBindingRecord[] | null> {
   try {
+    const configuredChannels = await db
+      .select({ id: llmChannels.id })
+      .from(llmChannels)
+      .limit(1);
+    // Empty means channel management has never been configured. Preserve the
+    // legacy/env route only in that state. Any channel row is authoritative,
+    // including a disabled channel or one with zero model rows.
+    if (configuredChannels.length === 0) return null;
+
     const rows = await db
       .select({
         channelId: llmChannels.id,
@@ -306,11 +316,13 @@ export async function listChannelBindings(): Promise<ChannelBindingRecord[]> {
       } satisfies ChannelBindingRecord];
     });
   } catch (error) {
-    if (!isMissingRelation(error)) {
-      console.warn("读取模型渠道失败，回退旧配置:", error);
-    }
-    return [];
+    if (isMissingRelation(error)) return null;
+    throw error;
   }
+}
+
+export async function listChannelBindings(): Promise<ChannelBindingRecord[]> {
+  return (await readChannelBindings()) ?? [];
 }
 
 export async function listModelChannels(): Promise<ModelChannelView[]> {
@@ -347,10 +359,8 @@ export async function listModelChannels(): Promise<ModelChannelView[]> {
       models: modelsByChannel.get(channel.id) ?? [],
     }));
   } catch (error) {
-    if (!isMissingRelation(error)) {
-      console.warn("读取模型渠道列表失败:", error);
-    }
-    return [];
+    if (isMissingRelation(error)) return [];
+    throw error;
   }
 }
 
@@ -374,9 +384,22 @@ export async function listConfiguredModelIds(
   config: LegacyConfigShape,
   kind: ModelChannelKind,
 ): Promise<string[]> {
-  const bindings = await listChannelBindings();
-  const channelIds = listDefaultModelIds(bindings, kind);
-  return channelIds.length > 0 ? channelIds : listLegacyModelIds(config, kind);
+  const bindings = await readChannelBindings();
+  return resolveConfiguredModelIds(
+    bindings,
+    kind,
+    listLegacyModelIds(config, kind),
+  );
+}
+
+export function resolveConfiguredModelIds(
+  bindings: ChannelBindingRecord[] | null,
+  kind: ModelChannelKind,
+  legacyModelIds: string[],
+): string[] {
+  return bindings === null
+    ? [...new Set(legacyModelIds)]
+    : listDefaultModelIds(bindings, kind);
 }
 
 export async function isConfiguredModelEnabled(
@@ -392,14 +415,19 @@ export async function resolveConfiguredEndpoint(
   model: string,
   config: LegacyConfigShape,
 ): Promise<UpstreamEndpoint> {
-  const bindings = await listChannelBindings();
+  const bindings = await readChannelBindings();
   const bindingKind: ModelChannelKind = kind === "vision" ? "text" : kind;
-  const binding = selectDefaultBinding(bindings, bindingKind, model);
+  const binding = bindings
+    ? selectDefaultBinding(bindings, bindingKind, model)
+    : null;
 
-  if (!binding) {
+  if (bindings === null) {
     if (kind === "image") return resolveImageEndpoint(model, config);
     if (kind === "vision") return resolveVisionEndpoint(model, config);
     return resolveChatEndpoint(model, config);
+  }
+  if (!binding) {
+    throw new ApiError("指定模型没有启用的默认渠道", 400);
   }
 
   const retryPolicyEndpoint =
@@ -416,6 +444,7 @@ export async function resolveConfiguredEndpoint(
     apiKey: binding.apiKey.trim(),
     baseUrl: normalizeBaseUrl(binding.baseUrl),
     maxRetries: retryPolicyEndpoint.maxRetries,
+    enforcePublicHttps: true,
   };
 }
 
@@ -426,92 +455,103 @@ function isUuid(value: string | undefined): value is string {
     );
 }
 
+type TransactionCallback = Parameters<typeof db.transaction>[0];
+export type ModelChannelTransaction = Parameters<TransactionCallback>[0];
+
+async function applyModelChannels(
+  channels: ChannelPayloadInput[],
+  tx: ModelChannelTransaction,
+): Promise<void> {
+  const existing = await tx.select().from(llmChannels);
+  const existingById = new Map(existing.map((channel) => [channel.id, channel]));
+  const retainedIds: string[] = [];
+  const channelIds = new Map<number, string>();
+
+  for (let index = 0; index < channels.length; index++) {
+    const channel = channels[index];
+    const previous = isUuid(channel.id)
+      ? existingById.get(channel.id)
+      : undefined;
+    const suppliedKey = channel.apiKey?.trim();
+    const encryptedKey = suppliedKey
+      ? encryptModelChannelKey(suppliedKey)
+      : previous
+        ? {
+            plaintext: previous.apiKey,
+            ciphertext: previous.apiKeyCiphertext,
+            iv: previous.apiKeyIv,
+            authTag: previous.apiKeyAuthTag,
+          }
+        : encryptModelChannelKey("");
+    let channelId = previous?.id;
+
+    if (channelId) {
+      await tx
+        .update(llmChannels)
+        .set({
+          name: channel.name,
+          baseUrl: channel.baseUrl,
+          apiKey: encryptedKey.plaintext,
+          apiKeyCiphertext: encryptedKey.ciphertext,
+          apiKeyIv: encryptedKey.iv,
+          apiKeyAuthTag: encryptedKey.authTag,
+          enabled: channel.enabled === false ? 0 : 1,
+          sortOrder: channel.sortOrder ?? index,
+          updatedAt: new Date(),
+        })
+        .where(eq(llmChannels.id, channelId));
+    } else {
+      const [created] = await tx
+        .insert(llmChannels)
+        .values({
+          name: channel.name,
+          baseUrl: channel.baseUrl,
+          apiKey: encryptedKey.plaintext,
+          apiKeyCiphertext: encryptedKey.ciphertext,
+          apiKeyIv: encryptedKey.iv,
+          apiKeyAuthTag: encryptedKey.authTag,
+          enabled: channel.enabled === false ? 0 : 1,
+          sortOrder: channel.sortOrder ?? index,
+          updatedAt: new Date(),
+        })
+        .returning({ id: llmChannels.id });
+      channelId = created.id;
+    }
+
+    retainedIds.push(channelId);
+    channelIds.set(index, channelId);
+  }
+
+  await tx.delete(llmChannelModels);
+  for (const previous of existing) {
+    if (!retainedIds.includes(previous.id)) {
+      await tx.delete(llmChannels).where(eq(llmChannels.id, previous.id));
+    }
+  }
+
+  const modelRows = channels.flatMap((channel, channelIndex) =>
+    channel.models.map((model, modelIndex) => ({
+      channelId: channelIds.get(channelIndex)!,
+      modelId: model.modelId,
+      kind: model.kind,
+      enabled: model.enabled === false ? 0 : 1,
+      isDefault: model.isDefault === true ? 1 : 0,
+      sortOrder: model.sortOrder ?? modelIndex,
+    })),
+  );
+  if (modelRows.length > 0) {
+    await tx.insert(llmChannelModels).values(modelRows);
+  }
+}
+
 export async function replaceModelChannels(
   input: ChannelPayloadInput[],
+  tx?: ModelChannelTransaction,
 ): Promise<void> {
   const channels = normalizeChannelPayload(input);
-
-  await db.transaction(async (tx) => {
-    const existing = await tx.select().from(llmChannels);
-    const existingById = new Map(existing.map((channel) => [channel.id, channel]));
-    const retainedIds: string[] = [];
-    const channelIds = new Map<number, string>();
-
-    for (let index = 0; index < channels.length; index++) {
-      const channel = channels[index];
-      const previous = isUuid(channel.id)
-        ? existingById.get(channel.id)
-        : undefined;
-      const suppliedKey = channel.apiKey?.trim();
-      const encryptedKey = suppliedKey
-        ? encryptModelChannelKey(suppliedKey)
-        : previous
-          ? {
-              plaintext: previous.apiKey,
-              ciphertext: previous.apiKeyCiphertext,
-              iv: previous.apiKeyIv,
-              authTag: previous.apiKeyAuthTag,
-            }
-          : encryptModelChannelKey("");
-      let channelId = previous?.id;
-
-      if (channelId) {
-        await tx
-          .update(llmChannels)
-          .set({
-            name: channel.name,
-            baseUrl: channel.baseUrl,
-            apiKey: encryptedKey.plaintext,
-            apiKeyCiphertext: encryptedKey.ciphertext,
-            apiKeyIv: encryptedKey.iv,
-            apiKeyAuthTag: encryptedKey.authTag,
-            enabled: channel.enabled === false ? 0 : 1,
-            sortOrder: channel.sortOrder ?? index,
-            updatedAt: new Date(),
-          })
-          .where(eq(llmChannels.id, channelId));
-      } else {
-        const [created] = await tx
-          .insert(llmChannels)
-          .values({
-            name: channel.name,
-            baseUrl: channel.baseUrl,
-            apiKey: encryptedKey.plaintext,
-            apiKeyCiphertext: encryptedKey.ciphertext,
-            apiKeyIv: encryptedKey.iv,
-            apiKeyAuthTag: encryptedKey.authTag,
-            enabled: channel.enabled === false ? 0 : 1,
-            sortOrder: channel.sortOrder ?? index,
-            updatedAt: new Date(),
-          })
-          .returning({ id: llmChannels.id });
-        channelId = created.id;
-      }
-
-      retainedIds.push(channelId);
-      channelIds.set(index, channelId);
-    }
-
-    // 渠道模型没有外部引用，统一在事务内重建，保证默认绑定不会残留。
-    await tx.delete(llmChannelModels);
-    for (const previous of existing) {
-      if (!retainedIds.includes(previous.id)) {
-        await tx.delete(llmChannels).where(eq(llmChannels.id, previous.id));
-      }
-    }
-
-    const modelRows = channels.flatMap((channel, channelIndex) =>
-      channel.models.map((model, modelIndex) => ({
-        channelId: channelIds.get(channelIndex)!,
-        modelId: model.modelId,
-        kind: model.kind,
-        enabled: model.enabled === false ? 0 : 1,
-        isDefault: model.isDefault === true ? 1 : 0,
-        sortOrder: model.sortOrder ?? modelIndex,
-      })),
-    );
-    if (modelRows.length > 0) {
-      await tx.insert(llmChannelModels).values(modelRows);
-    }
-  });
+  if (tx) {
+    await applyModelChannels(channels, tx);
+    return;
+  }
+  await db.transaction((transaction) => applyModelChannels(channels, transaction));
 }

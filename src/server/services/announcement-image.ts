@@ -4,8 +4,7 @@ import path from "node:path";
 import { ApiError } from "@/server/http";
 
 export const ANNOUNCEMENT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "announcements");
-const PUBLIC_PREFIX = "/uploads/announcements";
+const PUBLIC_PREFIX = "/api/public/announcement-images";
 const ALLOWED_EXTENSIONS: Record<string, string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
@@ -14,6 +13,25 @@ const ALLOWED_EXTENSIONS: Record<string, string> = {
 
 export function getAnnouncementImageExtension(mime: string): string | null {
   return ALLOWED_EXTENSIONS[mime] ?? null;
+}
+
+export function announcementImageRoot(): string {
+  const configured = process.env.DEEPROAST_DATA_DIR?.trim();
+  return path.resolve(
+    configured || path.join(process.cwd(), "storage"),
+    "announcement-images",
+  );
+}
+
+export function assertAnnouncementImageKey(value: string): string {
+  if (!/^[0-9a-f-]{36}\.(?:png|jpe?g|webp)$/i.test(value)) {
+    throw new ApiError("公告图片不存在", 404, "ANNOUNCEMENT_IMAGE_NOT_FOUND");
+  }
+  return value;
+}
+
+export function announcementImagePath(key: string): string {
+  return path.join(announcementImageRoot(), assertAnnouncementImageKey(key));
 }
 
 export function hasValidAnnouncementImageSignature(
@@ -52,9 +70,10 @@ export async function saveAnnouncementImage(
     throw new ApiError("二维码图片内容无效", 400);
   }
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  const uploadDir = announcementImageRoot();
+  await mkdir(uploadDir, { recursive: true });
   const filename = `${randomUUID()}${extension}`;
-  await writeFile(path.join(UPLOAD_DIR, filename), data);
+  await writeFile(path.join(uploadDir, filename), data);
   return `${PUBLIC_PREFIX}/${filename}`;
 }
 
@@ -63,7 +82,7 @@ export async function removeAnnouncementImage(imagePath: string | null | undefin
   const filename = path.basename(imagePath);
   if (!filename || filename.includes("..")) return;
   try {
-    await unlink(path.join(UPLOAD_DIR, filename));
+    await unlink(announcementImagePath(filename));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }

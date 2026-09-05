@@ -324,7 +324,7 @@ export default function ImageGenView({
           generating={generating}
           credits={credits}
           isAdmin={isAdmin}
-          imageGenerationEnabled={imageGenerationEnabled}
+          imageGenerationEnabled={imageGenerationEnabled !== false && Boolean(model)}
           onGenerate={handleGenerate}
           onEditImage={onEditImage}
           onEditImageBatch={onEditImageBatch}

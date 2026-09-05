@@ -10,5 +10,6 @@ test("mobile viewport derives keyboard state from VisualViewport", () => {
   assert.match(source, /window\.visualViewport/);
   assert.match(source, /keyboardInset/);
   assert.match(source, /keyboardOpen/);
-  assert.match(source, /keyboardInset\s*>\s*120/);
+  assert.match(source, /KEYBOARD_OPEN_THRESHOLD\s*=\s*120/);
+  assert.match(source, /keyboardInset\s*>\s*KEYBOARD_OPEN_THRESHOLD/);
 });

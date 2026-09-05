@@ -4,6 +4,7 @@ import {
   encryptModelChannelKey,
   listDefaultModelIds,
   normalizeChannelPayload,
+  resolveConfiguredModelIds,
   resolveModelChannelKey,
   selectDefaultBinding,
   type ChannelBindingRecord,
@@ -60,6 +61,17 @@ test("disabled or non-default channels are not selected", () => {
       "gpt-image-2",
     ),
     null,
+  );
+});
+
+test("migrated channel configuration fails closed when no defaults are active", () => {
+  assert.deepEqual(
+    resolveConfiguredModelIds([], "image", ["legacy-image"]),
+    [],
+  );
+  assert.deepEqual(
+    resolveConfiguredModelIds(null, "image", ["legacy-image"]),
+    ["legacy-image"],
   );
 });
 
@@ -146,4 +158,14 @@ test("channel payload rejects unsafe upstream URLs", () => {
   assert.throws(() => normalizeChannelPayload(payload("http://example.com/v1")));
   assert.throws(() => normalizeChannelPayload(payload("https://127.0.0.1/v1")));
   assert.throws(() => normalizeChannelPayload(payload("https://user:pass@example.com/v1")));
+});
+
+test("invalid administrator channel input is a 400 error", () => {
+  assert.throws(
+    () => normalizeChannelPayload([]),
+    (error: unknown) =>
+      error instanceof Error &&
+      "status" in error &&
+      (error as { status: number }).status === 400,
+  );
 });

@@ -1,36 +1,11 @@
 import { eq } from "drizzle-orm";
-import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
 import { db } from "@/db";
 import { siteSettings } from "@/db/schema";
-import { ApiError } from "@/server/http";
 import { assertImageGenerationPolicy } from "./image-generation-access";
 import { parseInvitationReward } from "./invitations";
 import type { InvitationSettingsPatch } from "./invitation-settings-input";
 import { parseCheckinReward } from "./checkin-settings-input";
-
-const UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "admin-contact",
-);
-const PUBLIC_PREFIX = "/uploads/admin-contact";
-
-const DONATION_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "donation",
-);
-const DONATION_PUBLIC_PREFIX = "/uploads/donation";
-const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED: Record<string, string> = {
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/webp": ".webp",
-};
+import { removeSiteAsset, saveSiteAsset } from "./site-assets";
 
 async function ensureRow() {
   const rows = await db
@@ -48,7 +23,7 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     adminContactText: row.adminContactText ?? "",
     adminContactImagePath: row.adminContactImagePath ?? "",
     registrationEnabled: (row.registrationEnabled ?? 1) !== 0,
-    registrationIpLimitEnabled: (row.registrationIpLimitEnabled ?? 0) !== 0,
+    registrationIpLimitEnabled: (row.registrationIpLimitEnabled ?? 1) !== 0,
     imageGenerationEnabled: (row.imageGenerationEnabled ?? 1) !== 0,
     checkinReward: row.checkinReward ?? 50,
     donationEnabled: (row.donationEnabled ?? 1) !== 0,
@@ -147,21 +122,14 @@ export async function setRegistrationIpLimitEnabled(enabled: boolean) {
 
 export async function clearAdminContactImage() {
   const s = await getSiteSettings();
-  if (s.adminContactImagePath) {
-    const base = path.basename(s.adminContactImagePath);
-    if (base && !base.includes("..")) {
-      try {
-        await unlink(path.join(UPLOAD_DIR, base));
-      } catch {
-        /* ignore missing */
-      }
-    }
-  }
   const [row] = await db
     .update(siteSettings)
     .set({ adminContactImagePath: "", updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
+  await removeSiteAsset("contact", s.adminContactImagePath).catch((error) =>
+    console.error("Failed to remove replaced contact image", error),
+  );
   return mapSettings(row!);
 }
 
@@ -169,35 +137,21 @@ export async function saveAdminContactImage(
   data: Buffer,
   mime: string,
 ): Promise<{ adminContactImagePath: string }> {
-  const ext = ALLOWED[mime];
-  if (!ext) throw new ApiError("仅支持 PNG / JPEG / WebP 图片", 400);
-  if (data.byteLength > MAX_BYTES) {
-    throw new ApiError("图片不能超过 2MB", 400);
-  }
-
   await ensureRow();
-  await mkdir(UPLOAD_DIR, { recursive: true });
-
   const prev = await getSiteSettings();
-  if (prev.adminContactImagePath) {
-    const base = path.basename(prev.adminContactImagePath);
-    if (base && !base.includes("..")) {
-      try {
-        await unlink(path.join(UPLOAD_DIR, base));
-      } catch {
-        /* ignore */
-      }
-    }
+  const publicPath = await saveSiteAsset("contact", data, mime);
+  try {
+    await db
+      .update(siteSettings)
+      .set({ adminContactImagePath: publicPath, updatedAt: new Date() })
+      .where(eq(siteSettings.id, 1));
+  } catch (error) {
+    await removeSiteAsset("contact", publicPath).catch(() => undefined);
+    throw error;
   }
-
-  const filename = `${randomUUID()}${ext}`;
-  await writeFile(path.join(UPLOAD_DIR, filename), data);
-  const publicPath = `${PUBLIC_PREFIX}/${filename}`;
-
-  await db
-    .update(siteSettings)
-    .set({ adminContactImagePath: publicPath, updatedAt: new Date() })
-    .where(eq(siteSettings.id, 1));
+  await removeSiteAsset("contact", prev.adminContactImagePath).catch((error) =>
+    console.error("Failed to remove replaced contact image", error),
+  );
 
   return { adminContactImagePath: publicPath };
 }
@@ -295,21 +249,14 @@ export async function updateDonationText(text: string) {
 
 export async function clearDonationImage() {
   const s = await getSiteSettings();
-  if (s.donationImagePath) {
-    const base = path.basename(s.donationImagePath);
-    if (base && !base.includes("..")) {
-      try {
-        await unlink(path.join(DONATION_UPLOAD_DIR, base));
-      } catch {
-        /* ignore missing */
-      }
-    }
-  }
   const [row] = await db
     .update(siteSettings)
     .set({ donationImagePath: "", updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
+  await removeSiteAsset("donation", s.donationImagePath).catch((error) =>
+    console.error("Failed to remove replaced donation image", error),
+  );
   return mapSettings(row!);
 }
 
@@ -317,35 +264,21 @@ export async function saveDonationImage(
   data: Buffer,
   mime: string,
 ): Promise<{ donationImagePath: string }> {
-  const ext = ALLOWED[mime];
-  if (!ext) throw new ApiError("仅支持 PNG / JPEG / WebP 图片", 400);
-  if (data.byteLength > MAX_BYTES) {
-    throw new ApiError("图片不能超过 2MB", 400);
-  }
-
   await ensureRow();
-  await mkdir(DONATION_UPLOAD_DIR, { recursive: true });
-
   const prev = await getSiteSettings();
-  if (prev.donationImagePath) {
-    const base = path.basename(prev.donationImagePath);
-    if (base && !base.includes("..")) {
-      try {
-        await unlink(path.join(DONATION_UPLOAD_DIR, base));
-      } catch {
-        /* ignore */
-      }
-    }
+  const publicPath = await saveSiteAsset("donation", data, mime);
+  try {
+    await db
+      .update(siteSettings)
+      .set({ donationImagePath: publicPath, updatedAt: new Date() })
+      .where(eq(siteSettings.id, 1));
+  } catch (error) {
+    await removeSiteAsset("donation", publicPath).catch(() => undefined);
+    throw error;
   }
-
-  const filename = `${randomUUID()}${ext}`;
-  await writeFile(path.join(DONATION_UPLOAD_DIR, filename), data);
-  const publicPath = `${DONATION_PUBLIC_PREFIX}/${filename}`;
-
-  await db
-    .update(siteSettings)
-    .set({ donationImagePath: publicPath, updatedAt: new Date() })
-    .where(eq(siteSettings.id, 1));
+  await removeSiteAsset("donation", prev.donationImagePath).catch((error) =>
+    console.error("Failed to remove replaced donation image", error),
+  );
 
   return { donationImagePath: publicPath };
 }

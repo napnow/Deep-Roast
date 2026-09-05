@@ -1,3 +1,6 @@
+ALTER TABLE "llm_config"
+	ADD COLUMN IF NOT EXISTS "assistant_image_prompt" text DEFAULT '' NOT NULL;
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "llm_channels" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
@@ -56,15 +59,21 @@ DECLARE
 	legacy_channel_id uuid;
 BEGIN
 	-- Existing channel rows are production data and remain authoritative.
-	-- Only seed from the old single-row config when no channels exist and its
-	-- plaintext credential is available; the deployment immediately encrypts it.
+	-- Copy an existing encrypted credential without decrypting it in SQL.
 	IF NOT EXISTS (SELECT 1 FROM "llm_channels") THEN
-		INSERT INTO "llm_channels" ("name", "base_url", "api_key", "enabled", "sort_order")
-		SELECT 'Legacy default channel', "base_url", "ark_api_key", 1, 0
+		INSERT INTO "llm_channels" (
+			"name", "base_url", "api_key", "api_key_ciphertext",
+			"api_key_iv", "api_key_auth_tag", "enabled", "sort_order"
+		)
+		SELECT 'Legacy default channel', "base_url", "ark_api_key",
+			"ark_api_key_ciphertext", "ark_api_key_iv", "ark_api_key_auth_tag", 1, 0
 		FROM "llm_config"
 		WHERE "id" = 1
 			AND btrim("base_url") <> ''
-			AND btrim("ark_api_key") <> ''
+			AND (
+				btrim("ark_api_key") <> '' OR
+				("ark_api_key_ciphertext" IS NOT NULL AND "ark_api_key_iv" IS NOT NULL AND "ark_api_key_auth_tag" IS NOT NULL)
+			)
 		RETURNING "id" INTO legacy_channel_id;
 	END IF;
 

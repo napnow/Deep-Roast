@@ -10,16 +10,21 @@ import type { ImageEditRequest } from "@/lib/image-edit-contract";
 /** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400 */
 function resolveRequestModel(): string {
   const { config, selectedImageModel } = useDeepRoastStore.getState();
-  const enabled = config.enabledImageModels?.length
-    ? config.enabledImageModels
-    : null;
-  if (
-    selectedImageModel &&
-    (!enabled || enabled.includes(selectedImageModel))
-  ) {
-    return selectedImageModel;
+  const enabled = config.enabledImageModels;
+  if (enabled !== undefined) {
+    if (selectedImageModel && enabled.includes(selectedImageModel)) {
+      return selectedImageModel;
+    }
+    if (config.imageModel && enabled.includes(config.imageModel)) {
+      return config.imageModel;
+    }
+    throw new ApiError("管理员暂未启用图片模型", 503, "MODEL_UNAVAILABLE");
   }
-  return config.imageModel;
+  return selectedImageModel || config.imageModel;
+}
+
+function idempotencyHeaders(): HeadersInit {
+  return { "Idempotency-Key": crypto.randomUUID() };
 }
 
 export function useImageActions(loadCredits: () => Promise<void>) {
@@ -56,7 +61,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }),
+          }, idempotencyHeaders()),
           signal: abort.signal,
         });
         setImageHistory((prev) => [
@@ -132,7 +137,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             size: string;
           }>("/api/image", {
             method: "POST",
-            ...jsonBody({ prompt, size, model: resolveRequestModel() }),
+            ...jsonBody(
+              { prompt, size, model: resolveRequestModel() },
+              idempotencyHeaders(),
+            ),
             signal: abort.signal,
           });
           results.push({
@@ -225,7 +233,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }),
+          }, idempotencyHeaders()),
           signal: abort.signal,
         });
         const list = (data.images || []).map((img) => ({
@@ -313,7 +321,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             size,
             count,
             model: resolveRequestModel(),
-          }),
+          }, idempotencyHeaders()),
           signal: abort.signal,
         });
         const list = (data.images || []).map((img) => ({

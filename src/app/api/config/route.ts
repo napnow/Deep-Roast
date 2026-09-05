@@ -47,6 +47,7 @@ function publicConfig(
   const channelImageModels = configuredChannels
     ? listDefaultModelIdsFromViews(configuredChannels, "image")
     : [];
+  const channelConfigurationExists = Boolean(configuredChannels?.length);
   const enabledTextModels = parseEnabledModels(
     config.enabledTextModels,
     defaultTextModelIds(),
@@ -57,18 +58,18 @@ function publicConfig(
     defaultImageModelIds(),
     config.imageModel,
   );
-  const visibleTextModels = channelTextModels.length
+  const visibleTextModels = channelConfigurationExists
     ? channelTextModels
     : enabledTextModels;
-  const visibleImageModels = channelImageModels.length
+  const visibleImageModels = channelConfigurationExists
     ? channelImageModels
     : enabledImageModels;
   const textModel = visibleTextModels.includes(config.textModel)
     ? config.textModel
-    : visibleTextModels[0] || config.textModel;
+    : visibleTextModels[0] || "";
   const imageModel = visibleImageModels.includes(config.imageModel)
     ? config.imageModel
-    : visibleImageModels[0] || config.imageModel;
+    : visibleImageModels[0] || "";
 
   return {
     id: config.id,
@@ -186,10 +187,6 @@ export const PUT = handleRoute(async (req) => {
     updates.enabledTextModels = serializeModelIds(enabledText);
   }
 
-  if (channelPayload !== undefined) {
-    await replaceModelChannels(channelPayload);
-  }
-
   if (Object.keys(updates).length === 0 && channelPayload === undefined) {
     throw new ApiError(
       "没有需要更新的字段（若只改 API Key，请重新完整输入）",
@@ -199,36 +196,45 @@ export const PUT = handleRoute(async (req) => {
 
   updates.updatedAt = new Date();
 
-  const [row] = await db
-    .update(llmConfig)
-    .set(updates)
-    .where(eq(llmConfig.id, 1))
-    .returning({ id: llmConfig.id });
+  await db.transaction(async (tx) => {
+    if (channelPayload !== undefined) {
+      await replaceModelChannels(channelPayload, tx);
+    }
 
-  if (!row) {
-    await db.insert(llmConfig).values({
-      id: 1,
-      arkApiKey: (updates.arkApiKey as string) || "",
-      arkApiKeyCiphertext: (updates.arkApiKeyCiphertext as string) || null,
-      arkApiKeyIv: (updates.arkApiKeyIv as string) || null,
-      arkApiKeyAuthTag: (updates.arkApiKeyAuthTag as string) || null,
-      baseUrl: (updates.baseUrl as string) || "",
-      imageModel:
-        (updates.imageModel as string) || "doubao-seedream-4-5-251128",
-      imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
-      assistantImagePrompt:
-        (updates.assistantImagePrompt as string) || "",
-      reversePromptModel: (updates.reversePromptModel as string) || "",
-      enabledImageModels:
-        (updates.enabledImageModels as string) ||
-        serializeModelIds(defaultImageModelIds()),
-      updatedAt: new Date(),
-    });
-  }
+    const [row] = await tx
+      .update(llmConfig)
+      .set(updates)
+      .where(eq(llmConfig.id, 1))
+      .returning({ id: llmConfig.id });
 
-  // 若更新了默认模型但不在启用列表，自动加入
-  const latest = await getConfig();
-  if (latest) {
+    if (!row) {
+      await tx.insert(llmConfig).values({
+        id: 1,
+        arkApiKey: (updates.arkApiKey as string) || "",
+        arkApiKeyCiphertext: (updates.arkApiKeyCiphertext as string) || null,
+        arkApiKeyIv: (updates.arkApiKeyIv as string) || null,
+        arkApiKeyAuthTag: (updates.arkApiKeyAuthTag as string) || null,
+        baseUrl: (updates.baseUrl as string) || "",
+        imageModel:
+          (updates.imageModel as string) || "doubao-seedream-4-5-251128",
+        imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
+        assistantImagePrompt:
+          (updates.assistantImagePrompt as string) || "",
+        reversePromptModel: (updates.reversePromptModel as string) || "",
+        enabledImageModels:
+          (updates.enabledImageModels as string) ||
+          serializeModelIds(defaultImageModelIds()),
+        updatedAt: new Date(),
+      });
+    }
+
+    const [latest] = await tx
+      .select()
+      .from(llmConfig)
+      .where(eq(llmConfig.id, 1))
+      .limit(1);
+    if (!latest) return;
+
     const pinUpdates: Record<string, unknown> = {};
     const imageEnabled = parseEnabledModels(
       latest.enabledImageModels,
@@ -251,12 +257,12 @@ export const PUT = handleRoute(async (req) => {
       ]);
     }
     if (Object.keys(pinUpdates).length) {
-      await db
+      await tx
         .update(llmConfig)
         .set({ ...pinUpdates, updatedAt: new Date() })
         .where(eq(llmConfig.id, 1));
     }
-  }
+  });
 
   const config = await getConfig();
   if (!config) throw new ApiError("未找到配置", 404);

@@ -98,6 +98,14 @@ test("announcement image migration is additive", () => {
   assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
 });
 
+test("idempotency lease migration fences interrupted workers", () => {
+  const sql = readFileSync("drizzle/0023_idempotency_leases.sql", "utf8");
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS "lease_token" uuid/);
+  assert.match(sql, /WHERE "status" = 'processing'/);
+  assert.match(sql, /ALTER COLUMN "lease_token" SET NOT NULL/);
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+});
+
 test("model channel key migration clears plaintext only after encryption", () => {
   const source = readFileSync("scripts/migrate-model-channel-keys.ts", "utf8");
   assert.match(source, /API_KEY_ENCRYPTION_KEY is required/);

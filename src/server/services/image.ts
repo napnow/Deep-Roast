@@ -16,7 +16,10 @@ import {
   reserveCredits,
   type CreditReservation,
 } from "@/server/services/credits";
-import { requestPublicHttpsBuffer } from "@/server/safe-http";
+import {
+  requestPublicHttpsBuffer,
+  requestPublicHttpsResponse,
+} from "@/server/safe-http";
 import { assertImageGenerationAllowed } from "@/server/services/site-settings";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import {
@@ -43,6 +46,33 @@ export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 export const MAX_REFERENCE_TOTAL_BYTES = 30 * 1024 * 1024;
 export const IMAGE_UPSTREAM_TIMEOUT_MS = 300_000;
 const MAX_UPSTREAM_JSON_BYTES = 40 * 1024 * 1024;
+
+async function postJsonUpstream(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+  enforcePublicHttps: boolean | undefined,
+  signal?: AbortSignal,
+): Promise<Response> {
+  if (enforcePublicHttps) {
+    return requestPublicHttpsResponse(url, {
+      method: "POST",
+      headers,
+      body,
+      timeoutMs: IMAGE_UPSTREAM_TIMEOUT_MS,
+      maxBytes: MAX_UPSTREAM_JSON_BYTES,
+      signal,
+    });
+  }
+  const timeoutSignal = AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS);
+  return fetch(url, {
+    method: "POST",
+    redirect: "error",
+    signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+    headers,
+    body,
+  });
+}
 
 const SUPPORTED_IMAGE_MIME = new Set([
   "image/png",
@@ -342,6 +372,7 @@ export async function normalizeReferenceImages(
 export async function readUpstreamImage(
   item: { b64_json?: string; url?: string },
   baseUrl: string,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
   void baseUrl;
   if (item?.b64_json) {
@@ -354,6 +385,7 @@ export async function readUpstreamImage(
   const result = await requestPublicHttpsBuffer(item.url, {
     timeoutMs: IMAGE_UPSTREAM_TIMEOUT_MS,
     maxBytes: MAX_IMAGE_BYTES,
+    signal,
   });
   if (result.status < 200 || result.status >= 300) {
     if (result.status === 408 || result.status === 429 || result.status >= 500) {
@@ -549,6 +581,7 @@ export async function generateImage(opts: {
   modelOverride?: string;
   size?: string;
   idempotencyKey?: string;
+  signal?: AbortSignal;
 }) {
   const {
     userId,
@@ -557,6 +590,9 @@ export async function generateImage(opts: {
     modelOverride,
     size: requestedSize = "1024x1024",
   } = opts;
+  if (opts.signal?.aborted) {
+    throw new ApiError("图片生成已取消", 499, "IMAGE_GENERATION_CANCELLED");
+  }
   await assertImageGenerationAllowed(role);
   if (!prompt?.trim()) throw new ApiError("prompt 为必填项", 400);
   if (prompt.length > MAX_PROMPT_LENGTH) {
@@ -582,7 +618,7 @@ export async function generateImage(opts: {
     ? `${systemPrompt}\n\n${prompt}`
     : prompt;
 
-  const { apiKey, baseUrl, maxRetries } = await resolveConfiguredEndpoint(
+  const { apiKey, baseUrl, maxRetries, enforcePublicHttps } = await resolveConfiguredEndpoint(
     "image",
     model,
     config || {},
@@ -609,6 +645,7 @@ export async function generateImage(opts: {
   const needsCrop = CROP_MODELS.has(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
   let reservation: CreditReservation | null = null;
+  let lastError: unknown;
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
       userId,
@@ -619,11 +656,9 @@ export async function generateImage(opts: {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const writtenPaths: string[] = [];
     try {
-      const res = await fetch(`${baseUrl}/images/generations`, {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS),
-        headers: {
+      const res = await postJsonUpstream(
+        `${baseUrl}/images/generations`,
+        {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
           ...(opts.idempotencyKey
@@ -636,14 +671,16 @@ export async function generateImage(opts: {
               }
             : {}),
         },
-        body: JSON.stringify({
+        JSON.stringify({
           model,
           prompt: finalPrompt,
           n: 1,
           size: requestSize,
           quality: "high",
         }),
-      });
+        enforcePublicHttps,
+        opts.signal,
+      );
 
       if (!res.ok) {
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
@@ -659,7 +696,7 @@ export async function generateImage(opts: {
       }>(res);
       const item = result.data?.[0];
 
-      let buffer = await readUpstreamImage(item || {}, baseUrl);
+      let buffer = await readUpstreamImage(item || {}, baseUrl, opts.signal);
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
       buffer = await preserveOrCropImage(buffer, size, needsCrop);
@@ -693,12 +730,15 @@ export async function generateImage(opts: {
         size,
       };
     } catch (err) {
+      lastError = err;
       await cleanupWrittenPaths(writtenPaths);
       console.error(
         `Image gen error (attempt ${attempt}/${maxRetries}):`,
         err instanceof Error ? err.message : err,
       );
-      if (attempt < maxRetries && shouldRetryImageError(err)) {
+      if (opts.signal?.aborted) {
+        break;
+      } else if (attempt < maxRetries && shouldRetryImageError(err)) {
         await new Promise((r) => setTimeout(r, 1000));
       } else {
         break;
@@ -725,6 +765,10 @@ export async function generateImage(opts: {
       "CREDIT_REFUND_PENDING",
     );
   }
+  if (opts.signal?.aborted) {
+    throw new ApiError("图片生成已取消", 499, "IMAGE_GENERATION_CANCELLED");
+  }
+  if (lastError instanceof ApiError) throw lastError;
   throw new ApiError("图片生成失败，请稍后重试", 502, "UPSTREAM_IMAGE_ERROR");
 }
 
@@ -788,7 +832,7 @@ async function editImageOnce(opts: {
   const size = assertImageSize(requestedSize, model);
   const chargeCredits = role !== "admin";
 
-  const { apiKey, baseUrl, maxRetries } = await resolveConfiguredEndpoint(
+  const { apiKey, baseUrl, maxRetries, enforcePublicHttps } = await resolveConfiguredEndpoint(
     "image",
     model,
     config || {},
@@ -838,11 +882,9 @@ async function editImageOnce(opts: {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const writtenPaths: string[] = [];
     try {
-      const res = await fetch(`${baseUrl}/images/edits`, {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(IMAGE_UPSTREAM_TIMEOUT_MS),
-        headers: {
+      const res = await postJsonUpstream(
+        `${baseUrl}/images/edits`,
+        {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
           ...(opts.idempotencyKey
@@ -855,8 +897,9 @@ async function editImageOnce(opts: {
               }
             : {}),
         },
-        body: JSON.stringify(editPayload),
-      });
+        JSON.stringify(editPayload),
+        enforcePublicHttps,
+      );
 
       if (!res.ok) {
         if (res.status === 408 || res.status === 429 || res.status >= 500) {

@@ -12,11 +12,17 @@
 
 - Kept authenticated private-image delivery, administrator owner-scoped image access, durable request idempotency, transactional credit reservations, bounded upstream requests, and public-HTTPS SSRF validation.
 - Kept AES-256-GCM storage for user API Keys and the primary LLM Key, and extended the same encrypted-at-rest policy to model-channel API Keys.
-- Added additive migrations `0021_model_channels.sql` and `0022_announcement_qr_image.sql`; neither migration drops or rebuilds production tables.
+- Restored bounded auth payloads, private legacy-image blocking, mandatory administrator seed passwords, signed v1 image URLs, and durable idempotency after an independent recovery review caught merge regressions.
+- Added DNS-pinned, backpressure-aware outbound POST/stream transports for configurable channels, fail-closed channel routing, atomic channel/config updates, and transactional default-on registration IP enforcement.
+- Preserved original error status during idempotent replay, refreshed signed v1 image URLs on replay, and propagated chat-image cancellation through the upstream call and credit refund path.
+- Added fenced idempotency leases, stopped expired claims from being re-executed, and committed assistant messages with successful idempotency outcomes in one transaction.
+- Preserved explicitly empty channel configurations through the browser and disabled chat/image actions when administrators have enabled no default model.
+- Moved announcement QR, administrator contact, and donation uploads into the persistent data directory so immutable release switches do not discard them; public asset routes require a live database association.
+- Added additive migrations `0021_model_channels.sql`, `0022_announcement_qr_image.sql`, and `0023_idempotency_leases.sql`; none drops or rebuilds production tables.
 
 ### Verification
 
-- Passed the complete Node test suite, TypeScript checking, ESLint, and the default Next.js 16.3.2 Turbopack production build.
+- Passed all 249 Node tests, TypeScript checking, ESLint with zero warnings, and the default Next.js 16.3.2 Turbopack production build.
 - See `docs/operations/production-version-recovery-2026-09-04.md` for the exact migration, deployment, verification, and rollback procedure.
 
 ## 2026-09-02 — Security hardening and repository cleanup

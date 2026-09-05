@@ -12,6 +12,7 @@ export interface UpstreamEndpoint {
   apiKey: string;
   baseUrl: string;
   maxRetries: number;
+  enforcePublicHttps?: boolean;
 }
 
 interface ConfigLike {

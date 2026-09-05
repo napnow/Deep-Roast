@@ -3,6 +3,14 @@ import { conversations, messages } from "@/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getConfig } from "@/lib/config";
 import { ApiError } from "@/server/http";
+import { isConfiguredModelEnabled } from "@/server/services/model-channels";
+
+async function assertConfiguredConversationModel(model: string) {
+  const config = await getConfig();
+  if (!(await isConfiguredModelEnabled(config || {}, "text", model))) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+}
 
 export async function listConversations(userId: string) {
   return db
@@ -31,6 +39,7 @@ export async function createConversation(
     const config = await getConfig();
     model = config?.textModel || "doubao-seed-2-0-pro-260215";
   }
+  await assertConfiguredConversationModel(model);
   const [conv] = await db
     .insert(conversations)
     .values({ title, model, userId })
@@ -73,6 +82,7 @@ export async function updateConversation(
   if (updates.model !== undefined) {
     if (!updates.model.trim()) throw new ApiError("model 不能为空", 400);
     patch.model = updates.model.trim();
+    await assertConfiguredConversationModel(patch.model);
   }
   if (patch.title === undefined && patch.model === undefined) {
     throw new ApiError("没有需要更新的字段", 400);

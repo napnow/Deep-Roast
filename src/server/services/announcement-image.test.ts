@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ANNOUNCEMENT_IMAGE_MAX_BYTES,
+  announcementImageRoot,
   getAnnouncementImageExtension,
   hasValidAnnouncementImageSignature,
 } from "@/server/services/announcement-image";
@@ -40,4 +41,18 @@ test("checks the file signature instead of trusting the MIME type", () => {
     hasValidAnnouncementImageSignature(Buffer.from("not-an-image"), "image/png"),
     false,
   );
+});
+
+test("stores announcement images under the persistent data directory", () => {
+  const previous = process.env.DEEPROAST_DATA_DIR;
+  process.env.DEEPROAST_DATA_DIR = "C:/persistent/deeproast";
+  try {
+    assert.match(
+      announcementImageRoot().replaceAll("\\", "/"),
+      /C:\/persistent\/deeproast\/announcement-images$/i,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.DEEPROAST_DATA_DIR;
+    else process.env.DEEPROAST_DATA_DIR = previous;
+  }
 });

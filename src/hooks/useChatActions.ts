@@ -9,7 +9,9 @@ import type { Conversation, Message } from "@/types";
 import { CREDIT_PER_CHAT } from "@/types";
 import { detectAssistantAppearanceIntent } from "@/lib/conversational-image-intent";
 
-const CHAT_REQUEST_TIMEOUT_MS = 90_000;
+// Image chat shares the server's 300s image timeout. Keep the browser window
+// slightly longer so it does not cancel an operation that is still valid.
+const CHAT_REQUEST_TIMEOUT_MS = 310_000;
 
 export function useChatActions(
   loadConversations: () => Promise<void>,
@@ -31,6 +33,17 @@ export function useChatActions(
   } = useDeepRoastStore();
 
   const handleNewConversation = useCallback(async () => {
+    const textModelAvailable =
+      config.enabledTextModels === undefined
+        ? Boolean(config.textModel)
+        : Boolean(
+            config.textModel &&
+              config.enabledTextModels.includes(config.textModel),
+          );
+    if (!textModelAvailable) {
+      toast("管理员暂未启用对话模型", "error");
+      return;
+    }
     try {
       const conv = await apiJson<Conversation>("/api/conversations", {
         method: "POST",
@@ -44,6 +57,7 @@ export function useChatActions(
     }
   }, [
     config.textModel,
+    config.enabledTextModels,
     setConversations,
     setActiveConvId,
     resetChatSession,
@@ -106,6 +120,17 @@ export function useChatActions(
       const { activeConvId: convId, streaming: isStreaming, credits } =
         useDeepRoastStore.getState();
       if (!convId || isStreaming) return;
+      const textModelAvailable =
+        config.enabledTextModels === undefined
+          ? Boolean(config.textModel)
+          : Boolean(
+              config.textModel &&
+                config.enabledTextModels.includes(config.textModel),
+            );
+      if (!textModelAvailable) {
+        toast("管理员暂未启用对话模型", "error");
+        return;
+      }
 
       // 助手形象生图由服务端识别；客户端预检仍先保证普通对话可用。
       const appearanceIntent = detectAssistantAppearanceIntent(text);
@@ -160,7 +185,10 @@ export function useChatActions(
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
           body: JSON.stringify({ conversationId: convId, message: text }),
           signal: abort.signal,
         });
@@ -309,6 +337,8 @@ export function useChatActions(
       loadCredits,
       toast,
       user?.role,
+      config.textModel,
+      config.enabledTextModels,
     ],
   );
 
