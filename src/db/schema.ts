@@ -344,7 +344,7 @@ export const requestIdempotency = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     scope: text("scope").notNull(),
     key: text("key").notNull(),
-    leaseToken: uuid("lease_token").notNull(),
+    leaseToken: uuid("lease_token").defaultRandom().notNull(),
     status: text("status").notNull().default("processing"),
     responseStatus: integer("response_status"),
     responseBody: jsonb("response_body").$type<Record<string, unknown> | null>(),

@@ -103,6 +103,7 @@ test("idempotency lease migration fences interrupted workers", () => {
   assert.match(sql, /ADD COLUMN IF NOT EXISTS "lease_token" uuid/);
   assert.match(sql, /WHERE "status" = 'processing'/);
   assert.match(sql, /ALTER COLUMN "lease_token" SET NOT NULL/);
+  assert.match(sql, /ALTER COLUMN "lease_token" SET DEFAULT gen_random_uuid\(\)/);
   assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
 });
 

@@ -14,4 +14,5 @@ SET "lease_token" = gen_random_uuid()
 WHERE "lease_token" IS NULL;
 --> statement-breakpoint
 ALTER TABLE "request_idempotency"
+	ALTER COLUMN "lease_token" SET DEFAULT gen_random_uuid(),
 	ALTER COLUMN "lease_token" SET NOT NULL;
