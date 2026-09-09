@@ -16,7 +16,7 @@ import { isImageGenerationEnabled } from "@/server/services/site-settings";
 import { encryptLlmConfigKey } from "@/server/services/llm-config-crypto";
 import { DEFAULT_ASSISTANT_IMAGE_PROMPT } from "@/lib/conversational-image-intent";
 import {
-  listDefaultModelIdsFromViews,
+  listEnabledModelIdsFromViews,
   listModelChannels,
   replaceModelChannels,
   type ChannelPayloadInput,
@@ -42,10 +42,10 @@ function publicConfig(
   );
   const hasCredential = hasAnyApiCredential(config) || hasChannelCredential;
   const channelTextModels = configuredChannels
-    ? listDefaultModelIdsFromViews(configuredChannels, "text")
+    ? listEnabledModelIdsFromViews(configuredChannels, "text")
     : [];
   const channelImageModels = configuredChannels
-    ? listDefaultModelIdsFromViews(configuredChannels, "image")
+    ? listEnabledModelIdsFromViews(configuredChannels, "image")
     : [];
   const channelConfigurationExists = Boolean(configuredChannels?.length);
   const enabledTextModels = parseEnabledModels(

@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   encryptModelChannelKey,
   listDefaultModelIds,
+  listEnabledModelIdsFromViews,
   normalizeChannelPayload,
+  selectConfiguredBinding,
   resolveConfiguredModelIds,
   resolveModelChannelKey,
   selectDefaultBinding,
@@ -42,6 +44,50 @@ test("same model id resolves only to the enabled default binding", () => {
   assert.deepEqual(
     listDefaultModelIds([qkmssBinding, apiBinding], "image"),
     ["gpt-image-2"],
+  );
+});
+
+test("same channel exposes and resolves every enabled model, not only defaults", () => {
+  const secondaryModel = { ...apiBinding, modelId: "image-model-b", isDefault: false };
+  const bindings = [apiBinding, secondaryModel];
+
+  assert.deepEqual(
+    resolveConfiguredModelIds(bindings, "image", []),
+    ["gpt-image-2", "image-model-b"],
+  );
+  assert.equal(
+    selectConfiguredBinding(bindings, "image", "image-model-b")?.modelId,
+    "image-model-b",
+  );
+  assert.deepEqual(
+    listEnabledModelIdsFromViews(
+      [
+        {
+          id: "channel",
+          name: "channel",
+          baseUrl: apiBinding.baseUrl,
+          apiKeyHint: "****",
+          enabled: true,
+          sortOrder: 0,
+          models: [
+            {
+              modelId: apiBinding.modelId,
+              kind: "image",
+              enabled: true,
+              isDefault: true,
+            },
+            {
+              modelId: secondaryModel.modelId,
+              kind: "image",
+              enabled: true,
+              isDefault: false,
+            },
+          ],
+        },
+      ],
+      "image",
+    ),
+    ["gpt-image-2", "image-model-b"],
   );
 });
 

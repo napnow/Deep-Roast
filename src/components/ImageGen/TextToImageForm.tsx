@@ -7,9 +7,12 @@ import { getCreationSettingsSummary } from "./creation-workbench-ui";
 interface TextToImageFormProps {
   draft: TextToImageDraft;
   model: string;
+  imageModels: string[];
+  selectedImageModel: string;
   sizeOptions: { value: string; label: string }[];
   disabled: boolean;
   onChange: (next: Partial<TextToImageDraft>) => void;
+  onModelChange: (model: string) => void;
 }
 
 const EXAMPLES = [
@@ -21,9 +24,12 @@ const EXAMPLES = [
 export default function TextToImageForm({
   draft,
   model,
+  imageModels,
+  selectedImageModel,
   sizeOptions,
   disabled,
   onChange,
+  onModelChange,
 }: TextToImageFormProps) {
   const selectedStyle = IMAGE_STYLE_PRESETS.find(
     (preset) => preset.prompt === draft.stylePrompt,
@@ -163,9 +169,25 @@ export default function TextToImageForm({
 
           <div className="creation-setting-group creation-model-note">
             <span className="creation-section-label">当前模型</span>
-            <span className="creation-model-note__value">
-              {model || "未配置"}
-            </span>
+            {imageModels.length > 1 ? (
+              <select
+                className="ui-field creation-select"
+                value={selectedImageModel}
+                disabled={disabled}
+                aria-label="选择生图模型"
+                onChange={(event) => onModelChange(event.target.value)}
+              >
+                {imageModels.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {modelId}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="creation-model-note__value">
+                {model || "未配置"}
+              </span>
+            )}
           </div>
         </div>
       </details>

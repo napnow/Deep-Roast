@@ -175,6 +175,40 @@ export function listDefaultModelIds(
   ];
 }
 
+export function listEnabledModelIds(
+  bindings: ChannelBindingRecord[],
+  kind: ModelChannelKind,
+): string[] {
+  return [
+    ...new Set(
+      bindings
+        .filter(
+          (binding) =>
+            binding.kind === kind &&
+            binding.channelEnabled &&
+            binding.modelEnabled,
+        )
+        .map((binding) => binding.modelId),
+    ),
+  ];
+}
+
+export function selectConfiguredBinding(
+  bindings: ChannelBindingRecord[],
+  kind: ModelChannelKind,
+  modelId: string,
+): ChannelBindingRecord | null {
+  const candidates = bindings.filter(
+    (binding) =>
+      binding.kind === kind &&
+      binding.modelId === modelId &&
+      binding.channelEnabled &&
+      binding.modelEnabled,
+  );
+  if (candidates.length === 1) return candidates[0];
+  return candidates.find((binding) => binding.isDefault) ?? null;
+}
+
 export function listDefaultModelIdsFromViews(
   channels: ModelChannelView[],
   kind: ModelChannelKind,
@@ -189,6 +223,23 @@ export function listDefaultModelIdsFromViews(
               (model) =>
                 model.kind === kind && model.enabled && model.isDefault,
             )
+            .map((model) => model.modelId),
+        ),
+    ),
+  ];
+}
+
+export function listEnabledModelIdsFromViews(
+  channels: ModelChannelView[],
+  kind: ModelChannelKind,
+): string[] {
+  return [
+    ...new Set(
+      channels
+        .filter((channel) => channel.enabled)
+        .flatMap((channel) =>
+          channel.models
+            .filter((model) => model.kind === kind && model.enabled)
             .map((model) => model.modelId),
         ),
     ),
@@ -399,7 +450,7 @@ export function resolveConfiguredModelIds(
 ): string[] {
   return bindings === null
     ? [...new Set(legacyModelIds)]
-    : listDefaultModelIds(bindings, kind);
+    : listEnabledModelIds(bindings, kind);
 }
 
 export async function isConfiguredModelEnabled(
@@ -418,7 +469,7 @@ export async function resolveConfiguredEndpoint(
   const bindings = await readChannelBindings();
   const bindingKind: ModelChannelKind = kind === "vision" ? "text" : kind;
   const binding = bindings
-    ? selectDefaultBinding(bindings, bindingKind, model)
+    ? selectConfiguredBinding(bindings, bindingKind, model)
     : null;
 
   if (bindings === null) {

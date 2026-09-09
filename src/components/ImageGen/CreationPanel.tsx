@@ -45,8 +45,15 @@ export default function CreationPanel({
     textToImageDraft,
     imageToImageDraft,
     setTextToImageDraft,
+    imageModels,
+    selectedImageModel,
+    setSelectedImageModel,
     config,
   } = useDeepRoastStore();
+  const imageModelIds = imageModels.map((item) => item.id);
+  const selectedModel = imageModelIds.includes(selectedImageModel)
+    ? selectedImageModel
+    : model;
   const sizeOptions = getSizeOptions(model);
   const normalizedSize = sizeOptions.some(
     (option) => option.value === textToImageDraft.size,
@@ -116,9 +123,12 @@ export default function CreationPanel({
           <TextToImageForm
             draft={visibleTextDraft}
             model={model}
+            imageModels={imageModelIds}
+            selectedImageModel={selectedModel}
             sizeOptions={sizeOptions}
             disabled={generating || !imageGenerationAvailable}
             onChange={setTextToImageDraft}
+            onModelChange={setSelectedImageModel}
           />
         </div>
         <div hidden={imageCreationMode !== "edit"}>
