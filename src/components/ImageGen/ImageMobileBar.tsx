@@ -15,6 +15,9 @@ interface ImageMobileBarProps {
   size: string;
   setSize: (v: string) => void;
   sizeOptions: { value: string; label: string }[];
+  imageModels: string[];
+  selectedImageModel: string;
+  onModelChange: (model: string) => void;
   generating: boolean;
   credits: number;
   isAdmin?: boolean;
@@ -50,6 +53,9 @@ export default function ImageMobileBar({
   size,
   setSize,
   sizeOptions,
+  imageModels,
+  selectedImageModel,
+  onModelChange,
   generating,
   credits,
   isAdmin = false,
@@ -71,7 +77,7 @@ export default function ImageMobileBar({
     imageGenerationEnabled,
   );
   const [toolbarOpen, setToolbarOpen] = useState<
-    "reverse" | "img2img" | "size" | null
+    "reverse" | "img2img" | "model" | "size" | null
   >(null);
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -99,12 +105,13 @@ export default function ImageMobileBar({
     return () => ro.disconnect();
   }, [onHeightChange, keyboardInset]);
 
-  function toggleToolbar(panel: "reverse" | "img2img" | "size") {
+  function toggleToolbar(panel: "reverse" | "img2img" | "model" | "size") {
     setToolbarOpen((prev) => (prev === panel ? null : panel));
   }
 
   const selectedSizeLabel =
     sizeOptions.find((option) => option.value === size)?.label || size;
+  const selectedModelLabel = selectedImageModel || imageModels[0] || "模型";
 
   function autoResize() {
     const ta = taRef.current;
@@ -150,7 +157,9 @@ export default function ImageMobileBar({
               ? "图生图设置"
               : toolbarOpen === "reverse"
                 ? "反推设置"
-                : "画幅比例"
+                : toolbarOpen === "model"
+                  ? "选择生图模型"
+                  : "画幅比例"
           }
         >
           <div className="mobile-creation-sheet__header">
@@ -161,14 +170,18 @@ export default function ImageMobileBar({
                   ? "图生图"
                   : toolbarOpen === "reverse"
                     ? "反推"
-                    : "画幅比例"}
+                    : toolbarOpen === "model"
+                      ? "生图模型"
+                      : "画幅比例"}
               </span>
               <p className="mobile-creation-sheet__subtitle">
                 {toolbarOpen === "img2img"
                   ? "素材、指令和生成设置"
                   : toolbarOpen === "reverse"
                     ? "上传图片分析提示词"
-                    : "选择适合当前图片的比例"}
+                    : toolbarOpen === "model"
+                      ? "选择本次生成使用的模型"
+                      : "选择适合当前图片的比例"}
               </p>
             </div>
             <button
@@ -200,6 +213,31 @@ export default function ImageMobileBar({
                 onEditImageBatch={onEditImageBatch}
                 onStopGenerate={onStopGenerate}
               />
+            ) : toolbarOpen === "model" ? (
+              <div
+                className="mobile-model-picker"
+                role="listbox"
+                aria-label="选择生图模型"
+              >
+                {imageModels.map((modelId) => {
+                  const selected = modelId === selectedImageModel;
+                  return (
+                    <button
+                      key={modelId}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={selected ? "is-active" : undefined}
+                      onClick={() => {
+                        onModelChange(modelId);
+                        setToolbarOpen(null);
+                      }}
+                    >
+                      {modelId}
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="mobile-size-picker" role="listbox" aria-label="图片比例">
                 {sizeOptions.map((option) => {
@@ -254,6 +292,22 @@ export default function ImageMobileBar({
           图生图
         </button>
         <span className="mobile-composer-divider" aria-hidden="true" />
+        {imageModels.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => toggleToolbar("model")}
+            aria-expanded={toolbarOpen === "model"}
+            aria-controls="mobile-creation-sheet"
+            className={
+              toolbarOpen === "model"
+                ? "mobile-composer-chip is-active mobile-composer-model"
+                : "mobile-composer-chip mobile-composer-model"
+            }
+            title={selectedModelLabel}
+          >
+            模型
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => toggleToolbar("size")}

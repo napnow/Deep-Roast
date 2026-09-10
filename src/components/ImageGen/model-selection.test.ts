@@ -18,3 +18,21 @@ test("image creation exposes a selector for multiple enabled image models", () =
   assert.match(form, /imageModels\.length > 1/);
   assert.match(form, /aria-label="选择生图模型"/);
 });
+
+test("mobile image creation exposes the model picker when multiple models are enabled", () => {
+  const mobile = readFileSync(
+    "src/components/ImageGen/ImageMobileBar.tsx",
+    "utf8",
+  );
+
+  assert.match(mobile, /imageModels\.length > 1/);
+  assert.match(mobile, /onModelChange/);
+  assert.match(mobile, /选择生图模型/);
+});
+
+test("initial image model follows the server default when it is enabled", () => {
+  const initialData = readFileSync("src/hooks/useInitialData.ts", "utf8");
+
+  assert.doesNotMatch(initialData, /if \(!enabled\.includes\(selectedImageModel\)\)/);
+  assert.match(initialData, /enabled\.includes\(cfg\.imageModel\)\s*\?\s*cfg\.imageModel/);
+});

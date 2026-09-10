@@ -32,15 +32,12 @@ export function useInitialData() {
       const cfg = await apiJson<Config>("/api/config");
       replaceConfig(cfg);
       applyEnabledImageModels(cfg);
-      // 所选模型跟随默认模型初始化（仅首次/默认值未在启用列表时）
-      const { selectedImageModel } = useDeepRoastStore.getState();
+      // 配置加载后始终以服务端默认模型作为当前选择，避免保留旧的本地模型。
       const enabled =
         cfg.enabledImageModels ?? DEFAULT_IMAGE_MODELS.map((m) => m.id);
-      if (!enabled.includes(selectedImageModel)) {
-        setSelectedImageModel(
-          enabled.includes(cfg.imageModel) ? cfg.imageModel : enabled[0] || "",
-        );
-      }
+      setSelectedImageModel(
+        enabled.includes(cfg.imageModel) ? cfg.imageModel : enabled[0] || "",
+      );
     } catch {
       console.error("Failed to load config");
     }

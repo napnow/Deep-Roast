@@ -79,10 +79,21 @@ export default function ImageGenView({
   const imageGenerationEnabled = useDeepRoastStore(
     (state) => state.config.imageGenerationEnabled,
   );
+  const imageModels = useDeepRoastStore((state) => state.imageModels);
+  const selectedImageModel = useDeepRoastStore(
+    (state) => state.selectedImageModel,
+  );
+  const setSelectedImageModel = useDeepRoastStore(
+    (state) => state.setSelectedImageModel,
+  );
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
   const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
   const setImageCreationMode = useDeepRoastStore((state) => state.setImageCreationMode);
   const sizeOptions = getSizeOptions(model);
+  const imageModelIds = imageModels.map((item) => item.id);
+  const activeImageModel = imageModelIds.includes(selectedImageModel)
+    ? selectedImageModel
+    : model;
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(sizeOptions[0]?.value || "1024x1024");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -321,6 +332,9 @@ export default function ImageGenView({
           size={size}
           setSize={setSize}
           sizeOptions={sizeOptions}
+          imageModels={imageModelIds}
+          selectedImageModel={activeImageModel}
+          onModelChange={setSelectedImageModel}
           generating={generating}
           credits={credits}
           isAdmin={isAdmin}

@@ -3404,6 +3404,39 @@ html.dark .liquid-glass-strong {
   transform: scale(0.97);
 }
 
+.mobile-model-picker {
+  display: grid;
+  gap: 10px;
+  padding: 4px 2px 12px;
+}
+
+.mobile-model-picker button {
+  min-height: 52px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg-root));
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease,
+    transform 150ms ease;
+}
+
+.mobile-model-picker button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+
+.mobile-model-picker button:active {
+  transform: scale(0.98);
+}
+
 .mobile-creation-sheet .reverse-prompt-panel {
   display: grid;
   gap: 14px;
