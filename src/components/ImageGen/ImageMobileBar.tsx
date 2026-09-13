@@ -70,13 +70,14 @@ export default function ImageMobileBar({
   useEffect(() => { setToolbarOpen(null); }, [userSessionVersion]);
   useEffect(() => {
     if (!openImageToImage) return;
-    setToolbarOpen("img2img");
+    if (window.matchMedia("(max-width: 767px)").matches) setToolbarOpen("img2img");
     onImageToImageOpened?.();
   }, [onImageToImageOpened, openImageToImage]);
   useEffect(() => {
     if (!toolbarOpen) return;
     const desktop = window.matchMedia("(min-width: 768px)");
     const closeOnDesktop = () => { if (desktop.matches) setToolbarOpen(null); };
+    closeOnDesktop();
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, [toolbarOpen]);

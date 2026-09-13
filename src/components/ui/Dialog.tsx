@@ -43,6 +43,7 @@ export default function Dialog({ open, onClose, label, className = "", children 
     <dialog
       ref={dialogRef}
       className={`ui-modal-dialog ${className}`}
+      tabIndex={-1}
       aria-label={label}
       aria-modal="true"
       onKeyDown={(event) => {
@@ -50,8 +51,20 @@ export default function Dialog({ open, onClose, label, className = "", children 
         event.stopPropagation();
         const dialog = event.currentTarget;
         const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-        )).filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+          'button, input, select, textarea, a[href], summary, [tabindex]',
+        )).filter((element) => {
+          if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]")) return false;
+          if (!element.getClientRects().length || getComputedStyle(element).visibility === "hidden") return false;
+          // Closed details can retain layout rectangles in Chromium. Only their
+          // first summary participates in sequential keyboard navigation.
+          for (let parent = element.parentElement; parent && parent !== dialog; parent = parent.parentElement) {
+            if (parent instanceof HTMLDetailsElement && !parent.open) {
+              const summary = parent.querySelector(":scope > summary");
+              if (!summary?.contains(element)) return false;
+            }
+          }
+          return true;
+        });
         const first = focusable[0];
         const last = focusable.at(-1);
         if (!first || !last) {

@@ -99,6 +99,18 @@ export default function Img2ImgPanel({
   const genRef = useRef(false);
   const uploadEpochRef = useRef(0);
   const uploadReadersRef = useRef(new Set<FileReader>());
+  const editorScrollLocked = useRef(false);
+  const releaseEditorScroll = useCallback(() => {
+    if (!editorScrollLocked.current) return;
+    editorScrollLocked.current = false;
+    unlockPageScroll();
+  }, []);
+  const lockEditorScroll = useCallback(() => {
+    if (editorScrollLocked.current) return;
+    editorScrollLocked.current = true;
+    lockPageScroll();
+  }, []);
+  useEffect(() => releaseEditorScroll, [releaseEditorScroll]);
 
   const invalidateUploads = useCallback(() => {
     // Invalidate first: even an already-queued callback must not restore old assets.
@@ -637,8 +649,8 @@ export default function Img2ImgPanel({
             <textarea
               value={currentPrompt}
               onChange={(event) => updateCurrentPrompt(event.target.value)}
-              onFocus={lockPageScroll}
-              onBlur={unlockPageScroll}
+              onFocus={lockEditorScroll}
+              onBlur={releaseEditorScroll}
               placeholder={
                 editMode === "reference"
                   ? "描述你想要的修改…"
@@ -659,8 +671,8 @@ export default function Img2ImgPanel({
               <textarea
                 value={edit}
                 onChange={(event) => setEdit(event.target.value)}
-                onFocus={lockPageScroll}
-                onBlur={unlockPageScroll}
+                onFocus={lockEditorScroll}
+                onBlur={releaseEditorScroll}
                 placeholder="例如：整体保持原构图，只统一色调…"
                 rows={2}
                 disabled={processing}
@@ -675,8 +687,8 @@ export default function Img2ImgPanel({
           <textarea
             value={edit}
             onChange={(event) => setEdit(event.target.value)}
-            onFocus={lockPageScroll}
-            onBlur={unlockPageScroll}
+            onFocus={lockEditorScroll}
+            onBlur={releaseEditorScroll}
             placeholder="上传参考图后，描述你想要的修改…"
             rows={4}
             disabled={processing}
