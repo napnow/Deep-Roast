@@ -17,12 +17,24 @@ interface DialogProps {
 }
 
 /** Native top-layer modal: the browser owns inertness, focus and Escape order. */
-export default function Dialog({ open, onClose, label, className = "", children }: DialogProps) {
-  const mounted = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
+export default function Dialog({
+  open,
+  onClose,
+  label,
+  className = "",
+  children,
+}: DialogProps) {
+  const mounted = useSyncExternalStore(
+    subscribe,
+    clientSnapshot,
+    serverSnapshot,
+  );
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
 
-  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!mounted || !open || !dialog) return;
@@ -50,14 +62,29 @@ export default function Dialog({ open, onClose, label, className = "", children 
         if (event.key !== "Tab") return;
         event.stopPropagation();
         const dialog = event.currentTarget;
-        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
-          'button, input, select, textarea, a[href], summary, [tabindex]',
-        )).filter((element) => {
-          if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]")) return false;
-          if (!element.getClientRects().length || getComputedStyle(element).visibility === "hidden") return false;
+        const focusable = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            "button, input, select, textarea, a[href], summary, [tabindex]",
+          ),
+        ).filter((element) => {
+          if (
+            element.tabIndex < 0 ||
+            element.matches(":disabled") ||
+            element.closest("[inert]")
+          )
+            return false;
+          if (
+            !element.getClientRects().length ||
+            getComputedStyle(element).visibility === "hidden"
+          )
+            return false;
           // Closed details can retain layout rectangles in Chromium. Only their
           // first summary participates in sequential keyboard navigation.
-          for (let parent = element.parentElement; parent && parent !== dialog; parent = parent.parentElement) {
+          for (
+            let parent = element.parentElement;
+            parent && parent !== dialog;
+            parent = parent.parentElement
+          ) {
             if (parent instanceof HTMLDetailsElement && !parent.open) {
               const summary = parent.querySelector(":scope > summary");
               if (!summary?.contains(element)) return false;
@@ -70,10 +97,18 @@ export default function Dialog({ open, onClose, label, className = "", children 
         if (!first || !last) {
           event.preventDefault();
           dialog.focus();
-        } else if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        } else if (
+          event.shiftKey &&
+          (document.activeElement === first ||
+            !dialog.contains(document.activeElement))
+        ) {
           event.preventDefault();
           last.focus();
-        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        } else if (
+          !event.shiftKey &&
+          (document.activeElement === last ||
+            !dialog.contains(document.activeElement))
+        ) {
           event.preventDefault();
           first.focus();
         }

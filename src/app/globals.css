@@ -45,8 +45,8 @@ body {
   --text: #1a1612;
   --text-primary: #1a1612;
   --text-secondary: #5a5248;
-  --muted: #6b665a;
-  --text-muted: #6b665a;
+  --muted: #625d53;
+  --text-muted: #625d53;
   --accent: #9a5528;
   --accent-soft: #b86a35;
   --accent-on: #fff8f0;
@@ -88,8 +88,8 @@ html.dark {
   --text: #ede6dc;
   --text-primary: #ede6dc;
   --text-secondary: #a89a8a;
-  --muted: #8a827a;
-  --text-muted: #8a827a;
+  --muted: #a19689;
+  --text-muted: #a19689;
   --accent: #d4894a;
   --accent-soft: #e8a56a;
   --accent-on: #1a1008;
@@ -4307,3 +4307,8 @@ html.dark .liquid-glass-strong {
 .img2img-action { flex-wrap: wrap; }
 .img2img-action-summary { display: flex; justify-content: space-between; width: 100%; color: var(--text-secondary); font-size: 11px; }
 .img2img-action-summary strong { color: var(--accent); }
+
+/* Readable small labels in both warm paper and charcoal themes. */
+.asset-tabs button.is-active, .asset-filters button.is-active { color: #80431c; }
+html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-active { color: #e8a56a; }
+.creation-mode-tabs button:not(.is-active), .mobile-composer-heading label { color: var(--text-secondary); }

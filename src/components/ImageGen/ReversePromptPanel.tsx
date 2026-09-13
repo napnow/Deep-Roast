@@ -28,7 +28,9 @@ export default function ReversePromptPanel({
   const [result, setResult] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [requests] = useState(() => createClientSessionLifecycle());
-  const userSessionVersion = useDeepRoastStore((state) => state.userSessionVersion);
+  const userSessionVersion = useDeepRoastStore(
+    (state) => state.userSessionVersion,
+  );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -76,27 +78,31 @@ export default function ReversePromptPanel({
     setPreview(null);
     setBase64(null);
     setResult("");
-    compressImageFile(file).then((data) => {
-      if (!request.isCurrent()) return;
-      setBase64(data);
-      const reader = new FileReader();
-      const abort = () => { if (reader.readyState === FileReader.LOADING) reader.abort(); };
-      request.signal.addEventListener("abort", abort, { once: true });
-      reader.onload = () => {
-        if (request.isCurrent()) setPreview(reader.result as string);
-        request.signal.removeEventListener("abort", abort);
-        request.finish();
-      };
-      reader.onerror = () => {
+    compressImageFile(file)
+      .then((data) => {
+        if (!request.isCurrent()) return;
+        setBase64(data);
+        const reader = new FileReader();
+        const abort = () => {
+          if (reader.readyState === FileReader.LOADING) reader.abort();
+        };
+        request.signal.addEventListener("abort", abort, { once: true });
+        reader.onload = () => {
+          if (request.isCurrent()) setPreview(reader.result as string);
+          request.signal.removeEventListener("abort", abort);
+          request.finish();
+        };
+        reader.onerror = () => {
+          if (request.isCurrent()) setError("读取图片失败");
+          request.signal.removeEventListener("abort", abort);
+          request.finish();
+        };
+        reader.readAsDataURL(file);
+      })
+      .catch(() => {
         if (request.isCurrent()) setError("读取图片失败");
-        request.signal.removeEventListener("abort", abort);
         request.finish();
-      };
-      reader.readAsDataURL(file);
-    }).catch(() => {
-      if (request.isCurrent()) setError("读取图片失败");
-      request.finish();
-    });
+      });
     e.target.value = "";
   }
 
@@ -228,7 +234,10 @@ export default function ReversePromptPanel({
         )}
 
         {preview && !prompting && !error && (
-          <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+          <p
+            className="text-[11px] truncate"
+            style={{ color: "var(--text-muted)" }}
+          >
             点击「分析图片」提取提示词
           </p>
         )}
@@ -266,7 +275,10 @@ export default function ReversePromptPanel({
       )}
 
       {error && (
-        <p className="text-[11px] animate-fade-in" style={{ color: "var(--danger)" }}>
+        <p
+          className="text-[11px] animate-fade-in"
+          style={{ color: "var(--danger)" }}
+        >
           ✗ {error}
         </p>
       )}

@@ -107,10 +107,7 @@ export function getCreationSettingsSummary(
   return labels.filter((label): label is string => Boolean(label));
 }
 
-export function getActiveEditPrompt(
-  prompts: string[],
-  index: number,
-): string {
+export function getActiveEditPrompt(prompts: string[], index: number): string {
   return Number.isInteger(index) && index >= 0 ? prompts[index] || "" : "";
 }
 

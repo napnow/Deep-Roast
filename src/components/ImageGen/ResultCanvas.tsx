@@ -71,14 +71,17 @@ export default function ResultCanvas({
     );
   }
 
-  const visibleResults = results.length > 0 ? results : activeImage ? [activeImage] : [];
+  const visibleResults =
+    results.length > 0 ? results : activeImage ? [activeImage] : [];
   if (visibleResults.length === 0) {
     return (
       <section className="result-canvas">
         <section className="result-state-card is-idle">
           <div>
             <p className="result-state-title">创作舞台已就绪</p>
-            <p className="result-state-copy">描述你想要的画面，生成结果会集中出现在这里</p>
+            <p className="result-state-copy">
+              描述你想要的画面，生成结果会集中出现在这里
+            </p>
           </div>
         </section>
       </section>
@@ -87,7 +90,9 @@ export default function ResultCanvas({
 
   return (
     <section className="result-canvas">
-      <div className={`result-grid ${visibleResults.length === 1 ? "is-single" : ""}`}>
+      <div
+        className={`result-grid ${visibleResults.length === 1 ? "is-single" : ""}`}
+      >
         {visibleResults.map((image) => (
           <ResultCard
             key={image.id}

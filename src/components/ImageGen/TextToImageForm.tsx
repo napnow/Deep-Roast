@@ -42,9 +42,14 @@ export default function TextToImageForm({
 
   return (
     <div className="creation-form">
-      <section className="creation-step-card" aria-labelledby="text-prompt-title">
+      <section
+        className="creation-step-card"
+        aria-labelledby="text-prompt-title"
+      >
         <div className="creation-step-card__heading">
-          <span className="creation-step-card__number" aria-hidden="true">01</span>
+          <span className="creation-step-card__number" aria-hidden="true">
+            01
+          </span>
           <div>
             <h2 id="text-prompt-title" className="creation-step-card__title">
               画面描述
@@ -91,7 +96,9 @@ export default function TextToImageForm({
       <details className="creation-settings creation-step-card">
         <summary>
           <span className="creation-step-card__summary">
-            <span className="creation-step-card__number" aria-hidden="true">02</span>
+            <span className="creation-step-card__number" aria-hidden="true">
+              02
+            </span>
             <span>
               <span className="creation-settings__title">生成设置</span>
               <span className="creation-step-card__description">
@@ -119,9 +126,7 @@ export default function TextToImageForm({
                     disabled={disabled}
                     aria-pressed={selected}
                     className={
-                      selected
-                        ? "creation-chip is-selected"
-                        : "creation-chip"
+                      selected ? "creation-chip is-selected" : "creation-chip"
                     }
                     onClick={() => onChange({ stylePrompt: preset.prompt })}
                   >

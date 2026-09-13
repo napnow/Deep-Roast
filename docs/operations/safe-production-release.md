@@ -5,7 +5,7 @@ The production host has about 843 MiB of RAM and the application service is limi
 ## Build and acceptance
 
 1. Use an isolated Linux x86_64 build machine compatible with the production glibc. Use Node.js 22.22 or newer in the same supported LTS line and `npm ci`, not copied Windows dependencies.
-2. Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. The lockfile now consistently installs Next.js 16.3.2, React 19.2.4, Sharp 0.35.3, and pg 8.22.0. Do not reuse the former server node_modules: they did not match its manifest.
+2. Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. The lockfile now consistently installs Next.js 16.3.5, React 19.2.4, Sharp 0.35.4, and pg 8.22.0. Do not reuse the former server node_modules: they did not match its manifest.
 3. Follow `database-bootstrap.md` for explicitly isolated database acceptance. Keep database binaries/data/socket files and other verification tools OUTSIDE the Next.js build tree; Tailwind/Turbopack scans source files.
 4. Start the built app against disposable local data with a 300 MiB cgroup limit and no swap. Verify login, logout/account switching, authenticated data isolation, assets, and negative authorization checks. Never use production provider credentials or generate billable images for a smoke test.
 5. Build a checksummed artifact containing release source, `.next` (without its regenerable cache), and Linux dependencies. Exclude `.git`, real `.env` files, caches, test databases, local backups, screenshots, uploads, and generated user images. `.env.example` is placeholders only.
@@ -26,6 +26,6 @@ Use the recorded previous release, not a guessed directory. Validate that both o
 
 ## Repository and local work
 
-The production snapshot and the local development branch had diverged from the remote default branch. Publish the verified release on `release/production-stability-20260913`; do not force-push or silently replace `master`. Preserve historical documentation and useful tests. Keep local uncommitted/untracked work in a named stash plus an external verified Git bundle before switching the local project to the release branch. Do not overwrite local environment files, user assets, or ignored working directories.
+The production snapshot and the local development branch had diverged from the remote default branch. The stability baseline is `release/production-stability-20260913`; publish this responsive UI update on `release/uiux-refinement-20260913`. Do not force-push or silently replace `master`. Preserve historical documentation and useful tests. Keep local uncommitted/untracked work in a named stash plus an external verified Git bundle before switching the local project to the release branch. Do not overwrite local environment files, user assets, or ignored working directories.
 
 The artifact manifest records raw release-file checksums and Git-content checksums (text normalized per `.gitattributes`). This distinguishes line-ending-only differences from real source drift.

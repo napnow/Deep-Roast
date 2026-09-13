@@ -66,14 +66,16 @@ export default function CreationPanel({
     config.imageModelCosts?.[selectedModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
   const cost = generationCost(textToImageDraft.count, imageCostPerImage);
   const canAfford = isAdmin || credits >= cost;
-  const imageGenerationAvailable = canUseImageGeneration(
-    isAdmin ? "admin" : "user",
-    config.imageGenerationEnabled !== false,
-  ) && Boolean(model);
+  const imageGenerationAvailable =
+    canUseImageGeneration(
+      isAdmin ? "admin" : "user",
+      config.imageGenerationEnabled !== false,
+    ) && Boolean(model);
 
   function submitText() {
     const prompt = textToImageDraft.prompt.trim();
-    if (!prompt || generating || !canAfford || !imageGenerationAvailable) return;
+    if (!prompt || generating || !canAfford || !imageGenerationAvailable)
+      return;
     const finalPrompt = textToImageDraft.stylePrompt
       ? `${textToImageDraft.stylePrompt}\n\n${prompt}`
       : prompt;
@@ -86,7 +88,7 @@ export default function CreationPanel({
   }
 
   return (
-    <aside
+    <section
       className={`${WORKBENCH_CLASS_NAMES.panel} ${WORKBENCH_CLASS_NAMES.roomyPanel} ${WORKBENCH_CLASS_NAMES.richPanel}`}
     >
       <div className="creation-panel__header">
@@ -105,7 +107,11 @@ export default function CreationPanel({
             {isAdmin ? "管理员模式" : `余额 ${credits} 积分`}
           </span>
         </div>
-        <div className="creation-mode-tabs" role="tablist" aria-label="生图方式">
+        <div
+          className="creation-mode-tabs"
+          role="tablist"
+          aria-label="生图方式"
+        >
           {MODES.map((mode) => (
             <button
               key={mode.id}
@@ -206,17 +212,23 @@ export default function CreationPanel({
               )}
             </button>
             {!canAfford && onWalletClick ? (
-              <button type="button" className="text-xs text-[var(--danger)]" onClick={onWalletClick}>
+              <button
+                type="button"
+                className="text-xs text-[var(--danger)]"
+                onClick={onWalletClick}
+              >
                 积分不足，打开钱包
               </button>
             ) : null}
           </>
         ) : (
           <p className="text-xs text-[var(--text-muted)]">
-            {imageCreationMode === "edit" ? "在上方上传参考图并提交生成" : "上传图片后分析并带入文生图"}
+            {imageCreationMode === "edit"
+              ? "在上方上传参考图并提交生成"
+              : "上传图片后分析并带入文生图"}
           </p>
         )}
       </div>
-    </aside>
+    </section>
   );
 }

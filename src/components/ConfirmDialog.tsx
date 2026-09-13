@@ -25,61 +25,61 @@ export default function ConfirmDialog({
 
   return (
     <Dialog open={open} onClose={onClose} label={title}>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 animate-fade-in"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
-        className="relative w-full max-w-sm rounded-2xl p-5 animate-scale-in"
-        style={{
-          background: "var(--bg-surface)",
-          border: "1px solid var(--border-strong)",
-          boxShadow: "var(--shadow-lg)",
-        }}
-      >
-        <h3
-          className="font-display text-base font-semibold mb-2"
-          style={{ color: "var(--text-primary)" }}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/40 animate-fade-in"
+          onClick={onClose}
+          aria-hidden
+        />
+        <div
+          className="relative w-full max-w-sm rounded-2xl p-5 animate-scale-in"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-strong)",
+            boxShadow: "var(--shadow-lg)",
+          }}
         >
-          {title}
-        </h3>
-        <p
-          className="text-sm leading-relaxed mb-5"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          {message}
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-medium transition-all active:scale-95"
-            style={{
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-            }}
+          <h3
+            className="font-display text-base font-semibold mb-2"
+            style={{ color: "var(--text-primary)" }}
           >
-            {cancelText}
-          </button>
-          <button
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-            className="px-4 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
-            style={{
-              background: "var(--danger)",
-              color: "#fff",
-              border: "1px solid var(--danger)",
-            }}
+            {title}
+          </h3>
+          <p
+            className="text-sm leading-relaxed mb-5"
+            style={{ color: "var(--text-secondary)" }}
           >
-            {confirmText}
-          </button>
+            {message}
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-xs font-medium transition-all active:scale-95"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className="px-4 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
+              style={{
+                background: "var(--danger)",
+                color: "#fff",
+                border: "1px solid var(--danger)",
+              }}
+            >
+              {confirmText}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     </Dialog>
   );
 }

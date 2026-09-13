@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import type { ImageRecord } from "@/types";
 import { getSizeOptions } from "./imageUtils";
 import CreationPanel from "./CreationPanel";
@@ -89,8 +95,12 @@ export default function ImageGenView({
     (state) => state.setSelectedImageModel,
   );
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
-  const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
-  const setImageCreationMode = useDeepRoastStore((state) => state.setImageCreationMode);
+  const setImageToImageDraft = useDeepRoastStore(
+    (state) => state.setImageToImageDraft,
+  );
+  const setImageCreationMode = useDeepRoastStore(
+    (state) => state.setImageCreationMode,
+  );
   const sizeOptions = getSizeOptions(model);
   const imageModelIds = imageModels.map((item) => item.id);
   const activeImageModel = imageModelIds.includes(selectedImageModel)
@@ -98,10 +108,13 @@ export default function ImageGenView({
     : model;
   const textDraft = useDeepRoastStore((state) => state.textToImageDraft);
   const setTextDraft = useDeepRoastStore((state) => state.setTextToImageDraft);
-  const inspectorCollapsed = useDeepRoastStore((state) => state.inspectorCollapsed);
+  const inspectorCollapsed = useDeepRoastStore(
+    (state) => state.inspectorCollapsed,
+  );
   const prompt = textDraft.prompt;
   const size = sizeOptions.some((option) => option.value === textDraft.size)
-    ? textDraft.size : sizeOptions[0]?.value || "1024x1024";
+    ? textDraft.size
+    : sizeOptions[0]?.value || "1024x1024";
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);
@@ -111,10 +124,11 @@ export default function ImageGenView({
   // 固定输入条的高度（结果区预留，避免被遮挡）
   const [barHeight, setBarHeight] = useState(120);
   const desktopWorkspaceRef = useRef<HTMLDivElement>(null);
-  const preferredPanelWidth = useRef<number>(CREATION_PANEL_LAYOUT.defaultWidth);
-  const [creationPanelBounds, setCreationPanelBounds] = useState<CreationPanelBounds>(
-    () => getCreationPanelBounds(1440),
+  const preferredPanelWidth = useRef<number>(
+    CREATION_PANEL_LAYOUT.defaultWidth,
   );
+  const [creationPanelBounds, setCreationPanelBounds] =
+    useState<CreationPanelBounds>(() => getCreationPanelBounds(1440));
   const [creationPanelWidth, setCreationPanelWidth] = useState<number>(
     CREATION_PANEL_LAYOUT.defaultWidth,
   );
@@ -123,27 +137,47 @@ export default function ImageGenView({
     try {
       preferredPanelWidth.current = parseCreationPanelWidth(
         window.localStorage.getItem(CREATION_PANEL_LAYOUT.storageKey),
-        { min: CREATION_PANEL_LAYOUT.minWidth, max: CREATION_PANEL_LAYOUT.maxWidth },
+        {
+          min: CREATION_PANEL_LAYOUT.minWidth,
+          max: CREATION_PANEL_LAYOUT.maxWidth,
+        },
       );
-    } catch { /* Storage may be disabled; keep the session preference. */ }
+    } catch {
+      /* Storage may be disabled; keep the session preference. */
+    }
     function updatePanelBounds() {
-      const bounds = getCreationPanelBounds(window.innerWidth, inspectorCollapsed ? 60 : 312);
+      const bounds = getCreationPanelBounds(
+        window.innerWidth,
+        inspectorCollapsed ? 60 : 312,
+      );
       setCreationPanelBounds(bounds);
-      setCreationPanelWidth(clampCreationPanelWidth(preferredPanelWidth.current, bounds));
-      if (window.innerWidth >= 1200 || window.innerWidth < 768) setLibraryOpen(false);
+      setCreationPanelWidth(
+        clampCreationPanelWidth(preferredPanelWidth.current, bounds),
+      );
+      if (window.innerWidth >= 1200 || window.innerWidth < 768)
+        setLibraryOpen(false);
     }
     updatePanelBounds();
     window.addEventListener("resize", updatePanelBounds);
     return () => window.removeEventListener("resize", updatePanelBounds);
   }, [inspectorCollapsed]);
 
-  const handleCreationPanelWidthChange = useCallback((nextWidth: number) => {
-    const width = clampCreationPanelWidth(nextWidth, creationPanelBounds);
-    preferredPanelWidth.current = width;
-    setCreationPanelWidth(width);
-    try { window.localStorage.setItem(CREATION_PANEL_LAYOUT.storageKey, String(width)); }
-    catch { /* Resizing still works without storage. */ }
-  }, [creationPanelBounds]);
+  const handleCreationPanelWidthChange = useCallback(
+    (nextWidth: number) => {
+      const width = clampCreationPanelWidth(nextWidth, creationPanelBounds);
+      preferredPanelWidth.current = width;
+      setCreationPanelWidth(width);
+      try {
+        window.localStorage.setItem(
+          CREATION_PANEL_LAYOUT.storageKey,
+          String(width),
+        );
+      } catch {
+        /* Resizing still works without storage. */
+      }
+    },
+    [creationPanelBounds],
+  );
 
   useEffect(() => {
     if (generating) {
@@ -240,26 +274,30 @@ export default function ImageGenView({
         <div className="image-result-workspace">
           <div className="workspace-library-bar">
             <span>当前画布</span>
-            <button type="button" className="workspace-library-trigger" onClick={() => setLibraryOpen(true)}>
-              <AppIcon name="history" size={15} />作品库 <span>{history.length}</span>
+            <button
+              type="button"
+              className="workspace-library-trigger"
+              onClick={() => setLibraryOpen(true)}
+            >
+              <AppIcon name="history" size={15} />
+              作品库 <span>{history.length}</span>
             </button>
           </div>
-        <ResultCanvas
-          task={imageTask}
-          activeImage={activeImage}
-          results={taskResults}
-          elapsedSeconds={elapsedSeconds}
-          lastGenTime={lastGenTime}
-          onPreview={setPreviewImage}
-          onContinueEditing={handleContinueEditing}
-          onRetry={onRetryGenerate}
-          onStop={onStopGenerate}
-          onClose={() => {
-            onActiveImageChange(null);
-            clearImageTask();
-          }}
-        />
-
+          <ResultCanvas
+            task={imageTask}
+            activeImage={activeImage}
+            results={taskResults}
+            elapsedSeconds={elapsedSeconds}
+            lastGenTime={lastGenTime}
+            onPreview={setPreviewImage}
+            onContinueEditing={handleContinueEditing}
+            onRetry={onRetryGenerate}
+            onStop={onStopGenerate}
+            onClose={() => {
+              onActiveImageChange(null);
+              clearImageTask();
+            }}
+          />
         </div>
         <AssetInspector
           history={history}
@@ -323,7 +361,9 @@ export default function ImageGenView({
           generating={generating}
           credits={credits}
           isAdmin={isAdmin}
-          imageGenerationEnabled={imageGenerationEnabled !== false && Boolean(model)}
+          imageGenerationEnabled={
+            imageGenerationEnabled !== false && Boolean(model)
+          }
           onGenerate={handleGenerate}
           onEditImage={onEditImage}
           onEditImageBatch={onEditImageBatch}
@@ -336,16 +376,30 @@ export default function ImageGenView({
         />
       )}
 
-      <Dialog open={libraryOpen} onClose={() => setLibraryOpen(false)} label="作品库">
-        <div className="workspace-library-backdrop" onClick={() => setLibraryOpen(false)} aria-hidden="true" />
+      <Dialog
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        label="作品库"
+      >
+        <div
+          className="workspace-library-backdrop"
+          onClick={() => setLibraryOpen(false)}
+          aria-hidden="true"
+        />
         <div className="workspace-library-drawer">
           <AssetInspector
             forceExpanded
             onClose={() => setLibraryOpen(false)}
             history={history}
             activeImage={activeImage}
-            onSelect={(image) => { handleSelectHistory(image); setLibraryOpen(false); }}
-            onContinueEditing={(image) => { handleContinueEditing(image); setLibraryOpen(false); }}
+            onSelect={(image) => {
+              handleSelectHistory(image);
+              setLibraryOpen(false);
+            }}
+            onContinueEditing={(image) => {
+              handleContinueEditing(image);
+              setLibraryOpen(false);
+            }}
             onDelete={onDeleteImage}
           />
         </div>

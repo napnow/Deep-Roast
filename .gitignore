@@ -94,3 +94,6 @@ _dev-test.out
 /.*-check.png
 /_dev-test.*
 /*面试*.md
+
+# Local browser regression artifacts
+.uiux-test-results/
