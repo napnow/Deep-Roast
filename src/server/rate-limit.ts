@@ -99,10 +99,17 @@ function rateLimitError(): ApiError {
 
 /** 获取客户端 IP（兼容反代头） */
 export function getClientIp(req: Request): string {
-  // Caddy strips inbound identity headers and rebuilds this canonical value from
-  // the trusted proxy chain before the request reaches the application.
+  // Caddy rebuilds this canonical value from the trusted proxy chain before the
+  // request reaches the application. Keep X-Forwarded-For as a compatibility
+  // fallback because Caddy always sets it for reverse-proxied requests.
   const canonical = req.headers.get("x-real-ip")?.split(",")[0]?.trim();
-  return canonical || "unknown";
+  if (canonical) return canonical;
+
+  const forwarded = req.headers
+    .get("x-forwarded-for")
+    ?.split(",")[0]
+    ?.trim();
+  return forwarded || "unknown";
 }
 
 /**

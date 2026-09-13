@@ -8,7 +8,7 @@ import { applyReversePrompt, generationCost } from "@/lib/image-workspace";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
 import { useDeepRoastStore } from "@/lib/store";
 import { AppIcon } from "@/components/ui/icons";
-import { CREDIT_PER_IMAGE } from "@/types";
+import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { WORKBENCH_CLASS_NAMES } from "./creation-workbench-ui";
 
@@ -61,7 +61,9 @@ export default function CreationPanel({
     ? textToImageDraft.size
     : sizeOptions[0]?.value || "1024x1024";
   const visibleTextDraft = { ...textToImageDraft, size: normalizedSize };
-  const cost = generationCost(textToImageDraft.count, CREDIT_PER_IMAGE);
+  const imageCostPerImage =
+    config.imageModelCosts?.[selectedModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
+  const cost = generationCost(textToImageDraft.count, imageCostPerImage);
   const canAfford = isAdmin || credits >= cost;
   const imageGenerationAvailable = canUseImageGeneration(
     isAdmin ? "admin" : "user",
@@ -134,6 +136,8 @@ export default function CreationPanel({
         <div hidden={imageCreationMode !== "edit"}>
           <Img2ImgPanel
             size={normalizedSize}
+            imageModel={selectedModel}
+            imageModelCosts={config.imageModelCosts}
             draft={imageToImageDraft}
             sizeOptions={sizeOptions}
             generating={generating}
@@ -170,7 +174,11 @@ export default function CreationPanel({
               </p>
             ) : (
               <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>{isAdmin ? "管理员免费" : `预计 ${cost} 积分`}</span>
+                <span>
+                  {isAdmin
+                    ? "管理员免费"
+                    : `预计 ${cost} 积分（${imageCostPerImage} / 张）`}
+                </span>
                 {!isAdmin ? <span>余额 {credits}</span> : null}
               </div>
             )}

@@ -28,6 +28,7 @@ export default function AppModals({
 }: AppModalsProps) {
   const {
     config,
+    selectedImageModel,
     credits,
     checkinReward,
     settingsOpen,
@@ -57,6 +58,8 @@ export default function AppModals({
         credits={credits}
         checkinReward={checkinReward}
         role={role}
+        imageModel={selectedImageModel || config.imageModel}
+        imageModelCosts={config.imageModelCosts}
         checkinEligible={checkinEligible}
         todayChecked={todayChecked}
         checkinLoading={checkinLoading}
@@ -73,6 +76,7 @@ export default function AppModals({
       <ApiKeysModal
         open={apiOpen}
         onClose={() => setApiOpen(false)}
+        imageModelCosts={config.imageModelCosts}
       />
     </>
   );

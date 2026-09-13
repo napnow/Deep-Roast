@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ImageRecord } from "@/types";
 import { thumbSrc } from "@/components/ImageGen/imageUtils";
 
@@ -12,6 +13,17 @@ export default function AdminImagesTab({
   images,
   onSelect,
 }: AdminImagesTabProps) {
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
+  function markImageFailed(id: string) {
+    setFailedImages((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
   return (
     <section>
       <div className="flex items-baseline justify-between mb-3">
@@ -52,13 +64,20 @@ export default function AdminImagesTab({
                 className="aspect-square overflow-hidden"
                 style={{ background: "var(--bg-root)" }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={thumbSrc(img)}
-                  alt={img.prompt}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
+                {failedImages.has(img.id) ? (
+                  <div className="flex h-full items-center justify-center px-3 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                    图片暂时无法预览
+                  </div>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={thumbSrc(img)}
+                    alt={img.prompt}
+                    onError={() => markImageFailed(img.id)}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                )}
               </div>
               <div className="px-2.5 py-2">
                 <p

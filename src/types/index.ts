@@ -74,7 +74,9 @@ export const RECHARGE_PLANS: Array<{
   badge?: string;
 }> = [];
 
-export const CREDIT_PER_IMAGE = 5;
+export const DEFAULT_IMAGE_MODEL_CREDIT_COST = 5;
+/** 兼容旧调用方；新图片计费应按 Config.imageModelCosts 解析。 */
+export const CREDIT_PER_IMAGE = DEFAULT_IMAGE_MODEL_CREDIT_COST;
 /** 对话：每条用户消息扣分（回复成功才扣，失败不扣；管理员免费） */
 export const CREDIT_PER_CHAT = 2;
 export const CHECKIN_REWARD = 50;
@@ -134,6 +136,7 @@ export interface Config {
   /** 对话（文生文）默认模型 */
   textModel: string;
   imageModel: string;
+  imageModelCosts?: Record<string, number>;
   imageSystemPrompt: string;
   assistantImagePrompt: string;
   /** 图推 / 反推提示词使用的视觉模型 */
@@ -189,10 +192,48 @@ export interface AdminUser {
   role: string;
   credits: number;
   status: string;
+  cleanupProtected: boolean;
   conversationCount: number;
   imageCount: number;
   createdAt: string;
   lastActive: string | null;
+}
+
+export interface CleanupCandidate {
+  id: string;
+  username: string;
+  role: string;
+  status: string;
+  createdAt: string | null;
+  lastActivityAt: string;
+  conversationCount: number;
+  imageCount: number;
+}
+
+export interface CleanupPreview {
+  cutoff: string;
+  total: number;
+  candidates: CleanupCandidate[];
+}
+
+export interface CleanupResult {
+  cutoff: string;
+  deleted: number;
+  users: string[];
+  imageCleanupFailures: number;
+}
+
+export interface ImageCleanupPreview {
+  userCount: number;
+  imageCount: number;
+  artifactCount: number;
+  estimatedBytes: number;
+}
+
+export interface ImageCleanupResult extends ImageCleanupPreview {
+  deletedRecords: number;
+  deletedArtifacts: number;
+  fileCleanupFailures: number;
 }
 
 // ── Default models ──

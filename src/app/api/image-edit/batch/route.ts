@@ -50,7 +50,7 @@ export const POST = handleRoute(async (req) => {
       modelOverride: body.model,
       size: body.size,
       count: body.count,
-      idempotencyKey: claim.key,
+      idempotencyKey: claim.id,
     });
     await completeRequest(claim.id, claim.leaseToken, 200, result);
     return jsonOk(result);

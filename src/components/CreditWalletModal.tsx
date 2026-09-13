@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import type { CreditTransaction, UserInvitationData } from "@/types";
 import {
   CREDIT_TYPE_LABELS,
-  CREDIT_PER_IMAGE,
+  DEFAULT_IMAGE_MODEL_CREDIT_COST,
   RECHARGE_PLANS,
 } from "@/types";
 import DonationModal from "@/components/DonationModal";
@@ -15,6 +15,8 @@ interface CreditWalletModalProps {
   onClose: () => void;
   credits: number;
   role: string;
+  imageModel?: string;
+  imageModelCosts?: Record<string, number>;
   checkinReward: number;
   checkinEligible: boolean;
   todayChecked: boolean;
@@ -27,12 +29,16 @@ export default function CreditWalletModal({
   onClose,
   credits,
   role,
+  imageModel,
+  imageModelCosts,
   checkinReward,
   checkinEligible,
   todayChecked,
   checkinLoading,
   onCheckinClick,
 }: CreditWalletModalProps) {
+  const imageCostPerImage =
+    imageModelCosts?.[imageModel || ""] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   // 打赏功能状态：管理端关闭时不显示入口
@@ -163,7 +169,7 @@ export default function CreditWalletModal({
               <p className="text-xs mt-0.5 opacity-70">
                 {role === "admin"
                   ? "管理员生图不扣积分"
-                  : `可生成 ${Math.floor(credits / CREDIT_PER_IMAGE)} 张图片`}
+                  : `每张 ${imageCostPerImage} 积分 · 可生成 ${Math.floor(credits / imageCostPerImage)} 张图片`}
               </p>
             </div>
             {checkinEligible && (

@@ -22,7 +22,11 @@ export function providerIdempotencyKey(
   key: string,
   attempt = 1,
 ): string {
-  return "deeproast:" + scope + ":" + key + ":" + String(attempt);
+  // Transport failure does not prove the upstream operation failed. Reuse its
+  // business key so a completed-but-lost response cannot create a new charge.
+  // Keep this parameter for existing callers; per-image keys remain distinct.
+  void attempt;
+  return "deeproast:" + scope + ":" + key;
 }
 
 export function readIdempotencyKey(req: Request): string {

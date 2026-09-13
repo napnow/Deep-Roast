@@ -9,6 +9,7 @@ import ApiQuickStart from "./ApiKeys/ApiQuickStart";
 interface ApiKeysModalProps {
   open: boolean;
   onClose: () => void;
+  imageModelCosts?: Record<string, number>;
 }
 
 function extractRecord(value: unknown): ApiKeyItem | null {
@@ -39,7 +40,11 @@ async function writeClipboard(value: string) {
   if (!copied) throw new Error("复制失败");
 }
 
-export default function ApiKeysModal({ open, onClose }: ApiKeysModalProps) {
+export default function ApiKeysModal({
+  open,
+  onClose,
+  imageModelCosts,
+}: ApiKeysModalProps) {
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -55,6 +60,18 @@ export default function ApiKeysModal({ open, onClose }: ApiKeysModalProps) {
   const sessionRef = useRef(0);
 
   const curlCommand = useMemo(() => buildApiCurlExample(origin), [origin]);
+  const imageCostHint = useMemo(() => {
+    const costs = [
+      ...new Set(
+        Object.values(imageModelCosts || {}).filter(Number.isSafeInteger),
+      ),
+    ];
+    return costs.length === 1
+      ? `当前生图模型每张消耗 ${costs[0]} 积分`
+      : costs.length > 1
+        ? `每张图片按所选模型计费（当前配置 ${costs.join(" / ")} 积分）`
+        : "每张图片按所选模型计费";
+  }, [imageModelCosts]);
 
   async function load(session: number) {
     setLoading(true);
@@ -286,7 +303,7 @@ export default function ApiKeysModal({ open, onClose }: ApiKeysModalProps) {
                   API 接入
                 </h2>
                 <p className="mt-1 text-[11px] leading-5" style={{ color: "var(--text-muted)" }}>
-                  在第三方工具调用本站生图模型，每张图消耗 5 积分
+                  在第三方工具调用本站生图模型，费用按所选模型计费 · {imageCostHint}
                 </p>
               </div>
             </div>
@@ -398,7 +415,12 @@ export default function ApiKeysModal({ open, onClose }: ApiKeysModalProps) {
               )}
             </section>
 
-            <ApiQuickStart command={curlCommand} copied={exampleCopied} onCopy={() => void copyExample()} />
+            <ApiQuickStart
+              command={curlCommand}
+              copied={exampleCopied}
+              onCopy={() => void copyExample()}
+              imageCostHint={imageCostHint}
+            />
           </div>
         </section>
       </div>

@@ -14,14 +14,14 @@ test("ignores spoofable Cloudflare and forwarded headers without canonical ident
   assert.equal(getClientIp(req), "172.68.22.77");
 });
 
-test("ignores forwarded chains when the canonical header is absent", () => {
+test("falls back to the first forwarded address when canonical identity is absent", () => {
   const req = new Request("https://example.test", {
     headers: {
       "x-forwarded-for": "198.51.100.10, 10.0.0.2",
     },
   });
 
-  assert.equal(getClientIp(req), "unknown");
+  assert.equal(getClientIp(req), "198.51.100.10");
 });
 
 test("falls back to x-real-ip and then unknown", () => {

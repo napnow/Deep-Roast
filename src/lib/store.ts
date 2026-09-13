@@ -34,6 +34,10 @@ function applyUpdater<T>(prev: T, next: Updater<T>): T {
 }
 
 export interface DeepRoastState {
+  // Epochs distinguish logout/re-login and A -> B -> A from the original session.
+  userSessionId: string | null;
+  userSessionVersion: number;
+  chatSessionVersion: number;
   // mode: 文生图 / 对话
   activeMode: WorkspaceMode;
   imageCreationMode: ImageCreationMode;
@@ -75,6 +79,7 @@ export interface DeepRoastState {
   apiOpen: boolean;
 
   // setters
+  setUserSession: (userId: string | null) => void;
   setActiveMode: (mode: WorkspaceMode) => void;
   setImageCreationMode: (mode: ImageCreationMode) => void;
   setInspectorTab: (tab: InspectorTab) => void;
@@ -122,50 +127,71 @@ const initialConfig: Config = {
   hasApiKey: false,
   apiKeyHint: "",
   enabledImageModels: DEFAULT_IMAGE_MODELS.map((m) => m.id),
+  imageModelCosts: {},
   imageGenerationEnabled: true,
 };
 
+function createInitialUserState() {
+  return {
+    activeMode: "image",
+    imageCreationMode: "text",
+    inspectorTab: "history",
+    inspectorCollapsed: false,
+    activeImageId: null,
+    textToImageDraft: {
+      prompt: "",
+      size: "1024x1024",
+      count: 1,
+      stylePrompt: "",
+    },
+    imageToImageDraft: {
+      prompt: "",
+      size: "1024x1024",
+      count: 1,
+      styleId: "",
+      styleColor: "",
+      styleTexture: "",
+      refs: [],
+    },
+    reversePromptDraft: { image: null, resultPrompt: "" },
+    config: { ...initialConfig, enabledImageModels: [...initialConfig.enabledImageModels!], imageModelCosts: {} },
+    imageModels: DEFAULT_IMAGE_MODELS.map((model) => ({ ...model })),
+    selectedImageModel: initialConfig.imageModel,
+    conversations: [],
+    activeConvId: null,
+    chatMessages: [],
+    streaming: false,
+    streamingText: "",
+    imageHistory: [],
+    generating: false,
+    imageTask: { ...INITIAL_IMAGE_TASK, resultIds: [] },
+    credits: 0,
+    checkinReward: 50,
+    checkinEligible: false,
+    todayChecked: false,
+    settingsOpen: false,
+    walletOpen: false,
+    pwOpen: false,
+    apiOpen: false,
+  } satisfies Partial<DeepRoastState>;
+}
+
 export const useDeepRoastStore = create<DeepRoastState>((set) => ({
-  activeMode: "image",
-  imageCreationMode: "text",
-  inspectorTab: "history",
-  inspectorCollapsed: false,
-  activeImageId: null,
-  textToImageDraft: {
-    prompt: "",
-    size: "1024x1024",
-    count: 1,
-    stylePrompt: "",
-  },
-  imageToImageDraft: {
-    prompt: "",
-    size: "1024x1024",
-    count: 1,
-    styleId: "",
-    styleColor: "",
-    styleTexture: "",
-    refs: [],
-  },
-  reversePromptDraft: { image: null, resultPrompt: "" },
-  config: initialConfig,
-  imageModels: DEFAULT_IMAGE_MODELS,
-  selectedImageModel: initialConfig.imageModel,
-  conversations: [],
-  activeConvId: null,
-  chatMessages: [],
-  streaming: false,
-  streamingText: "",
-  imageHistory: [],
-  generating: false,
-  imageTask: INITIAL_IMAGE_TASK,
-  credits: 0,
-  checkinReward: 50,
-  checkinEligible: false,
-  todayChecked: false,
-  settingsOpen: false,
-  walletOpen: false,
-  pwOpen: false,
-  apiOpen: false,
+  ...createInitialUserState(),
+  userSessionId: null,
+  userSessionVersion: 0,
+  chatSessionVersion: 0,
+  setUserSession: (userId) =>
+    set((state) =>
+      state.userSessionId === userId
+        ? state
+        : {
+            ...createInitialUserState(),
+            userSessionId: userId,
+            userSessionVersion: state.userSessionVersion + 1,
+            chatSessionVersion: state.chatSessionVersion + 1,
+          },
+    ),
 
   setActiveMode: (mode) => set({ activeMode: mode }),
   setImageCreationMode: (mode) => set({ imageCreationMode: mode }),
@@ -246,5 +272,10 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setPwOpen: (open) => set({ pwOpen: open }),
   setApiOpen: (open) => set({ apiOpen: open }),
   resetChatSession: () =>
-    set({ chatMessages: [], streaming: false, streamingText: "" }),
+    set((state) => ({
+      chatMessages: [],
+      streaming: false,
+      streamingText: "",
+      chatSessionVersion: state.chatSessionVersion + 1,
+    })),
 }));

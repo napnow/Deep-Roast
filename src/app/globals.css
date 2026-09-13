@@ -3073,6 +3073,19 @@ html.dark .liquid-glass-strong {
   animation: mobile-creation-sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Model and size choices are short lists; keep their sheet content-sized so
+   the workbench does not turn into a mostly empty full-height panel. */
+.mobile-creation-sheet--model,
+.mobile-creation-sheet--size {
+  height: auto;
+}
+
+.mobile-creation-sheet--model .mobile-creation-sheet__body,
+.mobile-creation-sheet--size .mobile-creation-sheet__body {
+  flex: none;
+  max-height: min(54dvh, 440px);
+}
+
 .mobile-creation-sheet__header {
   position: relative;
   display: flex;
@@ -3555,6 +3568,14 @@ html.dark .liquid-glass-strong {
   background: var(--danger-surface);
   box-shadow: none;
   color: var(--danger);
+}
+
+.mobile-composer-stop-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
 }
 
 @keyframes mobile-creation-sheet-in {
@@ -4151,4 +4172,54 @@ html.dark .liquid-glass-strong {
   border-color: var(--border-strong);
   background: var(--accent-surface);
   color: var(--accent);
+}
+
+.mobile-image-preview-close {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(245, 230, 211, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #f5e6d3;
+  font-size: 16px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.image-preview-modal {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.image-preview-modal__stage {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.image-preview-modal__stage img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.image-preview-modal__footer {
+  flex: 0 0 auto;
+  max-height: min(42dvh, 360px);
+  overflow-y: auto;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+.mobile-image-preview-close:active {
+  transform: scale(0.95);
 }

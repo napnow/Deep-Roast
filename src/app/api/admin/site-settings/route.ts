@@ -10,11 +10,13 @@ import {
   setRegistrationIpLimitEnabled,
   setRegistrationEnabled,
   setCheckinReward,
+  setSignupBonusCredits,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
 import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
 import { parseCheckinSettingsPatch } from "@/server/services/checkin-settings-input";
+import { parseSignupBonusSettingsPatch } from "@/server/services/signup-bonus-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -36,10 +38,12 @@ export const PUT = handleRoute(async (req) => {
     invitationReward?: number | string;
     invitationInviteeReward?: number | string;
     checkinReward?: number | string;
+    signupBonusCredits?: number | string;
   }>(req);
 
   const invitationPatch = parseInvitationSettingsPatch(body);
   const checkinPatch = parseCheckinSettingsPatch(body);
+  const signupBonusPatch = parseSignupBonusSettingsPatch(body);
 
   if (body.clearImage === true) {
     await clearAdminContactImage();
@@ -64,6 +68,9 @@ export const PUT = handleRoute(async (req) => {
   }
   if (checkinPatch.checkinReward !== undefined) {
     await setCheckinReward(checkinPatch.checkinReward);
+  }
+  if (signupBonusPatch.signupBonusCredits !== undefined) {
+    await setSignupBonusCredits(signupBonusPatch.signupBonusCredits);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

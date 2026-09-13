@@ -9,6 +9,7 @@ import type {
   CreditTransaction,
   Conversation,
   Message,
+  CleanupResult,
 } from "@/types";
 import AdminUserList from "@/components/Admin/AdminUserList";
 import AdminDashboard from "@/components/Admin/AdminDashboard";
@@ -21,6 +22,8 @@ import AdminApiKeysTab from "@/components/Admin/AdminApiKeysTab";
 import AdminSiteContentPage from "@/components/Admin/AdminSiteContentPage";
 import AdminAiCapabilitiesPage from "@/components/Admin/AdminAiCapabilitiesPage";
 import MobileAdminUserSheet from "@/components/Admin/MobileAdminUserSheet";
+import AdminCleanupUsersModal from "@/components/Admin/AdminCleanupUsersModal";
+import AdminCleanupImagesModal from "@/components/Admin/AdminCleanupImagesModal";
 import { softNavigate } from "@/lib/nav-transition";
 
 export default function AdminPage() {
@@ -60,6 +63,8 @@ export default function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
   const [mobileUserSheetOpen, setMobileUserSheetOpen] = useState(false);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [cleanupImagesOpen, setCleanupImagesOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user && user.role !== "admin") {
@@ -102,6 +107,60 @@ export default function AdminPage() {
     const d = await fetch("/api/admin/users").then((r) => r.json());
     if (Array.isArray(d)) setUsers(d);
     return d as AdminUser[];
+  }
+
+  async function handleCleanupCompleted(result: CleanupResult) {
+    const selectedId = selectedUser?.id;
+    const selectedUsername = selectedUser?.username;
+    if (selectedUsername && result.users.includes(selectedUsername)) {
+      setSelectedUser(null);
+      setImageDetail(null);
+      setMainView("overview");
+    }
+
+    try {
+      const refreshedUsers = await refreshUsers();
+      if (selectedId && !refreshedUsers.some((item) => item.id === selectedId)) {
+        setSelectedUser(null);
+        setImageDetail(null);
+        setMainView("overview");
+      }
+    } catch {
+      // The cleanup already succeeded; the modal reports a refresh failure.
+    }
+  }
+
+  async function handleImageCleanupCompleted() {
+    const selectedId = selectedUser?.id;
+    const refreshedUsers = await refreshUsers();
+    if (selectedId) {
+      const updated = refreshedUsers.find((item) => item.id === selectedId);
+      if (updated) setSelectedUser(updated);
+    }
+  }
+
+  async function handleToggleCleanupProtected(target: AdminUser) {
+    if (target.role === "admin" || userActionLoading) return;
+    setUserActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cleanupProtected: !target.cleanupProtected }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "永久保号设置失败");
+        return;
+      }
+      const refreshedUsers = await refreshUsers();
+      const updated = refreshedUsers.find((item) => item.id === target.id);
+      if (updated && selectedUser?.id === target.id) setSelectedUser(updated);
+    } catch {
+      alert("网络错误");
+    } finally {
+      setUserActionLoading(false);
+    }
   }
 
   /** 手动刷新：用户列表 + 运营统计 + 当前选中用户的详情 */
@@ -216,13 +275,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!selectedUser) {
-      setImages([]);
       return;
     }
-    setLoadingDetail(true);
-    setActiveTab("images");
-    setExpandedConv(null);
-    setConvMessages([]);
 
     Promise.all([
       fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
@@ -331,12 +385,19 @@ export default function AdminPage() {
         onShowSite={() => setMainView("site")}
         onShowAi={() => setMainView("ai")}
         onSelect={(u) => {
+          setLoadingDetail(true);
+          setActiveTab("images");
+          setExpandedConv(null);
+          setConvMessages([]);
           setSelectedUser(u);
           setImageDetail(null);
           setMainView("detail");
         }}
         onOpenMobileUsers={() => setMobileUserSheetOpen(true)}
         onBack={() => softNavigate(router, "/")}
+        onOpenCleanup={() => setCleanupOpen(true)}
+        onOpenImageCleanup={() => setCleanupImagesOpen(true)}
+        onToggleCleanupProtected={handleToggleCleanupProtected}
       />
 
       <MobileAdminUserSheet
@@ -345,7 +406,20 @@ export default function AdminPage() {
         selectedUser={selectedUser}
         loading={loadingUsers}
         onClose={() => setMobileUserSheetOpen(false)}
+        onOpenCleanup={() => {
+          setMobileUserSheetOpen(false);
+          setCleanupOpen(true);
+        }}
+        onOpenImageCleanup={() => {
+          setMobileUserSheetOpen(false);
+          setCleanupImagesOpen(true);
+        }}
+        onToggleCleanupProtected={handleToggleCleanupProtected}
         onSelect={(u) => {
+          setLoadingDetail(true);
+          setActiveTab("images");
+          setExpandedConv(null);
+          setConvMessages([]);
           setSelectedUser(u);
           setImageDetail(null);
           setMainView("detail");
@@ -642,6 +716,20 @@ export default function AdminPage() {
             ? { id: selectedUser.id, username: selectedUser.username }
             : null
         }
+      />
+
+      <AdminCleanupUsersModal
+        key={cleanupOpen ? "open" : "closed"}
+        open={cleanupOpen}
+        onClose={() => setCleanupOpen(false)}
+        onCompleted={handleCleanupCompleted}
+      />
+
+      <AdminCleanupImagesModal
+        key={cleanupImagesOpen ? "open" : "closed"}
+        open={cleanupImagesOpen}
+        onClose={() => setCleanupImagesOpen(false)}
+        onCompleted={handleImageCleanupCompleted}
       />
     </div>
   );

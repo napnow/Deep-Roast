@@ -25,10 +25,19 @@ export default function ImagePreviewModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col"
+      className="image-preview-modal fixed inset-0 z-50 flex flex-col"
       style={{ background: "rgba(0,0,0,0.82)" }}
       onClick={onClose}
     >
+      <button
+        type="button"
+        onClick={onClose}
+        className="mobile-image-preview-close flex md:hidden"
+        aria-label="关闭大图预览"
+      >
+        ✕
+      </button>
+
       {/* 顶部操作条 */}
       <div
         className="flex items-center justify-between px-4 py-3 shrink-0"
@@ -41,17 +50,18 @@ export default function ImagePreviewModal({
           </p>
         </div>
         <button
+          type="button"
           onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 hover:scale-110"
+          className="hidden md:flex w-8 h-8 rounded-full items-center justify-center shrink-0 transition-all duration-150 hover:scale-110"
           style={{ color: "#f5e6d3" }}
-          aria-label="关闭"
+          aria-label="关闭大图预览"
         >
           ✕
         </button>
       </div>
 
       {/* 大图 */}
-      <div className="flex-1 min-h-0 flex items-center justify-center p-3 overflow-hidden">
+      <div className="image-preview-modal__stage flex-1 min-h-0 flex items-center justify-center p-3 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image.imageUrl}
@@ -63,7 +73,7 @@ export default function ImagePreviewModal({
 
       {/* 底部操作区 */}
       <div
-        className="shrink-0 px-4 pb-5 pt-3 space-y-2"
+        className="image-preview-modal__footer shrink-0 px-4 pb-5 pt-3 space-y-2"
         style={{ background: "rgba(0,0,0,0.35)" }}
         onClick={(e) => e.stopPropagation()}
       >

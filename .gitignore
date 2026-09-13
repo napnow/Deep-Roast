@@ -32,7 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — keep example
+# env files - keep example
 .env*
 !.env.example
 
@@ -56,7 +56,7 @@ doubaome.md
 dev-server.log
 dev-server.err.log
 *.log
-# agent design/plan history — keep locally, not for public clone
+# agent design/plan history - keep new local notes out of Git
 docs/superpowers/
 # superseded internal design drafts (local only)
 docs/AI生图系统提示词-功能文档.md
@@ -76,3 +76,21 @@ _dev-test.out
 .idea/
 .vscode/
 *.swp
+
+# Local deployment snapshots, audit output and private work (not release source)
+/.deploy/
+/.deploy-backups/
+/remote-active/
+/remote-edit/
+/.old-chat/
+/.old-chat-wt/
+/.server-mirror/
+/.server-mirror-src/
+/.build-check-src/
+/work/
+/tmp/
+/output/
+/local-backups/
+/.*-check.png
+/_dev-test.*
+/*面试*.md

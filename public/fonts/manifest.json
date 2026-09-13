@@ -1,0 +1,65 @@
+{
+  "sourceBuild": "3TOJMyy9ywzUF1jhppGav",
+  "files": {
+    "50a3f1070da3c6cc-s.2xm1k7t3a0pcd.woff2": {
+      "sha256": "d24c3502a91415f2ec44f107807673255b696c379b3995543270921c27863e32",
+      "preload": false,
+      "family": "Fraunces"
+    },
+    "b887d91685b8c137-s.330vchwb4izzb.woff2": {
+      "sha256": "7e701dc124492f7d0856fba4a07157d0cecc84e2b2b4615f08530c1e8bc112dd",
+      "preload": false,
+      "family": "Fraunces"
+    },
+    "3c7c6164b2587822-s.p.16u3vygyjnhr0.woff2": {
+      "sha256": "c9745ee907c02cdd46cc41a65bb711cd861432f679a76c18e3de204a18723040",
+      "preload": true,
+      "family": "Fraunces"
+    },
+    "1e219c03c996efbd-s.2qo5md4hn_gum.woff2": {
+      "sha256": "250cc2966c658fb6d336731de9d82a8129025e9839c20c253bbc477852f6cf4f",
+      "preload": false,
+      "family": "Fraunces"
+    },
+    "b35b0dbffda7f2c4-s.1d9rlgtqyj_-l.woff2": {
+      "sha256": "f1451edd6434085c4f9f3a8b4a674182dd7d6acccf53bfced19fd167f0705a06",
+      "preload": false,
+      "family": "Fraunces"
+    },
+    "03bda585a99c6450-s.p.32sris142tqlb.woff2": {
+      "sha256": "88e17be075f1be50ab67b057b99e3701b828f44ed28f9452df6c02645bb0cba9",
+      "preload": true,
+      "family": "Fraunces"
+    },
+    "a342834df7752944-s.3hd2l7bm32o7k.woff2": {
+      "sha256": "e8c0b39992f06b3dc9a9834494088014859f363bf6ca8792b6bb07e17c7965f3",
+      "preload": false,
+      "family": "Manrope"
+    },
+    "d3fe2f289711ac3f-s.1l2zhvq5eocqf.woff2": {
+      "sha256": "95a493061fe0a8d0d027c2892747134ba747141112d3be4d5022e70ab7d3a1a6",
+      "preload": false,
+      "family": "Manrope"
+    },
+    "58c4895d0a0ef7cc-s.2vhvl9vrvk-va.woff2": {
+      "sha256": "40af11327fe5308166c6cb5787808b042db6da889abf602f0a4876c49675d87e",
+      "preload": false,
+      "family": "Manrope"
+    },
+    "bfc7db5c00d21bc5-s.173xwsdme27n8.woff2": {
+      "sha256": "bab757f8a0a1bc04055ee98cb5777f3254aab11f6d222366e1f40a36f390506a",
+      "preload": false,
+      "family": "Manrope"
+    },
+    "6ab0db14f70d8ed6-s.13hnt-xgp82zk.woff2": {
+      "sha256": "ce093b341d9c10658ee1eaa85c5f8042ff3307bc6ccfc5f405616eb437f0009e",
+      "preload": false,
+      "family": "Manrope"
+    },
+    "a343f882a40d2cc9-s.p.1sj6eobyi31rd.woff2": {
+      "sha256": "e310b55a7fd9677f5e3555e6c6c4d064fa1f1d24393f0ddbe217cea12a8c432f",
+      "preload": true,
+      "family": "Manrope"
+    }
+  }
+}

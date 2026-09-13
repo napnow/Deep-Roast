@@ -46,10 +46,14 @@ export const POST = handleRoute(async (req) => {
       modelOverride: body.model,
       size: body.size,
       count: 1,
-      idempotencyKey: claim.key,
+      idempotencyKey: claim.id,
     });
     if (result.succeeded === 0) {
-      throw new ApiError(result.lastError || "图生图失败", 500);
+      throw new ApiError(
+        result.lastError || "图生图失败",
+        result.refundPending ? 503 : 500,
+        result.refundPending ? "CREDIT_REFUND_PENDING" : undefined,
+      );
     }
     await completeRequest(claim.id, claim.leaseToken, 200, result);
     return jsonOk(result);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ImageRecord } from "@/types";
 
 interface AdminImageDetailModalProps {
@@ -11,6 +12,10 @@ export default function AdminImageDetailModal({
   image,
   onClose,
 }: AdminImageDetailModalProps) {
+  const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
+  const imageKey = `${image.id}:${image.imageUrl}`;
+  const imageFailed = failedImageKey === imageKey;
+
   return (
     <div className="fixed inset-0 z-50 animate-fade-in">
       <div
@@ -36,12 +41,19 @@ export default function AdminImageDetailModal({
             className="flex min-h-[30vh] shrink-0 items-center justify-center p-2 sm:min-h-[40vh] sm:p-4"
             style={{ background: "var(--bg-root)" }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image.imageUrl}
-              alt={image.prompt}
-              className="block h-auto max-h-[70vh] max-w-full object-contain"
-            />
+            {imageFailed ? (
+              <p className="px-4 py-12 text-sm" style={{ color: "var(--text-muted)" }} role="status">
+                图片暂时无法预览
+              </p>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={image.imageUrl}
+                alt={image.prompt}
+                onError={() => setFailedImageKey(imageKey)}
+                className="block h-auto max-h-[70vh] max-w-full object-contain"
+              />
+            )}
           </div>
           <div
             data-testid="admin-image-detail-info"

@@ -19,18 +19,22 @@ describe("request idempotency contract", () => {
     assert.equal(normalizeIdempotencyKey("  checkout-1  "), "checkout-1");
   });
 
-  it("derives stable provider keys per operation attempt", () => {
+  it("derives stable provider keys across uncertain retries", () => {
     assert.equal(
       providerIdempotencyKey("image", "checkout-1", 1),
       providerIdempotencyKey("image", "checkout-1", 1),
     );
-    assert.notEqual(
+    assert.equal(
       providerIdempotencyKey("image", "checkout-1", 1),
       providerIdempotencyKey("image", "checkout-1", 2),
     );
     assert.notEqual(
       providerIdempotencyKey("image", "checkout-1", 1),
       providerIdempotencyKey("chat", "checkout-1", 1),
+    );
+    assert.notEqual(
+      providerIdempotencyKey("image", "checkout-1:0", 1),
+      providerIdempotencyKey("image", "checkout-1:1", 1),
     );
   });
 });

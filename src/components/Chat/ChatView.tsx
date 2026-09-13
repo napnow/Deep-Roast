@@ -27,6 +27,7 @@ export default function ChatView({
     new Set(),
   );
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [chatPreviewImage, setChatPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -155,12 +156,12 @@ export default function ChatView({
                       }}
                     >
                       {image.status === "success" && image.imageUrl ? (
-                        <a
-                          href={image.imageUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => setChatPreviewImage(image.imageUrl!)}
                           className="block cursor-zoom-in"
                           title="查看大图"
+                          aria-label="查看对话图片大图"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -169,7 +170,7 @@ export default function ChatView({
                             className="block max-h-[28rem] w-full object-contain"
                             style={{ background: "var(--bg-root)" }}
                           />
-                        </a>
+                        </button>
                       ) : image.status === "pending" ? (
                         <div className="flex min-h-44 min-w-64 flex-col items-center justify-center gap-3 px-8 py-8">
                           <div
@@ -337,6 +338,31 @@ export default function ChatView({
         disabled={streaming}
         unavailable={!modelAvailable}
       />
+
+      {chatPreviewImage && (
+        <div
+          className="image-preview-modal fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3"
+          onClick={() => setChatPreviewImage(null)}
+          role="dialog"
+          aria-label="对话图片预览"
+        >
+          <button
+            type="button"
+            onClick={() => setChatPreviewImage(null)}
+            className="mobile-image-preview-close flex"
+            aria-label="关闭对话图片预览"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={chatPreviewImage}
+            alt="对话图片大图"
+            className="max-h-full max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

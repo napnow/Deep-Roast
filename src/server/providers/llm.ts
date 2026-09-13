@@ -6,6 +6,8 @@
  * 无内置第三方中转默认地址（开源安全：避免硬编码他人服务）。
  */
 
+import { isGptImageModel } from "@/lib/image-model-capabilities";
+
 export type LlmKind = "text" | "image" | "vision";
 
 export interface UpstreamEndpoint {
@@ -72,7 +74,7 @@ export function resolveImageEndpoint(
   config: ConfigLike,
 ): UpstreamEndpoint {
   const isGrok = model.startsWith("grok-");
-  const isGptImage = model === "gpt-image-2";
+  const isGptImage = isGptImageModel(model);
   const configBase = normalizeBaseUrl(config.baseUrl);
   const configKey = config.arkApiKey?.trim() || "";
 

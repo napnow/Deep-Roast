@@ -10,7 +10,8 @@ import { generateImage } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import { assertCanonicalPublicOrigin } from "@/server/services/security-guards";
 import { recordApiKeyUsage } from "@/server/services/api-keys";
-import { CREDIT_PER_IMAGE } from "@/types";
+import { getConfig } from "@/lib/config";
+import { getImageModelCreditCost } from "@/server/services/image-costs";
 import { createImageAccessToken } from "@/server/services/private-images";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
 import {
@@ -48,7 +49,11 @@ function renderStoredImageResponse(
     : null;
   // Compatibility for records written before storage-key replay was added.
   if (!images) return body;
+  const errors = Array.isArray(body.errors) ? body.errors : [];
   return {
+    ...(errors.length > 0
+      ? { partial: true, requested: body.requested, errors }
+      : {}),
     created:
       typeof body.created === "number"
         ? body.created
@@ -91,36 +96,71 @@ export const POST = handleRoute(async (req) => {
   }
   if (claim.kind === "in_progress") throw inProgressError();
 
+  let imageCreditCost = 0;
+  let successfulImageCount = 0;
+  let apiUsageRecorded = false;
   try {
     const prompt = (body.prompt || "").trim();
     const n = Math.min(Math.max(Math.floor(body.n || 1) || 1, 1), MAX_N);
     const size = body.size || "1024x1024";
-    const model = body.model;
+    if (body.model !== undefined && typeof body.model !== "string") {
+      throw new ApiError("model 必须是字符串", 400);
+    }
+    const model = body.model?.trim() || undefined;
     if (!prompt) throw new ApiError("prompt 为必填项", 400);
 
+    const config = await getConfig();
+    const resolvedModel =
+      model || config?.imageModel || "doubao-seedream-4-5-251128";
+    imageCreditCost = await getImageModelCreditCost(resolvedModel);
+
     const results = [];
+    const errors: Array<{ index: number; error: string; code?: string }> = [];
+    let firstError: unknown;
+    let refundPendingError: ApiError | undefined;
     for (let i = 0; i < n; i++) {
-      const result = await generateImage({
-        userId: user.userId,
-        role: user.role,
-        prompt,
-        size,
-        modelOverride: model,
-        idempotencyKey: `${claim.key}:${i}`,
-      });
-      results.push(result);
+      try {
+        const result = await generateImage({
+          userId: user.userId,
+          role: user.role,
+          prompt,
+          size,
+          modelOverride: resolvedModel,
+          creditCostOverride: imageCreditCost,
+          idempotencyKey: `${claim.id}:${i}`,
+        });
+        results.push(result);
+        successfulImageCount += 1;
+      } catch (error) {
+        firstError ??= error;
+        if (error instanceof ApiError && error.code === "CREDIT_REFUND_PENDING") {
+          refundPendingError ??= error;
+        }
+        const publicError = requestErrorBody(error);
+        errors.push({
+          index: i,
+          error: String(publicError.error || "图片生成失败"),
+          ...(typeof publicError.code === "string" ? { code: publicError.code } : {}),
+        });
+      }
+    }
+    // A charged successful image must remain deliverable, including on replay.
+    if (results.length === 0) {
+      throw refundPendingError ?? firstError ?? new ApiError("图片生成失败", 502, "UPSTREAM_IMAGE_ERROR");
     }
 
     if (user.apiKeyId) {
       const consumedCredits =
-        user.role === "admin" ? 0 : results.length * CREDIT_PER_IMAGE;
+        user.role === "admin" ? 0 : results.length * imageCreditCost;
       await recordApiKeyUsage(user.apiKeyId, consumedCredits).catch((error) => {
         console.error("Failed to record API key usage", error);
       });
+      apiUsageRecorded = true;
     }
 
     const origin = assertCanonicalPublicOrigin(process.env.PUBLIC_APP_URL);
     const storedBody = {
+      ...(errors.length > 0 ? { requested: n, errors } : {}),
       created: Math.floor(Date.now() / 1000),
       images: results.map((result) => ({
         storageKey: result.storageKey,
@@ -135,6 +175,13 @@ export const POST = handleRoute(async (req) => {
     );
     return jsonOk(responseBody);
   } catch (error) {
+    if (user.apiKeyId && successfulImageCount > 0 && !apiUsageRecorded) {
+      const consumedCredits =
+        user.role === "admin" ? 0 : successfulImageCount * imageCreditCost;
+      await recordApiKeyUsage(user.apiKeyId, consumedCredits).catch((usageError) => {
+        console.error("Failed to record partial API key usage", usageError);
+      });
+    }
     await failRequest(
       claim.id,
       claim.leaseToken,

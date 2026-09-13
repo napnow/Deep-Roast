@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthProvider";
 import { useDeepRoastStore } from "@/lib/store";
 import { apiJson, jsonBody } from "@/lib/client-api";
+import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
 import type { Conversation, Message } from "@/types";
 import { CREDIT_PER_CHAT } from "@/types";
 import { detectAssistantAppearanceIntent } from "@/lib/conversational-image-intent";
@@ -19,9 +20,10 @@ export function useChatActions(
 ) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const abortRef = useRef<AbortController | null>(null);
+  const [requests] = useState(createClientSessionLifecycle);
 
   const {
+    userSessionVersion,
     config,
     setConversations,
     setActiveConvId,
@@ -32,7 +34,33 @@ export function useChatActions(
     resetChatSession,
   } = useDeepRoastStore();
 
+  useEffect(() => {
+    requests.activate();
+    const unsubscribe = useDeepRoastStore.subscribe((state, previous) => {
+      if (state.userSessionVersion !== previous.userSessionVersion) {
+        requests.invalidate();
+      } else if (
+        state.activeConvId !== previous.activeConvId ||
+        state.chatSessionVersion !== previous.chatSessionVersion
+      ) {
+        requests.cancel("history");
+        requests.cancel("chat");
+        requests.cancel("selection");
+      }
+    });
+    return () => {
+      const ownsChat = requests.hasCurrent("chat");
+      unsubscribe();
+      requests.dispose();
+      if (ownsChat) {
+        setStreaming(false);
+        setStreamingText("");
+      }
+    };
+  }, [requests, setStreaming, setStreamingText]);
+
   const handleNewConversation = useCallback(async () => {
+    if (!requests.isActive(userSessionVersion)) return;
     const textModelAvailable =
       config.enabledTextModels === undefined
         ? Boolean(config.textModel)
@@ -44,18 +72,26 @@ export function useChatActions(
       toast("管理员暂未启用对话模型", "error");
       return;
     }
+    const request = requests.start("selection", userSessionVersion);
+    if (!request) return;
     try {
       const conv = await apiJson<Conversation>("/api/conversations", {
         method: "POST",
         ...jsonBody({ model: config.textModel }),
+        signal: request.signal,
       });
+      if (!request.isCurrent()) return;
       setConversations((prev) => [conv, ...prev]);
       setActiveConvId(conv.id);
       resetChatSession();
     } catch {
-      toast("创建对话失败", "error");
+      if (request.isCurrent()) toast("创建对话失败", "error");
+    } finally {
+      request.finish();
     }
   }, [
+    requests,
+    userSessionVersion,
     config.textModel,
     config.enabledTextModels,
     setConversations,
@@ -66,24 +102,38 @@ export function useChatActions(
 
   const handleSelectConversation = useCallback(
     async (id: string) => {
+      if (!requests.isActive(userSessionVersion)) return;
       setActiveConvId(id);
       resetChatSession();
+      const request = requests.start("history", userSessionVersion);
+      if (!request) return;
+      const view = useDeepRoastStore.getState().chatSessionVersion;
+      const isCurrent = () => {
+        const state = useDeepRoastStore.getState();
+        return request.isCurrent() && state.activeConvId === id && state.chatSessionVersion === view;
+      };
       try {
         const data = await apiJson<{ messages?: Message[] }>(
           `/api/conversations/${id}`,
+          { signal: request.signal },
         );
-        setChatMessages(data.messages || []);
+        if (isCurrent()) setChatMessages(data.messages || []);
       } catch {
-        toast("加载对话失败", "error");
+        if (isCurrent()) toast("加载对话失败", "error");
+      } finally {
+        request.finish();
       }
     },
-    [setActiveConvId, resetChatSession, setChatMessages, toast],
+    [requests, userSessionVersion, setActiveConvId, resetChatSession, setChatMessages, toast],
   );
 
   const handleDeleteConversation = useCallback(
     async (id: string) => {
+      const request = requests.start(`delete:${id}`, userSessionVersion);
+      if (!request) return;
       try {
-        await apiJson(`/api/conversations/${id}`, { method: "DELETE" });
+        await apiJson(`/api/conversations/${id}`, { method: "DELETE", signal: request.signal });
+        if (!request.isCurrent()) return;
         setConversations((prev) => prev.filter((c) => c.id !== id));
         if (useDeepRoastStore.getState().activeConvId === id) {
           setActiveConvId(null);
@@ -91,33 +141,42 @@ export function useChatActions(
         }
         toast("对话已删除", "success");
       } catch {
-        toast("删除失败", "error");
+        if (request.isCurrent()) toast("删除失败", "error");
+      } finally {
+        request.finish();
       }
     },
-    [setConversations, setActiveConvId, resetChatSession, toast],
+    [requests, userSessionVersion, setConversations, setActiveConvId, resetChatSession, toast],
   );
 
   const handleRenameConversation = useCallback(
     async (id: string, title: string) => {
+      const request = requests.start(`rename:${id}`, userSessionVersion);
+      if (!request) return;
       try {
         await apiJson(`/api/conversations/${id}`, {
           method: "PATCH",
           ...jsonBody({ title }),
+          signal: request.signal,
         });
+        if (!request.isCurrent()) return;
         setConversations((prev) =>
           prev.map((c) => (c.id === id ? { ...c, title } : c)),
         );
         toast("已重命名", "success");
       } catch {
-        toast("重命名失败", "error");
+        if (request.isCurrent()) toast("重命名失败", "error");
+      } finally {
+        request.finish();
       }
     },
-    [setConversations, toast],
+    [requests, userSessionVersion, setConversations, toast],
   );
 
   const handleSendMessage = useCallback(
     async (text: string) => {
-      const { activeConvId: convId, streaming: isStreaming, credits } =
+      if (!requests.isActive(userSessionVersion)) return;
+      const { activeConvId: convId, chatSessionVersion: view, streaming: isStreaming, credits } =
         useDeepRoastStore.getState();
       if (!convId || isStreaming) return;
       const textModelAvailable =
@@ -141,12 +200,20 @@ export function useChatActions(
         return;
       }
 
+      const request = requests.start("chat", userSessionVersion);
+      if (!request) return;
+      // A snapshot requested before this send must not erase the optimistic message.
+      requests.cancel("history");
+      const isCurrent = () => {
+        const state = useDeepRoastStore.getState();
+        return request.isCurrent() && state.activeConvId === convId && state.chatSessionVersion === view;
+      };
       const userMsg: Message = { role: "user", content: text };
       setChatMessages((prev) => [...prev, userMsg]);
       setStreaming(true);
       setStreamingText("");
 
-      const abort = new AbortController();
+      const abort: AbortController = request;
       let timedOut = false;
       let streamErrorHandled = false;
       let imageMessageStarted = false;
@@ -154,12 +221,13 @@ export function useChatActions(
       let full = "";
       let reasoning = "";
       const timeoutId = setTimeout(() => {
+        if (!isCurrent()) return;
         timedOut = true;
         abort.abort();
       }, CHAT_REQUEST_TIMEOUT_MS);
-      abortRef.current = abort;
 
       const appendAssistantError = (message: string) => {
+        if (!isCurrent()) return;
         streamErrorHandled = true;
         setChatMessages((prev) => [
           ...prev,
@@ -168,6 +236,7 @@ export function useChatActions(
       };
 
       const replacePendingImage = (message: Message) => {
+        if (!isCurrent()) return;
         setChatMessages((prev) => {
           const index = [...prev]
             .reverse()
@@ -193,11 +262,13 @@ export function useChatActions(
           signal: abort.signal,
         });
 
+        if (!isCurrent()) return;
         const ct = res.headers.get("content-type") || "";
         if (!res.ok) {
           let errorMessage = `请求失败 (${res.status})`;
           if (ct.includes("application/json")) {
             const data = await res.json();
+            if (!isCurrent()) return;
             errorMessage = data.error || errorMessage;
             if (data.code === "INSUFFICIENT_CREDITS") setWalletOpen(true);
           }
@@ -205,6 +276,7 @@ export function useChatActions(
         }
         if (ct.includes("application/json")) {
           const data = await res.json();
+          if (!isCurrent()) return;
           throw new Error(data.error || "接口返回了无效响应");
         }
 
@@ -219,6 +291,7 @@ export function useChatActions(
           prompt?: string;
           message?: Message;
         }) => {
+          if (!isCurrent()) return;
           if (evt.type === "image_started") {
             imageMessageStarted = true;
             setChatMessages((prev) => [
@@ -252,6 +325,7 @@ export function useChatActions(
 
         while (true) {
           const { done, value } = await reader.read();
+          if (!isCurrent()) return;
           buffer += decoder.decode(value || new Uint8Array(), {
             stream: !done,
           });
@@ -297,6 +371,7 @@ export function useChatActions(
         loadConversations();
         loadCredits();
       } catch (err: unknown) {
+        if (!isCurrent()) return;
         if (err instanceof Error && err.name === "AbortError" && !timedOut) {
           return;
         }
@@ -323,12 +398,16 @@ export function useChatActions(
         }
       } finally {
         clearTimeout(timeoutId);
-        if (abortRef.current === abort) abortRef.current = null;
-        setStreaming(false);
-        setStreamingText("");
+        if (isCurrent()) {
+          setStreaming(false);
+          setStreamingText("");
+        }
+        request.finish();
       }
     },
     [
+      requests,
+      userSessionVersion,
       setChatMessages,
       setStreaming,
       setStreamingText,
@@ -343,7 +422,8 @@ export function useChatActions(
   );
 
   const handleStopChat = useCallback(() => {
-    abortRef.current?.abort();
+    if (!requests.isActive(userSessionVersion)) return;
+    requests.cancel("chat");
     setChatMessages((prev) =>
       prev.map((message) =>
         message.metadata?.image?.status === "pending"
@@ -363,7 +443,7 @@ export function useChatActions(
     );
     setStreaming(false);
     setStreamingText("");
-  }, [setChatMessages, setStreaming, setStreamingText]);
+  }, [requests, userSessionVersion, setChatMessages, setStreaming, setStreamingText]);
 
   return {
     handleNewConversation,

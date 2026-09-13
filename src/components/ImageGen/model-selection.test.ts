@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { resolveImageModelAfterConfigLoad } from "../../lib/image-model-preferences";
 
 test("image creation exposes a selector for multiple enabled image models", () => {
   const panel = readFileSync(
@@ -34,5 +35,10 @@ test("initial image model follows the server default when it is enabled", () => 
   const initialData = readFileSync("src/hooks/useInitialData.ts", "utf8");
 
   assert.doesNotMatch(initialData, /if \(!enabled\.includes\(selectedImageModel\)\)/);
-  assert.match(initialData, /enabled\.includes\(cfg\.imageModel\)\s*\?\s*cfg\.imageModel/);
+  // The production model-preference repair delegates this behavior to a helper.
+  assert.match(initialData, /resolveImageModelAfterConfigLoad\(/);
+  assert.equal(
+    resolveImageModelAfterConfigLoad(null, "", "", ["first", "default"], "default"),
+    "default",
+  );
 });

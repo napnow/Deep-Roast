@@ -235,3 +235,15 @@ npm run lint
 ## License
 
 [MIT](./LICENSE)
+
+
+## 安全开发与发布
+
+- 推荐 Node.js 22 LTS（当前生产为 22.22.2）；使用 `npm ci` 安装锁文件指定的依赖，不复用旧版本 `node_modules`。
+- 提交前执行 `npm test`、`npm run typecheck`、`npm run lint`；测试默认最多使用两个并发进程。
+- 低内存生产机器不要运行安装、测试或构建。应在 Linux 开发机/CI 构建并验证产物，再发布到独立 release 目录。
+- 不覆盖运行中的 release；保留旧 release 和回滚入口，且不得把 `.env.production`、用户图片、数据库备份、开发快照提交到仓库。
+- 对外生图 API 的部分成功响应保留标准 `created` / `data`，并增加 `partial`、`requested`、`errors`。只对成功结果计费；同一请求 ID 可重放结果。
+- 图生图结果的 `refundPending: true` 表示仍有积分退款待处理，客户端必须展示提示，不能将其当作已经完成退款。
+
+发布前必须同时确认运行目录、构建版本和源码提交，不能把服务器工作仓库等同于正在运行的 release。

@@ -2,6 +2,7 @@
 
 import AdminStylesCard from "./AdminStylesCard";
 import AdminStyleTestCard from "./AdminStyleTestCard";
+import AdminImageCostsCard from "./AdminImageCostsCard";
 
 export default function AdminAiCapabilitiesPage() {
   return (
@@ -13,6 +14,7 @@ export default function AdminAiCapabilitiesPage() {
           管理图生图风格，并在发布前完成效果验证。
         </p>
       </header>
+      <AdminImageCostsCard />
       <AdminStylesCard />
       <AdminStyleTestCard />
     </div>

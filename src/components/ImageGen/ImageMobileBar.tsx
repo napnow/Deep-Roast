@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CREDIT_PER_IMAGE } from "@/types";
+import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
 import { useDeepRoastStore } from "@/lib/store";
@@ -71,7 +71,12 @@ export default function ImageMobileBar({
   onImageToImageOpened,
 }: ImageMobileBarProps) {
   const imageToImageDraft = useDeepRoastStore((state) => state.imageToImageDraft);
-  const canAfford = isAdmin || credits >= CREDIT_PER_IMAGE;
+  const imageModelCosts = useDeepRoastStore(
+    (state) => state.config.imageModelCosts,
+  );
+  const imageCostPerImage =
+    imageModelCosts?.[selectedImageModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
+  const canAfford = isAdmin || credits >= imageCostPerImage;
   const imageGenerationAvailable = canUseImageGeneration(
     isAdmin ? "admin" : "user",
     imageGenerationEnabled,
@@ -149,7 +154,7 @@ export default function ImageMobileBar({
       {toolbarOpen ? (
         <section
           id="mobile-creation-sheet"
-          className="mobile-creation-sheet"
+          className={`mobile-creation-sheet mobile-creation-sheet--${toolbarOpen}`}
           role="dialog"
           aria-modal="true"
           aria-label={
@@ -204,6 +209,8 @@ export default function ImageMobileBar({
             ) : toolbarOpen === "img2img" ? (
               <Img2ImgPanel
                 size={size}
+                imageModel={selectedImageModel}
+                imageModelCosts={imageModelCosts}
                 draft={imageToImageDraft}
                 sizeOptions={sizeOptions}
                 generating={generating}
@@ -233,7 +240,7 @@ export default function ImageMobileBar({
                         setToolbarOpen(null);
                       }}
                     >
-                      {modelId}
+                      <span>{modelId}</span>
                     </button>
                   );
                 })}
@@ -322,6 +329,12 @@ export default function ImageMobileBar({
           {selectedSizeLabel}
           <span aria-hidden="true">⌄</span>
         </button>
+        <span
+          className="mobile-composer-chip"
+          title={`${selectedModelLabel} 每张图片消耗 ${imageCostPerImage} 积分`}
+        >
+          {imageCostPerImage} 积分/张
+        </span>
       </div>
 
       {!imageGenerationAvailable ? (

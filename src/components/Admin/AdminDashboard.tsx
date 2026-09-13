@@ -1,7 +1,5 @@
 "use client";
 
-import { CREDIT_PER_IMAGE } from "@/types";
-
 interface GlobalStats {
   totalCheckinAmount: number;
   totalConsumeAmount: number;
@@ -93,13 +91,7 @@ export default function AdminDashboard({
             <p className="admin-stat-value">
               {globalStats.totalConsumeAmount.toLocaleString()}
             </p>
-            <p className="admin-stat-hint">
-              ≈{" "}
-              {Math.floor(
-                globalStats.totalConsumeAmount / CREDIT_PER_IMAGE,
-              ).toLocaleString()}{" "}
-              张图
-            </p>
+            <p className="admin-stat-hint">历史消费流水合计</p>
           </div>
           <div className="admin-stat">
             <p className="admin-stat-label">用户</p>
