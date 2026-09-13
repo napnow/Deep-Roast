@@ -1,5 +1,6 @@
 "use client";
 
+import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 
 interface ConfirmDialogProps {
@@ -52,7 +53,7 @@ export default function ConfirmDialog({
             {message}
           </p>
           <div className="flex gap-2 justify-end">
-            <button
+            <Button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-xs font-medium transition-all active:scale-95"
               style={{
@@ -62,8 +63,9 @@ export default function ConfirmDialog({
               }}
             >
               {cancelText}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
               onClick={() => {
                 onConfirm();
                 onClose();
@@ -76,7 +78,7 @@ export default function ConfirmDialog({
               }}
             >
               {confirmText}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

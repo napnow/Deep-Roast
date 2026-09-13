@@ -4312,3 +4312,165 @@ html.dark .liquid-glass-strong {
 .asset-tabs button.is-active, .asset-filters button.is-active { color: #80431c; }
 html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-active { color: #e8a56a; }
 .creation-mode-tabs button:not(.is-active), .mobile-composer-heading label { color: var(--text-secondary); }
+
+/* Second-batch interaction primitives: retain the existing warm design tokens. */
+.ui-button--normal {
+  min-height: 42px;
+}
+.ui-button--small {
+  min-height: 34px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.ui-button--icon {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+.ui-button--quiet {
+  background: transparent;
+  border-color: transparent;
+}
+.ui-button[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.78;
+}
+.ui-button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+.ui-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ui-spin 0.8s linear infinite;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ui-control {
+  width: 100%;
+  padding: 10px 12px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.ui-control:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.ui-control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.ui-control[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.ui-field-group {
+  display: grid;
+  gap: 7px;
+}
+.ui-field-group > label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ui-field-hint,
+.ui-field-error {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.ui-field-error {
+  color: var(--danger);
+}
+.ui-toast-stack {
+  position: fixed;
+  z-index: 1000;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  right: 20px;
+  width: min(400px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.ui-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 8px 8px 8px 14px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  line-height: 1.6;
+  pointer-events: auto;
+}
+.ui-toast > span:nth-child(2) {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.ui-toast-mark {
+  font-weight: 700;
+  color: var(--accent);
+}
+.ui-toast--error {
+  border-color: var(--danger);
+}
+.ui-toast--error .ui-toast-mark {
+  color: var(--danger);
+}
+.ui-toast-dismiss {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  font-size: 20px;
+  color: var(--text-secondary);
+}
+.ui-toast-dismiss:hover {
+  background: var(--bg-elevated);
+}
+.chat-latest {
+  align-self: center;
+  margin: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.result-error-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+@media (pointer: coarse) {
+  .ui-button,
+  .icon-button,
+  .ui-icon-button,
+  .asset-menu__delete,
+  .ui-toast-dismiss {
+    min-height: 44px;
+  }
+  .icon-button,
+  .ui-icon-button,
+  .ui-button--icon,
+  .ui-toast-dismiss {
+    min-width: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner {
+    animation: none;
+    border-style: dotted;
+  }
+  .ui-button,
+  .ui-control {
+    transition: none;
+  }
+}

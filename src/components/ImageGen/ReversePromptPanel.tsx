@@ -1,5 +1,7 @@
 "use client";
 
+import { useActionFeedback } from "@/hooks/useActionFeedback";
+import { copyText } from "@/lib/browser-actions";
 import { useState, useEffect, useRef } from "react";
 import { useDeepRoastStore } from "@/lib/store";
 import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
@@ -26,6 +28,7 @@ export default function ReversePromptPanel({
   const [elapsed, setElapsed] = useState(0);
   // 反推结果：面板内展示，可编辑后回填文生图
   const [result, setResult] = useState("");
+  const copy = useActionFeedback(result);
   const fileRef = useRef<HTMLInputElement>(null);
   const [requests] = useState(() => createClientSessionLifecycle());
   const userSessionVersion = useDeepRoastStore(
@@ -337,8 +340,10 @@ export default function ReversePromptPanel({
             </button>
             <button
               type="button"
+              disabled={copy.status === "pending"}
+              aria-busy={copy.status === "pending"}
               onClick={() => {
-                navigator.clipboard.writeText(result);
+                void copy.run(() => copyText(result), "反推提示词已复制");
               }}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95"
               style={{
@@ -347,7 +352,11 @@ export default function ReversePromptPanel({
                 color: "var(--text-secondary)",
               }}
             >
-              复制
+              {copy.status === "pending"
+                ? "正在复制…"
+                : copy.status === "success"
+                  ? "已复制"
+                  : "复制"}
             </button>
           </div>
         </div>

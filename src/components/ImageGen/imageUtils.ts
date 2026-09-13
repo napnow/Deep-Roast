@@ -1,3 +1,4 @@
+import { initiateImageDownload } from "@/lib/browser-actions";
 import type { ImageRecord } from "@/types";
 
 export const MODEL_SIZE_OPTIONS: Record<
@@ -35,7 +36,10 @@ export function formatTime(seconds: number): string {
 }
 
 /** 取展示用缩略图 URL；无缩略图（历史旧图）回落原图 */
-export function thumbSrc(record: { imageUrl: string; thumbUrl?: string }): string {
+export function thumbSrc(record: {
+  imageUrl: string;
+  thumbUrl?: string;
+}): string {
   return record.thumbUrl || record.imageUrl;
 }
 
@@ -88,17 +92,10 @@ export function compressImageFile(
   });
 }
 
-export async function downloadImage(image: ImageRecord) {
-  try {
-    const res = await fetch(image.imageUrl);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `DeepRoast-${image.id.slice(0, 8)}.png`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    window.open(image.imageUrl, "_blank");
-  }
+export async function downloadImage(image: ImageRecord, signal?: AbortSignal) {
+  await initiateImageDownload(
+    image.imageUrl,
+    `DeepRoast-${image.id.slice(0, 8)}.png`,
+    signal,
+  );
 }

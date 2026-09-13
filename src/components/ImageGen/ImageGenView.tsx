@@ -291,6 +291,7 @@ export default function ImageGenView({
             lastGenTime={lastGenTime}
             onPreview={setPreviewImage}
             onContinueEditing={handleContinueEditing}
+            onWalletClick={onWalletClick}
             onRetry={onRetryGenerate}
             onStop={onStopGenerate}
             onClose={() => {
@@ -324,6 +325,7 @@ export default function ImageGenView({
                 lastGenTime={lastGenTime}
                 onPreview={setPreviewImage}
                 onContinueEditing={handleContinueEditing}
+                onWalletClick={onWalletClick}
                 onRetry={onRetryGenerate}
                 onStop={onStopGenerate}
                 onClose={() => {

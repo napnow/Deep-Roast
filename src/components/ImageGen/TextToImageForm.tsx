@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/Field";
+
 import type { TextToImageDraft } from "@/lib/image-workspace";
 import { IMAGE_STYLE_PRESETS } from "@/types";
 import { getCreationSettingsSummary } from "./creation-workbench-ui";
@@ -140,7 +142,7 @@ export default function TextToImageForm({
           <div className="creation-setting-grid">
             <label className="creation-setting-group">
               <span className="creation-section-label">图片比例</span>
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={draft.size}
                 disabled={disabled}
@@ -151,12 +153,12 @@ export default function TextToImageForm({
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="creation-setting-group">
               <span className="creation-section-label">生成数量</span>
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={draft.count}
                 disabled={disabled}
@@ -169,14 +171,14 @@ export default function TextToImageForm({
                     {count} 张
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 
           <div className="creation-setting-group creation-model-note">
             <span className="creation-section-label">当前模型</span>
             {imageModels.length > 1 ? (
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={selectedImageModel}
                 disabled={disabled}
@@ -188,7 +190,7 @@ export default function TextToImageForm({
                     {modelId}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <span className="creation-model-note__value">
                 {model || "未配置"}

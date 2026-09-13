@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import Button from "@/components/ui/Button";
+import { useActionFeedback } from "@/hooks/useActionFeedback";
 import type { ImageRecord } from "@/types";
 import { AppIcon } from "@/components/ui/icons";
 import { useDeepRoastStore } from "@/lib/store";
 import {
-  confirmedImageDeletionId,
   filterImages,
   groupImagesByDate,
   mergeImageSourceModes,
@@ -43,6 +45,12 @@ export default function AssetInspector({
     setImageCreationMode,
     setSelectedImageModel,
   } = useDeepRoastStore();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const epoch = useDeepRoastStore((state) => state.userSessionVersion);
+  const download = useActionFeedback(`${activeImage?.id || ""}:download`);
+  useEffect(() => {
+    setDeleteId(null);
+  }, [epoch]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ImageFilterMode>("all");
   const groups = useMemo(
@@ -107,6 +115,7 @@ export default function AssetInspector({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              aria-label="搜索作品提示词"
               placeholder="搜索提示词"
             />
           </label>
@@ -151,13 +160,7 @@ export default function AssetInspector({
                         className="asset-thumbnail__delete"
                         aria-label={`删除图片：${image.prompt}`}
                         title="删除图片"
-                        onClick={() => {
-                          const id = confirmedImageDeletionId(
-                            image.id,
-                            window.confirm("确认删除这张图片？"),
-                          );
-                          if (id) onDelete(id);
-                        }}
+                        onClick={() => setDeleteId(image.id)}
                       >
                         <AppIcon name="trash" size={14} />
                       </button>
@@ -208,19 +211,20 @@ export default function AssetInspector({
                   <AppIcon name="edit" />
                   继续修改
                 </button>
-                <button
-                  className="ui-button"
-                  onClick={() => downloadImage(activeImage)}
+                <Button
+                  loading={download.status === "pending"}
+                  onClick={() => {
+                    void download.run(
+                      (signal) => downloadImage(activeImage, signal),
+                      "已发起下载",
+                      "下载未完成，请检查网络后重试。",
+                    );
+                  }}
                 >
                   <AppIcon name="download" />
-                  下载
-                </button>
-                <ImageActionMenu
-                  onDelete={() => {
-                    if (window.confirm("确认删除这张图片？"))
-                      onDelete(activeImage.id);
-                  }}
-                />
+                  {download.status === "success" ? "已发起下载" : "下载"}
+                </Button>
+                <ImageActionMenu onDelete={() => setDeleteId(activeImage.id)} />
               </div>
             </div>
           ) : (
@@ -228,6 +232,16 @@ export default function AssetInspector({
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={!!deleteId}
+        title="删除图片"
+        message="确定删除这张图片？删除后无法恢复。"
+        confirmText="删除"
+        onConfirm={() => {
+          if (deleteId) onDelete(deleteId);
+        }}
+        onClose={() => setDeleteId(null)}
+      />
     </section>
   );
 }

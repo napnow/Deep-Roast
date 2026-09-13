@@ -18,7 +18,7 @@ test("API access modal exposes a clear responsive management layout", () => {
   assert.match(modal, /max-w-\[36rem\]/);
   assert.match(modal, /max-h-\[calc\(100dvh-2rem\)\]/);
   assert.match(modal, /aria-label="关闭 API 接入"/);
-  assert.match(modal, />Key 备注</);
+  assert.match(modal, />\s*Key 备注\s*</);
   assert.match(modal, /sessionRef/);
   assert.match(modal, /closeModal/);
   assert.match(row, /显示/);
