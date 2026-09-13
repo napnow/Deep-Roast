@@ -4474,3 +4474,6 @@ html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-activ
     transition: none;
   }
 }
+
+.ui-toast-stack { max-height: min(45dvh, 420px); overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
+.ui-toast { flex-shrink: 0; }

@@ -83,18 +83,19 @@ export default function CreditWalletModal({
       try {
         const invitationRequest =
           role === "user"
-            ? get("/api/user/invitations")
+            ? get("/api/user/invitations").catch(() => null)
             : Promise.resolve(null);
         const [transactionsData, donationData, invitationData] =
           await Promise.all([
             get("/api/credits/transactions"),
-            get("/api/public/donation"),
+            get("/api/public/donation").catch(() => null),
             invitationRequest,
           ]);
         if (!active) return;
         if (Array.isArray(transactionsData)) setTransactions(transactionsData);
         setDonationEnabled(
-          (donationData as { enabled?: boolean })?.enabled !== false,
+          donationData != null &&
+            (donationData as { enabled?: boolean })?.enabled !== false,
         );
         if (
           invitationData &&

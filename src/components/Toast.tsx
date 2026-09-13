@@ -44,17 +44,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const addToast = useCallback(
     (message: string, type: ToastItem["type"] = "info") => {
       const currentEpoch = useDeepRoastStore.getState().userSessionVersion;
-      setToasts((prev) => [
-        ...prev
-          .filter((t) => t.epoch === currentEpoch && t.message !== message)
-          .slice(-3),
-        {
-          id: Math.random().toString(36).slice(2),
-          message,
-          type,
-          epoch: currentEpoch,
-        },
-      ]);
+      setToasts((prev) => {
+        const unread = prev.filter(
+          (t) => t.epoch === currentEpoch && t.message !== message,
+        );
+        const errors = unread.filter((t) => t.type === "error");
+        const transient = unread.filter((t) => t.type !== "error").slice(-3);
+        return [
+          ...errors,
+          ...transient,
+          {
+            id: Math.random().toString(36).slice(2),
+            message,
+            type,
+            epoch: currentEpoch,
+          },
+        ];
+      });
     },
     [],
   );

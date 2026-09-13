@@ -19,6 +19,8 @@ export function useActionFeedback(scope = "") {
   useEffect(() => {
     live.current = true;
     scopeRef.current = scope;
+    // A -> B -> A is a new activation, not a return to an abandoned pending operation.
+    setFeedback({ epoch, scope, status: "idle" });
     return () => {
       live.current = false;
       active.current?.abort();

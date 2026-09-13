@@ -37,12 +37,20 @@ async function writeClipboard(value: string) {
   input.value = value;
   input.style.position = "fixed";
   input.style.opacity = "0";
-  document.body.appendChild(input);
-  input.focus();
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-  if (!copied) throw new Error("复制失败");
+  const previous = document.activeElement;
+  const dialogs = document.querySelectorAll("dialog[open]");
+  const host = dialogs.item(dialogs.length - 1) || document.body;
+  host.appendChild(input);
+  try {
+    input.focus();
+    input.select();
+    if (!document.execCommand("copy"))
+      throw new Error("复制失败，请手动选择文字复制");
+  } finally {
+    input.remove();
+    if (previous instanceof HTMLElement && previous.isConnected)
+      previous.focus({ preventScroll: true });
+  }
 }
 
 export default function ApiKeysModal({
@@ -301,7 +309,12 @@ export default function ApiKeysModal({
           className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
           onClick={closeModal}
         />
-        <div className="relative z-10 flex h-full items-center justify-center p-4">
+        <div
+          className="relative z-10 flex h-full items-center justify-center p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeModal();
+          }}
+        >
           <section
             aria-labelledby="api-access-title"
             className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[36rem] flex-col overflow-hidden rounded-[1.5rem] border"

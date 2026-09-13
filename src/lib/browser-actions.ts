@@ -41,6 +41,21 @@ export async function initiateImageDownload(
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   try {
+    // Content-Type is supplied by the server; verify that the bytes actually decode.
+    const probe = new Image();
+    probe.src = objectUrl;
+    try {
+      await probe.decode();
+      if (!probe.naturalWidth || !probe.naturalHeight)
+        throw new Error("empty image");
+    } catch {
+      throw new BrowserActionError(
+        "图片内容无法读取，未保存文件，请稍后重试。",
+      );
+    } finally {
+      probe.src = "";
+    }
+    signal?.throwIfAborted();
     anchor.href = objectUrl;
     anchor.download = filename.replace(/\.[^.]+$/, "") + "." + extension;
     anchor.hidden = true;
