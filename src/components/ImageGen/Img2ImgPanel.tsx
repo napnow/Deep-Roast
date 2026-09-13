@@ -31,6 +31,7 @@ interface Img2ImgPanelProps {
   size: string;
   imageModel?: string;
   imageModelCosts?: Record<string, number>;
+  isAdmin?: boolean;
   /** 可选比例列表（与文生图一致：1:1 / 9:16 / 16:9 等） */
   sizeOptions?: { value: string; label: string }[];
   generating: boolean;
@@ -61,6 +62,7 @@ export default function Img2ImgPanel({
   size,
   imageModel,
   imageModelCosts,
+  isAdmin = false,
   sizeOptions,
   generating,
   disabled = false,
@@ -833,6 +835,12 @@ export default function Img2ImgPanel({
       </details>
 
       <div className="img2img-action">
+        {!processing ? (
+          <div className="img2img-action-summary" aria-label="图生图费用">
+            <span>本次 {batchCount * activeTaskCount} 张</span>
+            <span>{isAdmin ? "管理员免费" : <>预计 <strong>{batchCount * activeTaskCount * imageCostPerImage}</strong> 积分</>}</span>
+          </div>
+        ) : null}
         {processing ? (
           <>
             <span className="img2img-action__progress" aria-hidden="true">

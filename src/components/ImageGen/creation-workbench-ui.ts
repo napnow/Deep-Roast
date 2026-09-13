@@ -39,6 +39,9 @@ export function getCreationPanelBounds(
   inspectorWidth = 312,
 ): CreationPanelBounds {
   const safeViewport = Number.isFinite(viewportWidth) ? viewportWidth : 0;
+  // Below the three-column breakpoint history is an overlay, never a column.
+  if (safeViewport < 900) return { min: 284, max: 284 };
+  if (safeViewport < 1200) return { min: 320, max: 360 };
   const safeInspector = Number.isFinite(inspectorWidth)
     ? Math.max(0, inspectorWidth)
     : 312;

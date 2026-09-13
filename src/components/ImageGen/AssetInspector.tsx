@@ -16,6 +16,8 @@ import { downloadImage } from "./imageUtils";
 import ImageActionMenu from "./ImageActionMenu";
 
 interface AssetInspectorProps {
+  forceExpanded?: boolean;
+  onClose?: () => void;
   history: ImageRecord[];
   activeImage: ImageRecord | null;
   onSelect: (image: ImageRecord) => void;
@@ -24,6 +26,8 @@ interface AssetInspectorProps {
 }
 
 export default function AssetInspector({
+  forceExpanded = false,
+  onClose,
   history,
   activeImage,
   onSelect,
@@ -46,7 +50,7 @@ export default function AssetInspector({
     [filter, history, query],
   );
 
-  if (inspectorCollapsed) {
+  if (inspectorCollapsed && !forceExpanded) {
     return (
       <aside className="asset-inspector is-collapsed">
         <button
@@ -86,8 +90,8 @@ export default function AssetInspector({
         </div>
         <button
           className="icon-button"
-          onClick={() => setInspectorCollapsed(true)}
-          aria-label="收起素材检查器"
+          onClick={onClose ?? (() => setInspectorCollapsed(true))}
+          aria-label={onClose ? "关闭作品库" : "收起素材检查器"}
         >
           <AppIcon name="close" />
         </button>

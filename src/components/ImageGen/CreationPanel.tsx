@@ -11,6 +11,7 @@ import { AppIcon } from "@/components/ui/icons";
 import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { WORKBENCH_CLASS_NAMES } from "./creation-workbench-ui";
+import { getImageModelLabel } from "./image-model-presentation";
 
 interface CreationPanelProps {
   model: string;
@@ -98,10 +99,10 @@ export default function CreationPanel({
         </div>
         <div className="creation-status-strip" aria-label="创作状态">
           <span className="creation-status-strip__model">
-            {model || "模型未配置"}
+            {getImageModelLabel(model)}
           </span>
           <span className="creation-status-strip__credits">
-            {isAdmin ? "管理员模式" : `${credits} 积分`}
+            {isAdmin ? "管理员模式" : `余额 ${credits} 积分`}
           </span>
         </div>
         <div className="creation-mode-tabs" role="tablist" aria-label="生图方式">
@@ -138,6 +139,7 @@ export default function CreationPanel({
             size={normalizedSize}
             imageModel={selectedModel}
             imageModelCosts={config.imageModelCosts}
+            isAdmin={isAdmin}
             draft={imageToImageDraft}
             sizeOptions={sizeOptions}
             generating={generating}

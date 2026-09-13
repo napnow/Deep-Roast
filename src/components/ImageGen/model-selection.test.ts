@@ -26,7 +26,8 @@ test("mobile image creation exposes the model picker when multiple models are en
     "utf8",
   );
 
-  assert.match(mobile, /imageModels\.length > 1/);
+  assert.match(mobile, /disabled=\{generating \|\| imageModels\.length < 2\}/);
+  assert.match(mobile, /mobile-composer-model/);
   assert.match(mobile, /onModelChange/);
   assert.match(mobile, /选择生图模型/);
 });

@@ -64,6 +64,7 @@ export default function TextToImageForm({
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder="例如：雨夜霓虹街头，一位撑透明伞的旅人…"
             rows={6}
+            maxLength={2000}
           />
           <span className="creation-composer__counter">
             {draft.prompt.length} / 2000
@@ -80,7 +81,7 @@ export default function TextToImageForm({
                 className="creation-example"
                 onClick={() => onChange({ prompt: example })}
               >
-                灵感 {index + 1}
+                {["城市夜景", "商品摄影", "场景插画"][index]}
               </button>
             ))}
           </div>

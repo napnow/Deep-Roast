@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { apiJson, jsonBody } from "@/lib/client-api";
 import { useToast } from "@/components/Toast";
+import Dialog from "@/components/ui/Dialog";
 
 // Local const — avoid pulling @/server/services/auth-password into the client bundle.
 // Server source of truth remains MIN_PASSWORD_LENGTH in auth-password.ts.
@@ -24,6 +25,7 @@ export default function ChangePasswordModal({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const wasOpen = useRef(false);
+  const fieldId = useId();
 
   useEffect(() => {
     if (open && !wasOpen.current) {
@@ -78,6 +80,7 @@ export default function ChangePasswordModal({
   }
 
   return (
+    <Dialog open={open} onClose={onClose} label="修改密码">
     <div className="fixed inset-0 z-50">
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm"
@@ -103,7 +106,8 @@ export default function ChangePasswordModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-full"
+            className="w-11 h-11 rounded-full"
+            aria-label="关闭修改密码"
             style={{ color: "var(--text-muted)" }}
           >
             ✕
@@ -117,15 +121,17 @@ export default function ChangePasswordModal({
               ["新密码", newPassword, setNewPassword, "new-password"],
               ["确认新密码", confirm, setConfirm, "new-password"],
             ] as const
-          ).map(([label, value, setter, autoComplete]) => (
+          ).map(([label, value, setter, autoComplete], index) => (
             <div key={label} className="space-y-1">
               <label
-                className="text-[11px] font-semibold"
+                htmlFor={`${fieldId}-${index}`}
+                className="text-xs font-semibold"
                 style={{ color: "var(--text-muted)" }}
               >
                 {label}
               </label>
               <input
+                id={`${fieldId}-${index}`}
                 type="password"
                 value={value}
                 onChange={(e) => setter(e.target.value)}
@@ -169,5 +175,6 @@ export default function ChangePasswordModal({
     </div>
   </div>
   </div>
+  </Dialog>
   );
 }

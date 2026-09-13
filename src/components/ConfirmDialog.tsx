@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import Dialog from "@/components/ui/Dialog";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -21,18 +21,10 @@ export default function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   return (
+    <Dialog open={open} onClose={onClose} label={title}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40 animate-fade-in"
@@ -40,9 +32,6 @@ export default function ConfirmDialog({
         aria-hidden
       />
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
         className="relative w-full max-w-sm rounded-2xl p-5 animate-scale-in"
         style={{
           background: "var(--bg-surface)",
@@ -91,5 +80,6 @@ export default function ConfirmDialog({
         </div>
       </div>
     </div>
+    </Dialog>
   );
 }

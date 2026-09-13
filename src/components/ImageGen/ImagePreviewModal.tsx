@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ImageRecord } from "@/types";
 import { downloadImage } from "./imageUtils";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Dialog from "@/components/ui/Dialog";
 
 interface ImagePreviewModalProps {
   image: ImageRecord | null;
@@ -24,6 +25,7 @@ export default function ImagePreviewModal({
   if (!image) return null;
 
   return (
+    <Dialog open={Boolean(image)} onClose={onClose} label="大图预览">
     <div
       className="image-preview-modal fixed inset-0 z-50 flex flex-col"
       style={{ background: "rgba(0,0,0,0.82)" }}
@@ -52,7 +54,7 @@ export default function ImagePreviewModal({
         <button
           type="button"
           onClick={onClose}
-          className="hidden md:flex w-8 h-8 rounded-full items-center justify-center shrink-0 transition-all duration-150 hover:scale-110"
+          className="hidden md:flex w-11 h-11 rounded-full items-center justify-center shrink-0 transition-all duration-150 hover:scale-110"
           style={{ color: "#f5e6d3" }}
           aria-label="关闭大图预览"
         >
@@ -83,7 +85,7 @@ export default function ImagePreviewModal({
         >
           {image.prompt}
         </p>
-        <p className="text-[10px]" style={{ color: "rgba(245,230,211,0.5)" }}>
+        <p className="text-[10px]" style={{ color: "rgba(245,230,211,0.75)" }}>
           {new Date(image.createdAt).toLocaleString("zh-CN")}
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -152,5 +154,6 @@ export default function ImagePreviewModal({
         onClose={() => setConfirmOpen(false)}
       />
     </div>
+    </Dialog>
   );
 }

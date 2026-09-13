@@ -35,7 +35,7 @@ export default function ResultCanvas({
 }: ResultCanvasProps) {
   if (task.status === "generating") {
     return (
-      <main className="result-canvas" aria-live="polite">
+      <section className="result-canvas" aria-live="polite">
         <section className="result-state-card is-working">
           <ThinkingOrb state="working" size={64} />
           <div>
@@ -48,14 +48,14 @@ export default function ResultCanvas({
             停止生成
           </button>
         </section>
-      </main>
+      </section>
     );
   }
 
   if (task.status === "error") {
     const title = task.error?.kind === "credits" ? "积分不足" : "生成没有完成";
     return (
-      <main className="result-canvas" aria-live="assertive">
+      <section className="result-canvas" aria-live="assertive">
         <section className="result-state-card is-error">
           <span className="result-error-mark">!</span>
           <div>
@@ -67,26 +67,26 @@ export default function ResultCanvas({
             重新生成
           </button>
         </section>
-      </main>
+      </section>
     );
   }
 
   const visibleResults = results.length > 0 ? results : activeImage ? [activeImage] : [];
   if (visibleResults.length === 0) {
     return (
-      <main className="result-canvas">
+      <section className="result-canvas">
         <section className="result-state-card is-idle">
           <div>
             <p className="result-state-title">创作舞台已就绪</p>
-            <p className="result-state-copy">从左侧输入提示词，生成结果会集中出现在这里</p>
+            <p className="result-state-copy">描述你想要的画面，生成结果会集中出现在这里</p>
           </div>
         </section>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="result-canvas">
+    <section className="result-canvas">
       <div className={`result-grid ${visibleResults.length === 1 ? "is-single" : ""}`}>
         {visibleResults.map((image) => (
           <ResultCard
@@ -99,7 +99,7 @@ export default function ResultCanvas({
           />
         ))}
       </div>
-    </main>
+    </section>
   );
 }
 

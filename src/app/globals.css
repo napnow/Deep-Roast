@@ -3150,7 +3150,7 @@ html.dark .liquid-glass-strong {
    compact, editorial mobile rhythm from the approved reference. */
 .mobile-creation-sheet .img2img-workbench {
   display: grid;
-  gap: 22px;
+  gap: 12px;
   padding-bottom: 10px;
 }
 
@@ -3160,7 +3160,7 @@ html.dark .liquid-glass-strong {
 
 .mobile-creation-sheet .img2img-mobile-step {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -3169,15 +3169,16 @@ html.dark .liquid-glass-strong {
 }
 
 .mobile-creation-sheet .img2img-mobile-assets {
-  padding-bottom: 22px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 
 .mobile-creation-sheet .img2img-mobile-task {
-  gap: 16px;
+  gap: 10px;
 }
 
 .mobile-creation-sheet .creation-step-card__heading {
+  display: flex;
   align-items: center;
   gap: 11px;
 }
@@ -3220,13 +3221,13 @@ html.dark .liquid-glass-strong {
 
 .mobile-creation-sheet .img2img-asset,
 .mobile-creation-sheet .img2img-add-card {
-  flex-basis: 92px;
-  width: 92px;
+  flex-basis: 84px;
+  width: 84px;
 }
 
 .mobile-creation-sheet .img2img-asset__preview,
 .mobile-creation-sheet .img2img-add-card {
-  min-height: 132px;
+  min-height: 84px;
   border-radius: 12px;
 }
 
@@ -3294,8 +3295,8 @@ html.dark .liquid-glass-strong {
 
 .mobile-creation-sheet .img2img-current-editor,
 .mobile-creation-sheet .img2img-role-summary {
-  min-height: 50px;
-  padding: 11px 12px;
+  min-height: 38px;
+  padding: 6px 10px;
   border-color: var(--border);
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-elevated) 72%, var(--bg-root));
@@ -3306,8 +3307,8 @@ html.dark .liquid-glass-strong {
 }
 
 .mobile-creation-sheet .creation-composer__input {
-  min-height: 138px;
-  padding: 14px 14px 30px;
+  min-height: 112px;
+  padding: 10px 12px 26px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--bg-elevated) 74%, var(--bg-root));
   font-size: 0.9rem;
@@ -4223,3 +4224,86 @@ html.dark .liquid-glass-strong {
 .mobile-image-preview-close:active {
   transform: scale(0.95);
 }
+
+/* Shared top-layer dialogs: independent of workspace/header stacking contexts. */
+.ui-modal-dialog {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text-primary);
+}
+.ui-modal-dialog::backdrop { background: rgb(25 20 16 / 28%); }
+.ui-modal-dialog .mobile-creation-sheet {
+  bottom: 0;
+  max-height: calc(100dvh - 32px);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.ui-modal-dialog .mobile-creation-sheet__close { width: 44px; height: 44px; }
+.ui-modal-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Responsive workbench: the canvas keeps priority over secondary history. */
+.image-result-workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.workspace-library-bar { display: none; }
+.workspace-library-backdrop { position: absolute; inset: 0; background: rgb(24 20 16 / 24%); }
+.workspace-library-drawer { position: absolute; inset: 0 0 0 auto; width: min(380px, 100vw); box-shadow: var(--shadow-lg); }
+.workspace-library-drawer .asset-inspector { width: 100%; height: 100%; }
+@media (min-width: 768px) and (max-width: 1199px) {
+  .image-workspace-desktop > .asset-inspector, .image-workspace-desktop .creation-panel-resize-handle { display: none; }
+  .image-workspace-desktop .creation-panel { width: var(--creation-panel-width); flex: 0 0 var(--creation-panel-width); min-width: 284px; max-width: 360px; }
+  .creation-panel--roomy .creation-panel__header, .creation-panel--roomy .creation-panel__body { padding: 16px 12px; }
+  .creation-panel--roomy .creation-panel__footer { padding: 12px; }
+  .creation-panel__mode-mark { display: none; }
+  .creation-panel--roomy .creation-mode-tabs button { font-size: 12px; }
+  .creation-panel--roomy .creation-step-card { padding: 14px 10px; }
+  .creation-panel--roomy .creation-step-card__title { font-size: 14px; }
+  .creation-panel--roomy .creation-step-card__description { font-size: 12px; }
+  .creation-panel--roomy .creation-composer__input { min-height: 150px; padding: 12px; font-size: 14px; }
+  .creation-panel--roomy .creation-settings > summary { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 12px; }
+  .creation-panel--roomy .creation-settings__summary { grid-column: 1 / -1; grid-row: 2; white-space: normal; font-size: 11px; }
+  .creation-panel--roomy .creation-settings > summary::after { grid-column: 2; grid-row: 1; }
+  .creation-panel--roomy .creation-settings__title { min-width: 90px; }
+  .creation-panel--roomy .creation-panel__footer .ui-button { min-height: 46px; font-size: 13px; }
+  .workspace-library-bar { display: flex; justify-content: space-between; align-items: center; flex: none; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; background: var(--bg-surface); }
+  .workspace-library-trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-root); color: var(--text-primary); }
+  .workspace-library-trigger > span { color: var(--text-secondary); }
+  .result-canvas { padding: 18px; }
+}
+.mobile-composer-heading { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 7px; font-size: 12px; font-weight: 650; }
+.mobile-composer-heading > span { color: var(--text-secondary); font-size: 10px; font-weight: 400; }
+.mobile-composer-selection { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; padding: 0 12px; }
+.mobile-composer-selection > button { display: flex; justify-content: space-between; min-width: 0; min-height: 42px; padding: 0 10px; gap: 6px; font-size: 11px; }
+.mobile-composer-selection > button > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-composer-selection .mobile-composer-size { border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-root); }
+.mobile-composer-tools { padding: 6px 12px 2px; gap: 8px; overflow: visible; flex-wrap: wrap; }
+.mobile-composer-tools .mobile-composer-chip { min-height: 32px; padding: 0 8px; border: 0; background: transparent; font-size: 11px; color: var(--text-secondary); }
+.mobile-style-applied { align-self: center; color: var(--text-secondary); font-size: 10px; }
+.mobile-generation-summary { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 14px 8px; color: var(--text-secondary); font-size: 11px; }
+.mobile-generation-summary strong { color: var(--accent); font-size: 15px; }
+.mobile-composer-action { padding: 0 12px 10px; }
+.mobile-composer-action .mobile-composer-submit { display: flex; justify-content: center; gap: 16px; width: 100%; min-height: 44px; border-radius: 10px; background: var(--accent); box-shadow: none; font-size: 13px; }
+.mobile-composer-action .mobile-composer-submit:disabled { opacity: .55; }
+.mobile-composer-action .mobile-composer-submit.is-stopping { background: var(--danger-surface); }
+.mobile-model-picker > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 76px; }
+.mobile-model-picker__name { display: flex; flex-direction: column; gap: 5px; min-width: 0; text-align: left; }
+.mobile-model-picker__name strong { font-size: 14px; }
+.mobile-model-picker__name small { color: var(--text-secondary); font-size: 10px; overflow-wrap: anywhere; }
+.mobile-model-picker__cost { flex: none; color: var(--accent); font-size: 12px; }
+.mobile-generation-settings { display: grid; gap: 14px; }
+.mobile-count-picker { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; margin-top: 8px; }
+.mobile-count-picker button { min-height: 44px; border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text-secondary); font-size: 12px; }
+.mobile-count-picker .is-active { border-color: var(--accent); color: var(--accent); background: var(--accent-surface); }
+.mobile-settings-total { color: var(--text-secondary); font-size: 12px; }
+
+.ui-modal-dialog .mobile-creation-sheet--img2img { height: min(90dvh, 860px); }
+.mobile-creation-sheet .img2img-task > .creation-step-card__heading .creation-step-card__description { display: none; }
+.mobile-creation-sheet .creation-step-card__number { display: grid; flex: 0 0 24px; height: 24px; place-items: center; border-radius: 7px; background: var(--accent-surface); color: var(--accent); font-size: 11px; }
+.mobile-creation-sheet .img2img-task .creation-composer { position: relative; }
+.img2img-action { flex-wrap: wrap; }
+.img2img-action-summary { display: flex; justify-content: space-between; width: 100%; color: var(--text-secondary); font-size: 11px; }
+.img2img-action-summary strong { color: var(--accent); }

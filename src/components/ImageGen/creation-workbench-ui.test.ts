@@ -64,8 +64,8 @@ describe("creation workbench UI contracts", () => {
 
   it("keeps a usable result canvas when calculating panel bounds", () => {
     assert.deepEqual(getCreationPanelBounds(1440), { min: 360, max: 560 });
-    assert.deepEqual(getCreationPanelBounds(900), { min: 360, max: 360 });
-    assert.deepEqual(getCreationPanelBounds(720), { min: 360, max: 360 });
+    assert.deepEqual(getCreationPanelBounds(900), { min: 320, max: 360 });
+    assert.deepEqual(getCreationPanelBounds(768), { min: 284, max: 284 });
   });
 
   it("clamps invalid and persisted panel widths", () => {
