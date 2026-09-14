@@ -3,6 +3,8 @@ import {
   users,
   conversations,
   imageGenerations,
+  creditTransactions,
+  apiKeys,
   messages,
   registrationRecords,
 } from "@/db/schema";
@@ -31,6 +33,30 @@ export async function listUsersWithStats() {
       cleanupProtected: users.cleanupProtected,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
+      lastCheckinOn: users.lastCheckinOn,
+      latestCheckinAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'checkin'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestConsumeAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'consume'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestApiUseAt: sql<Date | null>`(
+        SELECT ${apiKeys.lastUsedAt}
+        FROM ${apiKeys}
+        WHERE ${apiKeys.userId} = ${users.id}
+        ORDER BY ${apiKeys.lastUsedAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
     })
     .from(users)
     .orderBy(desc(users.createdAt));
@@ -66,6 +92,10 @@ export async function listUsersWithStats() {
       const lastActive = getLastActivityAt({
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
+        lastCheckinOn: user.lastCheckinOn,
+        latestCheckinAt: user.latestCheckinAt,
+        latestConsumeAt: user.latestConsumeAt,
+        latestApiUseAt: user.latestApiUseAt,
         latestConversationAt: convTime,
         latestImageAt: imgTime,
       }).toISOString();

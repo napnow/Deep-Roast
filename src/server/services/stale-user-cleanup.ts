@@ -9,7 +9,9 @@ import path from "node:path";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import {
+  apiKeys,
   conversations,
+  creditTransactions,
   imageGenerations,
   registrationRecords,
   users,
@@ -98,6 +100,30 @@ export async function loadUserActivityRows(
       cleanupProtected: users.cleanupProtected,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
+      lastCheckinOn: users.lastCheckinOn,
+      latestCheckinAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'checkin'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestConsumeAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'consume'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestApiUseAt: sql<Date | null>`(
+        SELECT ${apiKeys.lastUsedAt}
+        FROM ${apiKeys}
+        WHERE ${apiKeys.userId} = ${users.id}
+        ORDER BY ${apiKeys.lastUsedAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
       latestConversationAt: sql<Date | null>`(
         SELECT ${conversations.updatedAt}
         FROM ${conversations}

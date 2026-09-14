@@ -49,7 +49,10 @@ export default function ResultCanvas({
               {task.request?.count || 1} 张 · {formatTime(elapsedSeconds)}
             </p>
           </div>
-          <button className="workspace-button is-secondary" onClick={onStop}>
+          <button
+            className="workspace-button is-secondary result-canvas-stop"
+            onClick={onStop}
+          >
             停止生成
           </button>
         </section>

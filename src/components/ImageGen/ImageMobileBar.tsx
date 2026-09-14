@@ -10,6 +10,7 @@ import { useDeepRoastStore } from "@/lib/store";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
 import { getImageModelLabel } from "./image-model-presentation";
+import { resolveMobileComposerDrag } from "./mobile-composer-state";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 interface ImageMobileBarProps {
@@ -94,12 +95,22 @@ export default function ImageMobileBar({
   const [toolbarOpen, setToolbarOpen] = useState<
     "reverse" | "img2img" | "model" | "size" | null
   >(null);
+  const [expanded, setExpanded] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const dragStartYRef = useRef<number | null>(null);
+  const dragChangedStateRef = useRef(false);
 
   useEffect(() => {
     setToolbarOpen(null);
+    setExpanded(false);
   }, [userSessionVersion]);
+  useEffect(() => {
+    if (!generating) return;
+    setToolbarOpen(null);
+    setExpanded(false);
+    taRef.current?.blur();
+  }, [generating]);
   useEffect(() => {
     if (!openImageToImage) return;
     if (window.matchMedia("(max-width: 767px)").matches)
@@ -155,10 +166,22 @@ export default function ImageMobileBar({
     // Keep the draft editable after an error and consistent across screen sizes.
   }
 
+  function finishDrag(clientY: number) {
+    if (dragStartYRef.current === null) return;
+    const nextExpanded = resolveMobileComposerDrag(
+      dragStartYRef.current,
+      clientY,
+      expanded,
+    );
+    dragChangedStateRef.current = nextExpanded !== expanded;
+    dragStartYRef.current = null;
+    setExpanded(nextExpanded);
+  }
+
   return (
     <div
       ref={barRef}
-      className="mobile-composer-shell md:hidden fixed z-40"
+      className={`mobile-composer-shell md:hidden fixed z-40 ${expanded ? "is-expanded" : "is-collapsed"}`}
       style={{
         bottom: keyboardOpen ? "0px" : "var(--mobile-bottom-nav-height, 0px)",
       }}
@@ -312,90 +335,146 @@ export default function ImageMobileBar({
         </section>
       </Dialog>
 
-      <div className="mobile-composer-heading">
-        <label htmlFor="mobile-image-prompt">画面描述</label>
-        <span>同一份草稿 · 跨屏同步</span>
-      </div>
-      <div className="mobile-composer-input-row">
-        <div className="mobile-composer-input">
-          <textarea
-            id="mobile-image-prompt"
-            ref={taRef}
-            value={prompt}
-            maxLength={2000}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="描述主体、场景和你想要的光线…"
-            rows={2}
-            disabled={generating || !imageGenerationAvailable}
-          />
+      <button
+        type="button"
+        className="mobile-composer-handle"
+        aria-expanded={expanded}
+        aria-controls="mobile-composer-expanded"
+        aria-label={expanded ? "收起生成设置" : "展开生成设置"}
+        onPointerDown={(event) => {
+          dragStartYRef.current = event.clientY;
+          dragChangedStateRef.current = false;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerUp={(event) => finishDrag(event.clientY)}
+        onPointerCancel={() => {
+          dragStartYRef.current = null;
+          dragChangedStateRef.current = false;
+        }}
+        onClick={() => {
+          if (dragChangedStateRef.current) {
+            dragChangedStateRef.current = false;
+            return;
+          }
+          setExpanded((current) => !current);
+        }}
+      >
+        <span className="mobile-composer-handle__rail" aria-hidden="true" />
+        <span>{expanded ? "下拉收起" : "上滑展开"}</span>
+      </button>
+
+      {!expanded ? (
+        <div className="mobile-composer-compact">
+          <button
+            type="button"
+            className="mobile-composer-compact__details"
+            onClick={() => setExpanded(true)}
+            aria-label="展开并编辑画面描述"
+          >
+            <span className="mobile-composer-compact__prompt">
+              {prompt.trim() || "写下画面描述…"}
+            </span>
+            <span className="mobile-composer-compact__meta">
+              {selectedModelLabel} · {count} 张 · {compactSizeLabel}
+            </span>
+          </button>
+          <div className="mobile-generation-summary" aria-label="本次生成费用">
+            <span>{isAdmin ? "管理员免费" : `预计 ${cost} 积分`}</span>
+            <span>余额 {credits}</span>
+          </div>
         </div>
-      </div>
-      <div className="mobile-composer-selection">
-        <button
-          type="button"
-          className="mobile-composer-chip mobile-composer-model"
-          disabled={generating || imageModels.length < 2}
-          onClick={() => setToolbarOpen("model")}
-          aria-expanded={toolbarOpen === "model"}
-          aria-controls="mobile-creation-sheet"
-          title={selectedImageModel}
-        >
-          <span>{selectedModelLabel}</span>
-          <span aria-hidden="true">⌄</span>
-        </button>
-        <button
-          type="button"
-          className="mobile-composer-size"
-          disabled={generating}
-          onClick={() => setToolbarOpen("size")}
-          aria-expanded={toolbarOpen === "size"}
-          aria-controls="mobile-creation-sheet"
-        >
-          <span>
-            {count} 张 · {compactSizeLabel}
-          </span>
-          <AppIcon name="settings" size={14} />
-        </button>
-      </div>
-      <div className="mobile-composer-tools">
-        <button
-          type="button"
-          className="mobile-composer-chip"
-          onClick={() => setToolbarOpen("img2img")}
-          aria-expanded={toolbarOpen === "img2img"}
-          aria-controls="mobile-creation-sheet"
-        >
-          图生图
-        </button>
-        <button
-          type="button"
-          className="mobile-composer-chip"
-          onClick={() => setToolbarOpen("reverse")}
-          aria-expanded={toolbarOpen === "reverse"}
-          aria-controls="mobile-creation-sheet"
-        >
-          反推提示词
-        </button>
-        {stylePrompt ? (
-          <span className="mobile-style-applied">已应用桌面风格</span>
-        ) : null}
-      </div>
-      {!imageGenerationAvailable ? (
-        <p className="mobile-composer-alert">
-          生图功能暂时关闭，反推提示词仍可使用
-        </p>
       ) : null}
-      <div className="mobile-generation-summary" aria-label="本次生成费用">
-        <span>
-          {isAdmin ? (
-            "管理员免费"
-          ) : (
-            <>
-              本次预计 <strong>{cost}</strong> 积分
-            </>
-          )}
-        </span>
-        <span>余额 {credits} 积分</span>
+
+      <div
+        id="mobile-composer-expanded"
+        className="mobile-composer-expanded"
+        hidden={!expanded}
+      >
+        <div className="mobile-composer-heading">
+          <label htmlFor="mobile-image-prompt">画面描述</label>
+          <span>同一份草稿 · 跨屏同步</span>
+        </div>
+        <div className="mobile-composer-input-row">
+          <div className="mobile-composer-input">
+            <textarea
+              id="mobile-image-prompt"
+              ref={taRef}
+              value={prompt}
+              maxLength={2000}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="描述主体、场景和你想要的光线…"
+              rows={2}
+              disabled={generating || !imageGenerationAvailable}
+            />
+          </div>
+        </div>
+        <div className="mobile-composer-selection">
+          <button
+            type="button"
+            className="mobile-composer-chip mobile-composer-model"
+            disabled={generating || imageModels.length < 2}
+            onClick={() => setToolbarOpen("model")}
+            aria-expanded={toolbarOpen === "model"}
+            aria-controls="mobile-creation-sheet"
+            title={selectedImageModel}
+          >
+            <span>{selectedModelLabel}</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-composer-size"
+            disabled={generating}
+            onClick={() => setToolbarOpen("size")}
+            aria-expanded={toolbarOpen === "size"}
+            aria-controls="mobile-creation-sheet"
+          >
+            <span>
+              {count} 张 · {compactSizeLabel}
+            </span>
+            <AppIcon name="settings" size={14} />
+          </button>
+        </div>
+        <div className="mobile-composer-tools">
+          <button
+            type="button"
+            className="mobile-composer-chip"
+            onClick={() => setToolbarOpen("img2img")}
+            aria-expanded={toolbarOpen === "img2img"}
+            aria-controls="mobile-creation-sheet"
+          >
+            图生图
+          </button>
+          <button
+            type="button"
+            className="mobile-composer-chip"
+            onClick={() => setToolbarOpen("reverse")}
+            aria-expanded={toolbarOpen === "reverse"}
+            aria-controls="mobile-creation-sheet"
+          >
+            反推提示词
+          </button>
+          {stylePrompt ? (
+            <span className="mobile-style-applied">已应用桌面风格</span>
+          ) : null}
+        </div>
+        {!imageGenerationAvailable ? (
+          <p className="mobile-composer-alert">
+            生图功能暂时关闭，反推提示词仍可使用
+          </p>
+        ) : null}
+        <div className="mobile-generation-summary" aria-label="本次生成费用">
+          <span>
+            {isAdmin ? (
+              "管理员免费"
+            ) : (
+              <>
+                本次预计 <strong>{cost}</strong> 积分
+              </>
+            )}
+          </span>
+          <span>余额 {credits} 积分</span>
+        </div>
       </div>
       <div className="mobile-composer-action">
         <button
@@ -414,7 +493,7 @@ export default function ImageMobileBar({
           {generating
             ? "停止生成"
             : `生成 ${count} 张 · ${isAdmin ? "免费" : `${cost} 积分`}`}
-          <span aria-hidden="true">{generating ? "■" : "→"}</span>
+          {!generating ? <span aria-hidden="true">→</span> : null}
         </button>
         {!canAfford ? (
           <p className="mobile-composer-alert">

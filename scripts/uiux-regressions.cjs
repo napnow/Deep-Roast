@@ -161,6 +161,11 @@ const snapshot = (page) =>
       class: document.activeElement?.className,
     },
   }));
+const expandMobileComposer = async (page) => {
+  const handle = page.getByRole("button", { name: "展开生成设置" });
+  if (await handle.isVisible()) await handle.click();
+  await page.locator(".mobile-composer-expanded").waitFor({ state: "visible" });
+};
 async function run() {
   const builds = { head: await build() };
   const browser = await chromium.launch({
@@ -218,6 +223,11 @@ async function run() {
         assert.ok(
           evidence.labels.every((label) => label.controlType === "password"),
         );
+      } else if (name === "mobile-composer-two-state-gesture") {
+        assert.equal(evidence.compactVisible, true);
+        assert.equal(evidence.expandedVisible, false);
+        assert.equal(evidence.redStopGlyphs, 0);
+        assert.equal(evidence.visibleCanvasStops, 0);
       }
       results.push({ name, version, evidence });
     } catch (error) {
@@ -258,6 +268,7 @@ async function run() {
       version,
       390,
       async (page) => {
+        await expandMobileComposer(page);
         await page
           .locator(".mobile-composer-tools")
           .getByRole("button", { name: /^\u53cd\u63a8/ })
@@ -288,6 +299,7 @@ async function run() {
           window.__setUser("B");
           window.__mount();
         });
+        await expandMobileComposer(page);
         const input = page.locator(".mobile-composer-input textarea");
         await input.fill("User B draft");
         const before = await input.inputValue();
@@ -308,6 +320,7 @@ async function run() {
   }
   await check("escape-while-editor-focused", "head", 390, async (page) => {
     const before = await snapshot(page);
+    await expandMobileComposer(page);
     await page
       .locator(".mobile-composer-tools")
       .getByRole("button", { name: "图生图", exact: true })
@@ -323,6 +336,7 @@ async function run() {
     "head",
     390,
     async (page) => {
+      await expandMobileComposer(page);
       await page
         .locator(".mobile-composer-tools")
         .getByRole("button", { name: "图生图", exact: true })
@@ -446,6 +460,7 @@ async function run() {
     });
   }
   await check("shared-draft-and-style", "head", 390, async (page) => {
+    await expandMobileComposer(page);
     await page.locator(".mobile-composer-input textarea").fill("Shared draft");
     await page.setViewportSize({ width: 1024, height: 900 });
     assert.equal(
@@ -469,6 +484,56 @@ async function run() {
     assert.equal(call[1], "Editorial style\n\nShared draft");
     assert.equal(call[3], 3);
     return { draftRetained: true, count: call[3] };
+  });
+  await check("mobile-composer-two-state-gesture", "head", 390, async (page) => {
+    const compact = page.locator(".mobile-composer-compact");
+    const expanded = page.locator(".mobile-composer-expanded");
+    assert.equal(await compact.isVisible(), true);
+    assert.equal(await expanded.isVisible(), false);
+    fs.mkdirSync(OUTPUT, { recursive: true });
+    await page.screenshot({
+      path: path.join(OUTPUT, "mobile-composer-collapsed.png"),
+      fullPage: true,
+    });
+
+    await expandMobileComposer(page);
+    await page.screenshot({
+      path: path.join(OUTPUT, "mobile-composer-expanded.png"),
+      fullPage: true,
+    });
+    const handle = page.locator(".mobile-composer-handle");
+    const box = await handle.boundingBox();
+    assert.ok(box);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 48);
+    await page.mouse.up();
+    await compact.waitFor({ state: "visible" });
+
+    await expandMobileComposer(page);
+    await page.evaluate(() => {
+      const store = window.__store.getState();
+      store.startImageTask({
+        mode: "text",
+        prompt: "Synthetic generation",
+        size: "1024x1024",
+        count: 1,
+        images: [],
+      });
+      store.setGenerating(true);
+    });
+    await compact.waitFor({ state: "visible" });
+
+    return {
+      compactVisible: await compact.isVisible(),
+      expandedVisible: await expanded.isVisible(),
+      redStopGlyphs: await page.getByText("■", { exact: true }).count(),
+      visibleCanvasStops: await page
+        .locator(".result-canvas-stop")
+        .evaluateAll((buttons) =>
+          buttons.filter((button) => button.getClientRects().length > 0).length,
+        ),
+    };
   });
   await browser.close();
   const report = { sourceFiles: builds.head.files, results };
