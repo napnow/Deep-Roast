@@ -28,7 +28,7 @@
 - Consumes: `.hero-cta` and `.hero-cta-arrow` class names already emitted by `LoginPage`.
 - Produces: the approved default, hover, active, and `:focus-visible` visual states.
 
-- [ ] **Step 1: Write the failing source contract test**
+- [x] **Step 1: Write the failing source contract test**
 
 ```ts
 import assert from "node:assert/strict";
@@ -55,13 +55,13 @@ test("CTA keeps navigation and a decorative unboxed arrow", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `node --import tsx --test src/app/login/login-hero-cta.test.ts`
 
 Expected: FAIL because the current CTA is 52px, gradient-filled, and the arrow has a circular background.
 
-- [ ] **Step 3: Implement the minimal CSS change**
+- [x] **Step 3: Implement the minimal CSS change**
 
 Replace the CTA rules with:
 
@@ -111,7 +111,7 @@ Replace the CTA rules with:
 }
 ```
 
-- [ ] **Step 4: Run focused and static checks**
+- [x] **Step 4: Run focused and static checks**
 
 Run: `node --import tsx --test src/app/login/login-hero-cta.test.ts`
 
@@ -121,13 +121,13 @@ Run: `npm run typecheck && npx eslint src/app/login/page.tsx src/app/login/login
 
 Expected: both commands exit 0.
 
-- [ ] **Step 5: Run browser validation**
+- [x] **Step 5: Run browser validation**
 
 Run: `npm run build`, start the production server on an unused local port, and capture desktop plus mobile `/login` screenshots after the intro.
 
 Expected: outline CTA matches the approved A preview, has one unboxed arrow, remains at least 44px tall, and clicking it reveals the login form.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/app/globals.css src/app/login/login-hero-cta.test.ts
