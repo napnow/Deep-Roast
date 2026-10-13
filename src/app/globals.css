@@ -2275,7 +2275,114 @@ html.dark .liquid-glass-strong {
 .creation-setting-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 10px;
+}
+
+.creation-setting-grid > :has(.image-ratio-picker[data-custom="true"]) {
+  grid-column: 1 / -1;
+}
+
+.image-ratio-picker {
+  container-type: inline-size;
+}
+
+.creation-setting-grid > :has(.image-ratio-picker) {
+  grid-column: 1 / -1;
+}
+
+.image-ratio-picker .ratio-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+  gap: 7px;
+}
+
+.image-ratio-picker .ratio-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
+  min-width: 0;
+  padding: 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-root);
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.image-ratio-picker .ratio-option:hover:not(:disabled),
+.image-ratio-picker .ratio-option[aria-pressed="true"] {
+  border-color: var(--accent, #a35427);
+  background: color-mix(in srgb, var(--accent, #a35427) 9%, var(--bg-root));
+  color: var(--text-primary);
+}
+
+.ratio-option__frame {
+  display: block;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+
+.ratio-option--custom > span:first-child {
+  font-size: 23px;
+  line-height: 22px;
+}
+
+.ratio-option:focus-visible {
+  outline: 2px solid var(--accent, #a35427);
+  outline-offset: 2px;
+}
+
+.ratio-option:disabled {
+  opacity: 0.5;
+}
+
+.custom-ratio-editor {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-root);
+}
+
+.custom-ratio-editor__heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.custom-ratio-editor__inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-ratio-editor__input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.custom-ratio-editor__apply {
+  white-space: nowrap;
+}
+
+.custom-ratio-editor .creation-setting-hint {
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 260px) {
+  .custom-ratio-editor__inputs {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .custom-ratio-editor__apply {
+    grid-column: 1 / -1;
+  }
 }
 
 .creation-select {

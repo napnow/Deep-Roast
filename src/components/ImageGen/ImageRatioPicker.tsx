@@ -23,22 +23,23 @@ function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "d
   const id = useId();
   const output = ratioToImageSize(width, height);
   return (
-    <div className="creation-setting-group">
-      <div className="flex items-center gap-2">
-        <input className="ui-field min-w-0 w-20" type="number" inputMode="numeric" min={1} max={100} step={1}
+    <div className="creation-setting-group custom-ratio-editor">
+      <span className="custom-ratio-editor__heading">设定你的画幅</span>
+      <div className="custom-ratio-editor__inputs">
+        <input className="ui-field custom-ratio-editor__input" type="number" inputMode="numeric" min={1} max={100} step={1}
           aria-label="自定义比例宽" aria-describedby={id} aria-invalid={!output}
           value={width} disabled={disabled} onChange={(event) => setWidth(event.target.value)} />
-        <span aria-hidden="true">:</span>
-        <input className="ui-field min-w-0 w-20" type="number" inputMode="numeric" min={1} max={100} step={1}
+        <span className="custom-ratio-editor__separator" aria-hidden="true">:</span>
+        <input className="ui-field custom-ratio-editor__input" type="number" inputMode="numeric" min={1} max={100} step={1}
           aria-label="自定义比例高" aria-describedby={id} aria-invalid={!output}
           value={height} disabled={disabled} onChange={(event) => setHeight(event.target.value)} />
-        <button type="button" className="creation-chip" disabled={disabled || !output}
+        <button type="button" className="creation-chip custom-ratio-editor__apply" disabled={disabled || !output}
           onClick={() => output && onChange(output)}>应用</button>
       </div>
       <p id={id} className="creation-setting-hint" role="status">
-        {output ? `输出 ${output.replace("x", "×")}，点击“应用”使用此比例。` : "请输入 1–100 的整数，宽高比不能超过 6:1 或 1:6。"}
+        {output ? `预计尺寸 ${output.replace("x", "×")}` : "请输入 1–100 的整数，宽高比不能超过 6:1 或 1:6。"}
       </p>
-      <p className="creation-setting-hint">当前使用：{imageSizeLabel(size)}。画面可能居中裁切，请为主体留出边距。</p>
+      <p className="creation-setting-hint">已选 {imageSizeLabel(size)} · 画面可能裁切，建议主体留白。</p>
     </div>
   );
 }
@@ -48,24 +49,24 @@ export default function ImageRatioPicker({ size, model = "", options, disabled, 
   const supported = isGptImageModel(model);
   const custom = supported && (editing || !options.some((option) => option.value === size));
   return (
-    <div className="creation-setting-group">
-      {presentation === "chips" ? (
-        <div className="mobile-size-picker" role="group" aria-label="图片比例">
-          {options.map((option) => <button key={option.value} type="button"
-            aria-pressed={!custom && option.value === size} disabled={disabled}
-            className={!custom && option.value === size ? "is-active" : undefined}
-            onClick={() => { setEditing(false); onChange(option.value); }}>{option.label}</button>)}
-          {supported && <button type="button" aria-pressed={custom} disabled={disabled}
-            className={custom ? "is-active" : undefined} onClick={() => setEditing(true)}>自定义比例</button>}
-        </div>
-      ) : <select className="ui-field creation-select" aria-label="图片比例" disabled={disabled}
-        value={custom ? "custom" : size} onChange={(event) => {
-          if (event.target.value === "custom") setEditing(true);
-          else { setEditing(false); onChange(event.target.value); }
-        }}>
-        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        {supported && <option value="custom">自定义比例</option>}
-      </select>}
+    <div className="creation-setting-group image-ratio-picker" data-custom={custom ? "true" : "false"}>
+      <div className={presentation === "chips" ? "ratio-options mobile-size-picker" : "ratio-options"} role="group" aria-label="图片比例">
+        {options.map((option) => {
+          const [w, h] = option.value.split("x").map(Number);
+          const selected = !custom && option.value === size;
+          return <button key={option.value} type="button" className="ratio-option"
+            aria-pressed={selected} disabled={disabled} title={option.label}
+            onClick={() => { setEditing(false); onChange(option.value); }}>
+            <span className="ratio-option__frame" aria-hidden="true"
+              style={{ width: 22 * Math.min(1, w / h), height: 22 * Math.min(1, h / w) }} />
+            <span>{option.label.split(" ")[0]}</span>
+          </button>;
+        })}
+        {supported && <button type="button" className="ratio-option ratio-option--custom"
+          aria-pressed={custom} disabled={disabled} onClick={() => setEditing(true)}>
+          <span aria-hidden="true">＋</span><span>自定义</span>
+        </button>}
+      </div>
       {custom && <CustomRatioEditor key={`${model}:${size}`} size={size} disabled={disabled} onChange={onChange} />}
     </div>
   );
