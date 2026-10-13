@@ -2391,6 +2391,121 @@ html.dark .liquid-glass-strong {
   padding: 0 10px;
 }
 
+.creation-count-setting {
+  grid-column: 1 / -1;
+}
+
+.creation-count-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-root);
+}
+
+.creation-count-option {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.creation-count-option strong {
+  font-size: 15px;
+}
+
+.creation-count-option span {
+  font-size: 11px;
+}
+
+.creation-count-option[aria-pressed="true"] {
+  background: var(--accent, #a35427);
+  color: #fff;
+}
+
+.creation-model-options {
+  display: grid;
+  gap: 7px;
+}
+
+.creation-model-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-root);
+  color: var(--text-secondary);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.creation-model-option__text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.creation-model-option__text strong {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.creation-model-option__text small {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.creation-model-option__indicator {
+  display: grid;
+  place-items: center;
+  flex: 0 0 19px;
+  height: 19px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 11px;
+}
+
+.creation-model-option[aria-pressed="true"] {
+  border-color: var(--accent, #a35427);
+  background: color-mix(in srgb, var(--accent, #a35427) 8%, var(--bg-root));
+}
+
+.creation-model-option[aria-pressed="true"] .creation-model-option__indicator {
+  background: var(--accent, #a35427);
+  border-color: var(--accent, #a35427);
+  color: #fff;
+}
+
+.creation-model-option:hover:not(:disabled),
+.creation-count-option:hover:not(:disabled):not([aria-pressed="true"]) {
+  background: color-mix(in srgb, var(--accent, #a35427) 5%, var(--bg-root));
+}
+
+.creation-model-option:focus-visible,
+.creation-count-option:focus-visible {
+  outline: 2px solid var(--accent, #a35427);
+  outline-offset: 2px;
+}
+
+.creation-model-option:disabled,
+.creation-count-option:disabled {
+  opacity: 0.5;
+}
+
 .creation-model-note {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;

@@ -3,7 +3,7 @@
 import ImageRatioPicker from "./ImageRatioPicker";
 import { imageSizeLabel } from "@/lib/custom-image-ratio";
 
-import { Select } from "@/components/ui/Field";
+import { getImageModelLabel } from "./image-model-presentation";
 
 import type { TextToImageDraft } from "@/lib/image-workspace";
 import { IMAGE_STYLE_PRESETS } from "@/types";
@@ -149,47 +149,38 @@ export default function TextToImageForm({
                 disabled={disabled} onChange={(size) => onChange({ size })} />
             </div>
 
-            <label className="creation-setting-group">
-              <span className="creation-section-label">生成数量</span>
-              <Select
-                className="ui-field creation-select"
-                value={draft.count}
-                disabled={disabled}
-                onChange={(event) =>
-                  onChange({ count: Number(event.target.value) })
-                }
-              >
+            <fieldset className="creation-setting-group creation-count-setting">
+              <legend className="creation-section-label">生成数量</legend>
+              <div className="creation-count-options" role="group" aria-label="生成数量">
                 {[1, 2, 3, 4, 5].map((count) => (
-                  <option key={count} value={count}>
-                    {count} 张
-                  </option>
+                  <button key={count} type="button" className="creation-count-option"
+                    disabled={disabled} aria-pressed={draft.count === count}
+                    onClick={() => onChange({ count })}>
+                    <strong>{count}</strong><span>张</span>
+                  </button>
                 ))}
-              </Select>
-            </label>
+              </div>
+              <p className="creation-setting-hint">一次生成 {draft.count} 张，逐张查看结果</p>
+            </fieldset>
           </div>
 
-          <div className="creation-setting-group creation-model-note">
-            <span className="creation-section-label">当前模型</span>
-            {imageModels.length > 1 ? (
-              <Select
-                className="ui-field creation-select"
-                value={selectedImageModel}
-                disabled={disabled}
-                aria-label="选择生图模型"
-                onChange={(event) => onModelChange(event.target.value)}
-              >
-                {imageModels.map((modelId) => (
-                  <option key={modelId} value={modelId}>
-                    {modelId}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <span className="creation-model-note__value">
-                {model || "未配置"}
-              </span>
-            )}
-          </div>
+          <fieldset className="creation-setting-group creation-model-setting">
+            <legend className="creation-section-label">生图模型</legend>
+            <div className="creation-model-options" role="group" aria-label="选择生图模型">
+              {(imageModels.length ? imageModels : [model]).filter(Boolean).map((modelId) => {
+                const selected = modelId === selectedImageModel;
+                return <button key={modelId} type="button" className="creation-model-option"
+                  aria-pressed={selected} disabled={disabled} onClick={() => onModelChange(modelId)}>
+                  <span className="creation-model-option__text">
+                    <strong>{getImageModelLabel(modelId)}</strong>
+                    <small>{modelId}</small>
+                  </span>
+                  <span className="creation-model-option__indicator" aria-hidden="true">{selected ? "✓" : ""}</span>
+                </button>;
+              })}
+              {!model && !imageModels.length && <p className="creation-setting-hint">尚未配置生图模型</p>}
+            </div>
+          </fieldset>
         </div>
       </details>
     </div>
