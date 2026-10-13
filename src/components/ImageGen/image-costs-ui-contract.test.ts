@@ -31,7 +31,7 @@ test("mobile model picker keeps the sheet compact and shows model-specific price
   const mobile = readFileSync("src/components/ImageGen/ImageMobileBar.tsx", "utf8");
   const styles = readFileSync("src/app/globals.css", "utf8");
   const picker = mobile.match(
-    /className=\"mobile-model-picker\"[\s\S]*?className=\"mobile-size-picker\"/,
+    /className=\"mobile-model-picker\"[\s\S]*?ImageRatioPicker presentation="chips"/,
   )?.[0];
 
   assert.ok(picker, "mobile model picker should have a bounded source section");

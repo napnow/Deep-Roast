@@ -1,5 +1,8 @@
 "use client";
 
+import ImageRatioPicker from "./ImageRatioPicker";
+import { imageSizeLabel } from "@/lib/custom-image-ratio";
+
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import Dialog from "@/components/ui/Dialog";
@@ -147,7 +150,7 @@ export default function ImageMobileBar({
     selectedImageModel || imageModels[0],
   );
   const selectedSizeLabel =
-    sizeOptions.find((option) => option.value === size)?.label || size;
+    sizeOptions.find((option) => option.value === size)?.label || imageSizeLabel(size);
   const compactSizeLabel = selectedSizeLabel.split(/[（(]/)[0].trim();
   const sheetLabel =
     toolbarOpen === "model"
@@ -281,26 +284,8 @@ export default function ImageMobileBar({
             ) : (
               <div className="mobile-generation-settings">
                 <p className="creation-section-label">画幅比例</p>
-                <div
-                  className="mobile-size-picker"
-                  role="group"
-                  aria-label="图片比例"
-                >
-                  {sizeOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={option.value === size}
-                      className={
-                        option.value === size ? "is-active" : undefined
-                      }
-                      disabled={generating}
-                      onClick={() => setSize(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+                <ImageRatioPicker presentation="chips" size={size} model={selectedImageModel} options={sizeOptions}
+                  disabled={generating} onChange={setSize} />
                 <fieldset>
                   <legend className="creation-section-label">生成数量</legend>
                   <div className="mobile-count-picker">

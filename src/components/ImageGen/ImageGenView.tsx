@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { ImageRecord } from "@/types";
+import { normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
 import { getSizeOptions } from "./imageUtils";
 import CreationPanel from "./CreationPanel";
 import CreationPanelResizeHandle from "./CreationPanelResizeHandle";
@@ -112,9 +113,7 @@ export default function ImageGenView({
     (state) => state.inspectorCollapsed,
   );
   const prompt = textDraft.prompt;
-  const size = sizeOptions.some((option) => option.value === textDraft.size)
-    ? textDraft.size
-    : sizeOptions[0]?.value || "1024x1024";
+  const size = normalizeImageSizeSelection(textDraft.size, model, sizeOptions);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);

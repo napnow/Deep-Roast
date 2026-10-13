@@ -11,6 +11,7 @@ import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import * as imageEditUi from "./image-edit-ui";
 import * as draftUi from "./image-to-image-draft";
 import * as workbenchUi from "./creation-workbench-ui";
+import * as customRatio from "@/lib/custom-image-ratio";
 import * as editStyles from "./editStyles";
 import { formatTime } from "./imageUtils";
 
@@ -192,6 +193,8 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
         return pending.promise;
       },
     },
+    "./ImageRatioPicker": { default: () => null },
+    "@/lib/custom-image-ratio": customRatio,
     "./image-edit-ui": imageEditUi,
     "./image-to-image-draft": draftUi,
     "./creation-workbench-ui": workbenchUi,

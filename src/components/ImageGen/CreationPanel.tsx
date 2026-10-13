@@ -3,6 +3,7 @@
 import Img2ImgPanel from "./Img2ImgPanel";
 import ReversePromptPanel from "./ReversePromptPanel";
 import TextToImageForm from "./TextToImageForm";
+import { normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
 import { getSizeOptions } from "./imageUtils";
 import { applyReversePrompt, generationCost } from "@/lib/image-workspace";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
@@ -56,11 +57,7 @@ export default function CreationPanel({
     ? selectedImageModel
     : model;
   const sizeOptions = getSizeOptions(model);
-  const normalizedSize = sizeOptions.some(
-    (option) => option.value === textToImageDraft.size,
-  )
-    ? textToImageDraft.size
-    : sizeOptions[0]?.value || "1024x1024";
+  const normalizedSize = normalizeImageSizeSelection(textToImageDraft.size, model, sizeOptions);
   const visibleTextDraft = { ...textToImageDraft, size: normalizedSize };
   const imageCostPerImage =
     config.imageModelCosts?.[selectedModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;

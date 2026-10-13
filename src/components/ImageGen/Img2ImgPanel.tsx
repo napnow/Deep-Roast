@@ -1,5 +1,8 @@
 "use client";
 
+import ImageRatioPicker from "./ImageRatioPicker";
+import { normalizeImageSizeSelection, imageSizeLabel } from "@/lib/custom-image-ratio";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
@@ -165,8 +168,11 @@ export default function Img2ImgPanel({
   const activeEditPrompt = getActiveEditPrompt(perImagePrompts, targetIndex);
   const currentPrompt =
     editMode === "per-image" && refs.length > 0 ? activeEditPrompt : edit;
+  const effectiveEditSize = sizeOptions?.length
+    ? normalizeImageSizeSelection(editSize, imageModel || "", sizeOptions)
+    : editSize;
   const currentSizeLabel =
-    sizeOptions?.find((option) => option.value === editSize)?.label || editSize;
+    sizeOptions?.find((option) => option.value === effectiveEditSize)?.label || imageSizeLabel(effectiveEditSize);
   const settingsSummary = getCreationSettingsSummary({
     styleLabel: activeStyle?.label,
     sizeLabel: currentSizeLabel,
@@ -355,9 +361,9 @@ export default function Img2ImgPanel({
         return;
       }
       if (batchCount > 1 && onEditImageBatch) {
-        onEditImageBatch(request, editSize, batchCount);
+        onEditImageBatch(request, effectiveEditSize, batchCount);
       } else {
-        onEditImage(request, editSize);
+        onEditImage(request, effectiveEditSize);
       }
       return;
     }
@@ -382,7 +388,7 @@ export default function Img2ImgPanel({
         return;
       }
       const data = await res.json();
-      onGenerate(data.prompt, editSize);
+      onGenerate(data.prompt, effectiveEditSize);
       setProcessing(false);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") {
@@ -813,23 +819,8 @@ export default function Img2ImgPanel({
           {sizeOptions && sizeOptions.length > 0 ? (
             <section className="creation-setting-group">
               <span className="creation-section-label">比例</span>
-              <div className="creation-chip-list">
-                {sizeOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setEditSize(option.value)}
-                    disabled={processing}
-                    className={
-                      editSize === option.value
-                        ? "creation-chip is-selected"
-                        : "creation-chip"
-                    }
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              <ImageRatioPicker size={effectiveEditSize} model={imageModel} options={sizeOptions}
+                disabled={processing || generating || disabled} onChange={setEditSize} />
             </section>
           ) : null}
 

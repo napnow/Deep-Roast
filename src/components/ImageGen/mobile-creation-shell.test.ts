@@ -21,7 +21,7 @@ const globalStyles = readFileSync(
 
 describe("mobile creation shell", () => {
   it("uses a touch-friendly size picker instead of the browser select menu", () => {
-    assert.match(mobileBar, /mobile-size-picker/);
+    assert.match(mobileBar, /ImageRatioPicker presentation="chips"/);
     assert.match(mobileBar, /toolbarOpen === "size"/);
     assert.doesNotMatch(mobileBar, /<select[\s\S]*aria-label="图片比例"/);
   });

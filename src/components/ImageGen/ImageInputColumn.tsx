@@ -1,5 +1,7 @@
 "use client";
 
+import ImageRatioPicker from "./ImageRatioPicker";
+
 import { useState } from "react";
 import {
   DEFAULT_IMAGE_MODEL_CREDIT_COST,
@@ -203,22 +205,8 @@ export default function ImageInputColumn({
         />
 
         <div className="flex items-center gap-2">
-          <select
-            value={size}
-            onChange={(e) => setSize(e.target.value)}
-            className="rounded-xl px-3 py-2.5 text-sm transition-colors duration-200 cursor-pointer flex-1"
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            {sizeOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <ImageRatioPicker size={size} model={imageModel} options={sizeOptions}
+            disabled={generating} onChange={setSize} />
 
           <button
             onClick={generating ? onStopGenerate : handleGenerate}

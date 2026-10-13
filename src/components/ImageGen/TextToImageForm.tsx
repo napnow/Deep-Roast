@@ -1,5 +1,8 @@
 "use client";
 
+import ImageRatioPicker from "./ImageRatioPicker";
+import { imageSizeLabel } from "@/lib/custom-image-ratio";
+
 import { Select } from "@/components/ui/Field";
 
 import type { TextToImageDraft } from "@/lib/image-workspace";
@@ -38,7 +41,7 @@ export default function TextToImageForm({
   );
   const settingsSummary = getCreationSettingsSummary({
     styleLabel: selectedStyle?.label,
-    sizeLabel: sizeOptions.find((option) => option.value === draft.size)?.label,
+    sizeLabel: sizeOptions.find((option) => option.value === draft.size)?.label || imageSizeLabel(draft.size),
     batchCount: draft.count,
   });
 
@@ -140,21 +143,11 @@ export default function TextToImageForm({
           </fieldset>
 
           <div className="creation-setting-grid">
-            <label className="creation-setting-group">
+            <div className="creation-setting-group">
               <span className="creation-section-label">图片比例</span>
-              <Select
-                className="ui-field creation-select"
-                value={draft.size}
-                disabled={disabled}
-                onChange={(event) => onChange({ size: event.target.value })}
-              >
-                {sizeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
+              <ImageRatioPicker size={draft.size} model={model} options={sizeOptions}
+                disabled={disabled} onChange={(size) => onChange({ size })} />
+            </div>
 
             <label className="creation-setting-group">
               <span className="creation-section-label">生成数量</span>
