@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
-import type { EditStyle } from "@/types";
+import { DEFAULT_IMAGE_MODEL_CREDIT_COST, type EditStyle } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import type { ImageToImageDraft } from "@/lib/image-workspace";
-import {
-  buildImageEditRequest,
-  type ImageEditUiState,
-} from "./image-edit-ui";
+import { buildImageEditRequest, type ImageEditUiState } from "./image-edit-ui";
 import {
   getActiveEditPrompt,
   getCreationSettingsSummary,
@@ -26,6 +23,9 @@ import { hydrateImg2ImgDraft } from "./image-to-image-draft";
 
 interface Img2ImgPanelProps {
   size: string;
+  imageModel?: string;
+  imageModelCosts?: Record<string, number>;
+  isAdmin?: boolean;
   /** 可选比例列表（与文生图一致：1:1 / 9:16 / 16:9 等） */
   sizeOptions?: { value: string; label: string }[];
   generating: boolean;
@@ -54,6 +54,9 @@ const MAX_REFS = 5;
 
 export default function Img2ImgPanel({
   size,
+  imageModel,
+  imageModelCosts,
+  isAdmin = false,
   sizeOptions,
   generating,
   disabled = false,
@@ -88,9 +91,37 @@ export default function Img2ImgPanel({
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
+  const uploadEpochRef = useRef(0);
+  const uploadReadersRef = useRef(new Set<FileReader>());
+  const editorScrollLocked = useRef(false);
+  const releaseEditorScroll = useCallback(() => {
+    if (!editorScrollLocked.current) return;
+    editorScrollLocked.current = false;
+    unlockPageScroll();
+  }, []);
+  const lockEditorScroll = useCallback(() => {
+    if (editorScrollLocked.current) return;
+    editorScrollLocked.current = true;
+    lockPageScroll();
+  }, []);
+  useEffect(() => releaseEditorScroll, [releaseEditorScroll]);
+
+  const invalidateUploads = useCallback(() => {
+    // Invalidate first: even an already-queued callback must not restore old assets.
+    uploadEpochRef.current += 1;
+    for (const reader of uploadReadersRef.current) {
+      reader.onload = null;
+      reader.onerror = null;
+      if (reader.readyState === FileReader.LOADING) reader.abort();
+    }
+    uploadReadersRef.current.clear();
+  }, []);
+
+  useEffect(() => invalidateUploads, [invalidateUploads]);
 
   useEffect(() => {
-    if (!draft || draft.refs.length === 0) return;
+    if (!draft) return;
+    invalidateUploads();
     const next = hydrateImg2ImgDraft(draft);
     setRefs(next.refs);
     setEdit(next.edit);
@@ -106,7 +137,7 @@ export default function Img2ImgPanel({
     setError("");
     setProcessing(false);
     setAnalyzing(false);
-  }, [draft]);
+  }, [draft, invalidateUploads]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,10 +160,11 @@ export default function Img2ImgPanel({
     (s) => s.id === styleId,
   );
   const activeTaskCount = editMode === "reference" ? 1 : refs.length;
+  const imageCostPerImage =
+    imageModelCosts?.[imageModel || ""] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
   const activeEditPrompt = getActiveEditPrompt(perImagePrompts, targetIndex);
-  const currentPrompt = editMode === "per-image" && refs.length > 0
-    ? activeEditPrompt
-    : edit;
+  const currentPrompt =
+    editMode === "per-image" && refs.length > 0 ? activeEditPrompt : edit;
   const currentSizeLabel =
     sizeOptions?.find((option) => option.value === editSize)?.label || editSize;
   const settingsSummary = getCreationSettingsSummary({
@@ -147,13 +179,9 @@ export default function Img2ImgPanel({
     if (!activeStyle) return userDesc;
     let prefix = activeStyle.prefix;
     const color =
-      styleColor ||
-      activeStyle.colors?.[0] ||
-      "fully saturated cobalt-blue";
+      styleColor || activeStyle.colors?.[0] || "fully saturated cobalt-blue";
     const texture =
-      styleTexture ||
-      activeStyle.textures?.[0] ||
-      "risograph grain";
+      styleTexture || activeStyle.textures?.[0] || "risograph grain";
     prefix = prefix.replace("{color}", color).replace("{texture}", texture);
     return `${prefix}\n\n用户的修改要求：${userDesc}`;
   }
@@ -172,6 +200,7 @@ export default function Img2ImgPanel({
 
   useEffect(() => {
     if (genRef.current && !generating) {
+      invalidateUploads();
       genRef.current = false;
       setProcessing(false);
       setRefs([]);
@@ -181,7 +210,7 @@ export default function Img2ImgPanel({
       setTargetIndex(0);
       setReferenceIndexes([]);
     }
-  }, [generating]);
+  }, [generating, invalidateUploads]);
 
   function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -202,23 +231,40 @@ export default function Img2ImgPanel({
     }
     const picked = files.slice(0, room);
     if (picked.length < files.length) {
-      setError(`参考图最多 ${MAX_REFS} 张，已忽略多余的 ${files.length - picked.length} 张`);
+      setError(
+        `参考图最多 ${MAX_REFS} 张，已忽略多余的 ${files.length - picked.length} 张`,
+      );
     }
 
+    // Selections append within one asset epoch; only replacing/clearing invalidates it.
+    const uploadEpoch = uploadEpochRef.current;
+    const isCurrentUpload = () => uploadEpochRef.current === uploadEpoch;
     picked.forEach((file) => {
       const reader = new FileReader();
+      uploadReadersRef.current.add(reader);
       reader.onload = () => {
+        uploadReadersRef.current.delete(reader);
+        if (!isCurrentUpload()) return;
         const preview = reader.result as string;
         // 压缩后用于编辑请求（避免大图撞 body 限制；预览用原图）
-          compressImageFile(file, 1536, 0.9)
-            .then((data) => {
+        compressImageFile(file, 1536, 0.9)
+          .then((data) => {
+            if (!isCurrentUpload()) return;
             setRefs((prev) => {
-              if (prev.length >= MAX_REFS) return prev;
-              setPerImagePrompts((prompts) => [...prompts, ""]);
+              if (!isCurrentUpload() || prev.length >= MAX_REFS) return prev;
+              setPerImagePrompts((prompts) =>
+                isCurrentUpload() ? [...prompts, ""] : prompts,
+              );
               return [...prev, { preview, base64: data }];
             });
           })
-          .catch(() => setError("读取图片失败"));
+          .catch(() => {
+            if (isCurrentUpload()) setError("读取图片失败");
+          });
+      };
+      reader.onerror = () => {
+        uploadReadersRef.current.delete(reader);
+        if (isCurrentUpload()) setError("读取图片失败");
       };
       reader.readAsDataURL(file);
     });
@@ -243,7 +289,9 @@ export default function Img2ImgPanel({
     setEditMode(mode);
     if (mode === "reference") {
       setReferenceIndexes((prev) =>
-        prev.filter((index) => index >= 0 && index < refs.length && index !== targetIndex),
+        prev.filter(
+          (index) => index >= 0 && index < refs.length && index !== targetIndex,
+        ),
       );
     }
   }
@@ -357,6 +405,7 @@ export default function Img2ImgPanel({
   }
 
   function clearAll() {
+    invalidateUploads();
     abortRef.current?.abort();
     setRefs([]);
     setEdit("");
@@ -374,9 +423,13 @@ export default function Img2ImgPanel({
       <div className="img2img-workbench__heading">
         <div>
           <span className="ui-kicker">图生图</span>
-          <p className="img2img-workbench__subtitle">上传素材，选择目标后描述修改</p>
+          <p className="img2img-workbench__subtitle">
+            上传素材，选择目标后描述修改
+          </p>
         </div>
-        <span className="img2img-workbench__count">{refs.length}/{MAX_REFS}</span>
+        <span className="img2img-workbench__count">
+          {refs.length}/{MAX_REFS}
+        </span>
       </div>
 
       {disabled ? (
@@ -400,9 +453,14 @@ export default function Img2ImgPanel({
       >
         <div className="img2img-assets__toolbar">
           <div className="creation-step-card__heading">
-            <span className="creation-step-card__number" aria-hidden="true">01</span>
+            <span className="creation-step-card__number" aria-hidden="true">
+              01
+            </span>
             <div>
-              <h2 id="img2img-assets-title" className="creation-step-card__title">
+              <h2
+                id="img2img-assets-title"
+                className="creation-step-card__title"
+              >
                 参考素材
               </h2>
               <p className="creation-step-card__description">
@@ -523,7 +581,9 @@ export default function Img2ImgPanel({
           aria-label="图生图任务"
         >
           <div className="creation-step-card__heading">
-            <span className="creation-step-card__number" aria-hidden="true">02</span>
+            <span className="creation-step-card__number" aria-hidden="true">
+              02
+            </span>
             <div>
               <h2 className="creation-step-card__title">修改任务</h2>
               <p className="creation-step-card__description">
@@ -532,7 +592,11 @@ export default function Img2ImgPanel({
             </div>
           </div>
           <div className="img2img-task__header">
-            <div className="creation-segmented" role="tablist" aria-label="处理方式">
+            <div
+              className="creation-segmented"
+              role="tablist"
+              aria-label="处理方式"
+            >
               {(
                 [
                   ["per-image", "分别修改"],
@@ -553,7 +617,9 @@ export default function Img2ImgPanel({
               ))}
             </div>
             <span className="img2img-task__mode-copy">
-              {editMode === "reference" ? "一张目标图 + 多张参考图" : "逐张编辑"}
+              {editMode === "reference"
+                ? "一张目标图 + 多张参考图"
+                : "逐张编辑"}
             </span>
           </div>
 
@@ -593,19 +659,20 @@ export default function Img2ImgPanel({
             <textarea
               value={currentPrompt}
               onChange={(event) => updateCurrentPrompt(event.target.value)}
-              onFocus={lockPageScroll}
-              onBlur={unlockPageScroll}
+              onFocus={lockEditorScroll}
+              onBlur={releaseEditorScroll}
               placeholder={
                 editMode === "reference"
                   ? "描述你想要的修改…"
                   : "例如：把背景改成海边日落，保留主体不变…"
               }
               rows={4}
+              maxLength={8000}
               disabled={processing}
               className="creation-composer__input"
             />
             <span className="creation-composer__counter">
-              {currentPrompt.length} / 1000
+              {currentPrompt.length} / 8000
             </span>
           </label>
 
@@ -615,10 +682,11 @@ export default function Img2ImgPanel({
               <textarea
                 value={edit}
                 onChange={(event) => setEdit(event.target.value)}
-                onFocus={lockPageScroll}
-                onBlur={unlockPageScroll}
+                onFocus={lockEditorScroll}
+                onBlur={releaseEditorScroll}
                 placeholder="例如：整体保持原构图，只统一色调…"
                 rows={2}
+                maxLength={8000}
                 disabled={processing}
                 className="img2img-shared-prompt__input"
               />
@@ -631,21 +699,26 @@ export default function Img2ImgPanel({
           <textarea
             value={edit}
             onChange={(event) => setEdit(event.target.value)}
-            onFocus={lockPageScroll}
-            onBlur={unlockPageScroll}
+            onFocus={lockEditorScroll}
+            onBlur={releaseEditorScroll}
             placeholder="上传参考图后，描述你想要的修改…"
             rows={4}
+            maxLength={8000}
             disabled={processing}
             className="creation-composer__input"
           />
-          <span className="creation-composer__counter">{edit.length} / 1000</span>
+          <span className="creation-composer__counter">
+            {edit.length} / 8000
+          </span>
         </label>
       )}
 
       <details className="creation-settings creation-step-card">
         <summary>
           <span className="creation-step-card__summary">
-            <span className="creation-step-card__number" aria-hidden="true">03</span>
+            <span className="creation-step-card__number" aria-hidden="true">
+              03
+            </span>
             <span>
               <span className="creation-settings__title">更多设置</span>
               <span className="creation-step-card__description">
@@ -781,16 +854,36 @@ export default function Img2ImgPanel({
             </div>
             <p className="creation-setting-hint">
               {batchCount > 1
-                ? "共 " + batchCount * activeTaskCount * 5 + " 积分"
+                ? "共 " +
+                  batchCount * activeTaskCount * imageCostPerImage +
+                  " 积分"
                 : editMode === "reference"
-                  ? "参考模式每张 5 积分"
-                  : "预计 " + activeTaskCount * 5 + " 积分"}
+                  ? "参考模式每张 " + imageCostPerImage + " 积分"
+                  : "预计 " + activeTaskCount * imageCostPerImage + " 积分"}
             </p>
           </section>
         </div>
       </details>
 
       <div className="img2img-action">
+        {!processing ? (
+          <div className="img2img-action-summary" aria-label="图生图费用">
+            <span>本次 {batchCount * activeTaskCount} 张</span>
+            <span>
+              {isAdmin ? (
+                "管理员免费"
+              ) : (
+                <>
+                  预计{" "}
+                  <strong>
+                    {batchCount * activeTaskCount * imageCostPerImage}
+                  </strong>{" "}
+                  积分
+                </>
+              )}
+            </span>
+          </div>
+        ) : null}
         {processing ? (
           <>
             <span className="img2img-action__progress" aria-hidden="true">
@@ -799,12 +892,14 @@ export default function Img2ImgPanel({
               <span />
             </span>
             <span className="img2img-action__status">
-              {analyzing
-                ? "正在分析图片… "
-                : "正在生成图片… "}
+              {analyzing ? "正在分析图片… " : "正在生成图片… "}
               {formatTime(elapsed)}
             </span>
-            <button type="button" onClick={handleStop} className="ui-button ui-button--danger">
+            <button
+              type="button"
+              onClick={handleStop}
+              className="ui-button ui-button--danger"
+            >
               停止生成
             </button>
           </>

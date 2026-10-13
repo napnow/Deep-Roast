@@ -3,6 +3,8 @@ import {
   users,
   conversations,
   imageGenerations,
+  creditTransactions,
+  apiKeys,
   messages,
   registrationRecords,
 } from "@/db/schema";
@@ -18,6 +20,7 @@ import {
   protectedImageUrl,
   withImageOwner,
 } from "@/server/services/private-images";
+import { getLastActivityAt } from "./stale-user-activity";
 
 export async function listUsersWithStats() {
   const userRows = await db
@@ -27,8 +30,33 @@ export async function listUsersWithStats() {
       role: users.role,
       credits: users.credits,
       status: users.status,
+      cleanupProtected: users.cleanupProtected,
       createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
+      lastLoginAt: users.lastLoginAt,
+      lastCheckinOn: users.lastCheckinOn,
+      latestCheckinAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'checkin'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestConsumeAt: sql<Date | null>`(
+        SELECT ${creditTransactions.createdAt}
+        FROM ${creditTransactions}
+        WHERE ${creditTransactions.userId} = ${users.id}
+          AND ${creditTransactions.type} = 'consume'
+        ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
+      latestApiUseAt: sql<Date | null>`(
+        SELECT ${apiKeys.lastUsedAt}
+        FROM ${apiKeys}
+        WHERE ${apiKeys.userId} = ${users.id}
+        ORDER BY ${apiKeys.lastUsedAt} DESC NULLS LAST
+        LIMIT 1
+      )`,
     })
     .from(users)
     .orderBy(desc(users.createdAt));
@@ -59,17 +87,18 @@ export async function listUsersWithStats() {
         .orderBy(desc(imageGenerations.createdAt))
         .limit(1);
 
-      let lastActive: string | null = null;
       const convTime = latestConvs[0]?.updatedAt;
       const imgTime = latestImages[0]?.createdAt;
-      // 登录时间（users.updatedAt）也计入最近使用
-      const loginTime = user.updatedAt;
-      if (convTime || imgTime || loginTime) {
-        const a = convTime ? new Date(String(convTime)).getTime() : 0;
-        const b = imgTime ? new Date(String(imgTime)).getTime() : 0;
-        const c = loginTime ? new Date(String(loginTime)).getTime() : 0;
-        lastActive = new Date(Math.max(a, b, c)).toISOString();
-      }
+      const lastActive = getLastActivityAt({
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+        lastCheckinOn: user.lastCheckinOn,
+        latestCheckinAt: user.latestCheckinAt,
+        latestConsumeAt: user.latestConsumeAt,
+        latestApiUseAt: user.latestApiUseAt,
+        latestConversationAt: convTime,
+        latestImageAt: imgTime,
+      }).toISOString();
 
       return {
         id: user.id,
@@ -77,6 +106,7 @@ export async function listUsersWithStats() {
         role: user.role,
         credits: user.credits,
         status: user.status ?? "active",
+        cleanupProtected: user.cleanupProtected,
         conversationCount: convCount?.count ?? 0,
         imageCount: imgCount?.count ?? 0,
         createdAt: user.createdAt,
@@ -124,6 +154,29 @@ export async function setUserStatus(
       role: users.role,
       status: users.status,
       credits: users.credits,
+    });
+  return row!;
+}
+
+export async function setUserCleanupProtected(
+  userId: string,
+  cleanupProtected: boolean,
+) {
+  const [target] = await db.select().from(users).where(eq(users.id, userId));
+  if (!target) throw new ApiError("用户不存在", 404);
+  assertNotAdminTarget(target.role);
+
+  const [row] = await db
+    .update(users)
+    .set({ cleanupProtected, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      credits: users.credits,
+      status: users.status,
+      cleanupProtected: users.cleanupProtected,
     });
   return row!;
 }
@@ -199,6 +252,9 @@ export async function listUserImages(userId: string) {
       return {
         ...row,
         imageUrl: withImageOwner(protectedImageUrl(row.storageKey), userId),
+        // The image route authorizes by the original storage key, then resolves
+        // thumb=1 to thumbStorageKey on disk.
+        thumbUrl: withImageOwner(protectedImageUrl(row.storageKey, true), userId),
       };
     }
     const legacyKey =
@@ -209,6 +265,10 @@ export async function listUserImages(userId: string) {
       ? {
           ...row,
           imageUrl: withImageOwner(protectedLegacyImageUrl(legacyKey), userId),
+          thumbUrl: withImageOwner(
+            protectedLegacyImageUrl(legacyKey, true),
+            userId,
+          ),
         }
       : row;
   });

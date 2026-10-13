@@ -7,6 +7,7 @@ export default function AdminSiteSettingsCard() {
   const [text, setText] = useState("");
   const [imagePath, setImagePath] = useState("");
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [signupBonusCredits, setSignupBonusCredits] = useState("50");
   const [registrationIpLimitEnabled, setRegistrationIpLimitEnabled] =
     useState(false);
   const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
@@ -24,6 +25,7 @@ export default function AdminSiteSettingsCard() {
         adminContactText: string;
         adminContactImagePath: string;
         registrationEnabled?: boolean;
+        signupBonusCredits?: number;
         registrationIpLimitEnabled?: boolean;
         imageGenerationEnabled?: boolean;
         invitationEnabled?: boolean;
@@ -36,6 +38,7 @@ export default function AdminSiteSettingsCard() {
       setText(data.adminContactText || "");
       setImagePath(data.adminContactImagePath || "");
       setRegistrationEnabled(data.registrationEnabled !== false);
+      setSignupBonusCredits(String(data.signupBonusCredits ?? 50));
       setRegistrationIpLimitEnabled(data.registrationIpLimitEnabled === true);
       setImageGenerationEnabled(data.imageGenerationEnabled !== false);
       setInvitationEnabled(data.invitationEnabled !== false);
@@ -131,6 +134,30 @@ export default function AdminSiteSettingsCard() {
       setMsg(next ? "已开放注册" : "已关闭注册");
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function saveSignupBonusCredits() {
+    const raw = signupBonusCredits.trim();
+    if (!/^\d+$/.test(raw)) {
+      setMsg("注册赠送积分必须是非负整数（校验失败）");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ signupBonusCredits?: number }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ signupBonusCredits: Number(raw) }),
+        },
+      );
+      setSignupBonusCredits(String(data.signupBonusCredits ?? raw));
+      setMsg("注册赠送积分已保存，仅影响后续注册");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "保存失败");
     }
     setSaving(false);
   }
@@ -309,6 +336,41 @@ export default function AdminSiteSettingsCard() {
                   }}
                 />
                 {registrationEnabled ? "开放中" : "已关闭"}
+              </button>
+            </div>
+
+            <div
+              className="flex flex-wrap items-end gap-2 rounded-[var(--radius)] px-3.5 py-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <label className="flex-1 min-w-[12rem]">
+                <span
+                  className="mb-1.5 block text-[11px] font-semibold"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  注册赠送积分
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={signupBonusCredits}
+                  onChange={(e) => setSignupBonusCredits(e.target.value)}
+                  className="admin-input"
+                  inputMode="numeric"
+                  aria-label="注册赠送积分"
+                />
+              </label>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveSignupBonusCredits}
+                className="admin-btn admin-btn--solid shrink-0"
+              >
+                保存赠送积分
               </button>
             </div>
 

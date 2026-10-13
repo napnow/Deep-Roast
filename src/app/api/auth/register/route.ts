@@ -22,6 +22,7 @@ import {
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
 const INVITE_CODE_RETRIES = 3;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
 
 /** 生产环境白名单 IP（逗号分隔），这些 IP 不受单 IP 注册限制 */
 const BYPASS_IPS = (process.env.REGISTRATION_BYPASS_IPS || "")
@@ -88,6 +89,7 @@ async function registerInTransaction(args: {
         invitationReward: siteSettings.invitationReward,
         invitationInviteeReward: siteSettings.invitationInviteeReward,
         registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
+        signupBonusCredits: siteSettings.signupBonusCredits,
       })
       .from(siteSettings)
       .where(eq(siteSettings.id, 1))
@@ -140,13 +142,16 @@ async function registerInTransaction(args: {
       inviter = row;
     }
 
+    const signupBonusCredits = settings?.signupBonusCredits ?? 50;
+
     const [user] = await tx
       .insert(users)
       .values({
         username,
         password: hashedPassword,
-        credits: 50,
+        credits: signupBonusCredits,
         inviteCode: createInviteCode(),
+        lastLoginAt: new Date(),
       })
       .returning({ id: users.id, username: users.username, role: users.role });
 
@@ -155,8 +160,8 @@ async function registerInTransaction(args: {
     await tx.insert(creditTransactions).values({
       userId: user.id,
       type: "signup_bonus",
-      amount: 50,
-      balanceAfter: 50,
+      amount: signupBonusCredits,
+      balanceAfter: signupBonusCredits,
       note: "新用户注册赠送",
     });
 
@@ -177,6 +182,14 @@ async function registerInTransaction(args: {
       );
 
       if (reward !== null && inviteeReward !== null) {
+        if (signupBonusCredits > POSTGRES_INTEGER_MAX - inviteeReward) {
+          throw new ApiError(
+            "注册赠送积分与邀请奖励之和超过积分上限，请先调整配置",
+            400,
+            "CREDIT_LIMIT_EXCEEDED",
+          );
+        }
+
         const [updatedInviter] = await tx
           .update(users)
           .set({

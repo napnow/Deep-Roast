@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "dialect": "postgresql",
+  "schemaFile": "src/db/schema.ts",
+  "sqlFile": "baseline.sql",
+  "normalization": "utf8-lf-trim-trailing-whitespace-v1",
+  "schemaSha256": "c111cdeec44811599edd45ae33ac1283f9773e9a32e166894ee274cb24f8458f",
+  "sqlSha256": "64cb16ce806c2cf4e7c46b87a144238d56a558a25a46cbc040eeeeecba1ae987",
+  "journalEntryCount": 23,
+  "journalLastTag": "0027_image_model_credit_costs",
+  "journalLastTimestamp": 1789000000000,
+  "generator": "drizzle-kit 0.31.10 export --dialect=postgresql --schema=./src/db/schema.ts",
+  "ledgerHashFormat": "baseline:v1:sha256:<sqlSha256>",
+  "purpose": "Schema-only fresh bootstrap; one ledger marker skips non-replayable history. Never apply to an existing database."
+}

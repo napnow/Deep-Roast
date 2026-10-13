@@ -1,7 +1,10 @@
 "use client";
 
+import { useActionFeedback } from "@/hooks/useActionFeedback";
+import { copyText } from "@/lib/browser-actions";
 import { useState, useEffect, useRef } from "react";
 import { useDeepRoastStore } from "@/lib/store";
+import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
 import { formatTime, compressImageFile } from "./imageUtils";
 
 interface ReversePromptPanelProps {
@@ -25,10 +28,24 @@ export default function ReversePromptPanel({
   const [elapsed, setElapsed] = useState(0);
   // 反推结果：面板内展示，可编辑后回填文生图
   const [result, setResult] = useState("");
+  const copy = useActionFeedback(result);
   const fileRef = useRef<HTMLInputElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [requests] = useState(() => createClientSessionLifecycle());
+  const userSessionVersion = useDeepRoastStore(
+    (state) => state.userSessionVersion,
+  );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    requests.activate();
+    setPreview(null);
+    setBase64(null);
+    setResult("");
+    setError("");
+    setPrompting(false);
+    return () => requests.dispose();
+  }, [requests, userSessionVersion]);
 
   // 分析完成：自动滚动到结果卡片（面板内可能被折叠在下方）
   useEffect(() => {
@@ -56,64 +73,81 @@ export default function ReversePromptPanel({
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    abortRef.current?.abort();
+    requests.invalidate();
+    const request = requests.start("upload", userSessionVersion);
+    if (!request) return;
     setError("");
     setPrompting(false);
+    setPreview(null);
     setBase64(null);
-
-    // 压缩后用于分析（避免大图撞 body 限制；预览用原图）
+    setResult("");
     compressImageFile(file)
       .then((data) => {
+        if (!request.isCurrent()) return;
         setBase64(data);
         const reader = new FileReader();
-        reader.onload = () => setPreview(reader.result as string);
+        const abort = () => {
+          if (reader.readyState === FileReader.LOADING) reader.abort();
+        };
+        request.signal.addEventListener("abort", abort, { once: true });
+        reader.onload = () => {
+          if (request.isCurrent()) setPreview(reader.result as string);
+          request.signal.removeEventListener("abort", abort);
+          request.finish();
+        };
+        reader.onerror = () => {
+          if (request.isCurrent()) setError("读取图片失败");
+          request.signal.removeEventListener("abort", abort);
+          request.finish();
+        };
         reader.readAsDataURL(file);
       })
-      .catch(() => setError("读取图片失败"));
+      .catch(() => {
+        if (request.isCurrent()) setError("读取图片失败");
+        request.finish();
+      });
     e.target.value = "";
   }
 
   async function handleReverse() {
-    if (!base64) return;
+    if (!base64 || disabled) return;
+    const request = requests.start("reverse", userSessionVersion);
+    if (!request) return;
     setError("");
     setPrompting(true);
-    const abort = new AbortController();
-    abortRef.current = abort;
-
     try {
       const res = await fetch("/api/reverse-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64 }),
-        signal: abort.signal,
+        signal: request.signal,
       });
+      if (!request.isCurrent()) return;
+      const data = await res.json();
+      if (!request.isCurrent()) return;
       if (!res.ok) {
-        const err = await res.json();
-        setError(err.error || "分析失败");
-        setPrompting(false);
+        setError(data.error || "分析失败");
         return;
       }
-      const data = await res.json();
-      setResult(data.prompt || "");
-      onPrompt(data.prompt);
-      setPrompting(false);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("已停止分析");
-      } else {
-        setError("网络错误");
-      }
-      setPrompting(false);
+      const prompt = typeof data.prompt === "string" ? data.prompt : "";
+      setResult(prompt);
+      onPrompt(prompt);
+    } catch {
+      if (request.isCurrent()) setError("网络错误");
+    } finally {
+      if (request.isCurrent()) setPrompting(false);
+      request.finish();
     }
   }
 
   function handleStop() {
-    abortRef.current?.abort();
+    requests.cancel("reverse");
     setPrompting(false);
+    setError("已停止分析");
   }
 
   function clearUpload() {
-    abortRef.current?.abort();
+    requests.invalidate();
     setPreview(null);
     setBase64(null);
     setError("");
@@ -203,7 +237,10 @@ export default function ReversePromptPanel({
         )}
 
         {preview && !prompting && !error && (
-          <p className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
+          <p
+            className="text-[11px] truncate"
+            style={{ color: "var(--text-muted)" }}
+          >
             点击「分析图片」提取提示词
           </p>
         )}
@@ -241,7 +278,10 @@ export default function ReversePromptPanel({
       )}
 
       {error && (
-        <p className="text-[11px] animate-fade-in" style={{ color: "var(--danger)" }}>
+        <p
+          className="text-[11px] animate-fade-in"
+          style={{ color: "var(--danger)" }}
+        >
           ✗ {error}
         </p>
       )}
@@ -300,8 +340,10 @@ export default function ReversePromptPanel({
             </button>
             <button
               type="button"
+              disabled={copy.status === "pending"}
+              aria-busy={copy.status === "pending"}
               onClick={() => {
-                navigator.clipboard.writeText(result);
+                void copy.run(() => copyText(result), "反推提示词已复制");
               }}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95"
               style={{
@@ -310,7 +352,11 @@ export default function ReversePromptPanel({
                 color: "var(--text-secondary)",
               }}
             >
-              复制
+              {copy.status === "pending"
+                ? "正在复制…"
+                : copy.status === "success"
+                  ? "已复制"
+                  : "复制"}
             </button>
           </div>
         </div>

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
+import Button from "@/components/ui/Button";
+import { copyText } from "@/lib/browser-actions";
+import { useActionFeedback } from "@/hooks/useActionFeedback";
 import { ThinkingOrb } from "thinking-orbs";
 import type { ImageRecord } from "@/types";
 import type { ImageTaskState } from "@/lib/image-task";
@@ -19,6 +22,7 @@ interface ResultCanvasProps {
   onRetry: () => void;
   onStop: () => void;
   onClose: () => void;
+  onWalletClick?: () => void;
 }
 
 export default function ResultCanvas({
@@ -32,10 +36,11 @@ export default function ResultCanvas({
   onRetry,
   onStop,
   onClose,
+  onWalletClick,
 }: ResultCanvasProps) {
   if (task.status === "generating") {
     return (
-      <main className="result-canvas" aria-live="polite">
+      <section className="result-canvas" aria-live="polite">
         <section className="result-state-card is-working">
           <ThinkingOrb state="working" size={64} />
           <div>
@@ -44,50 +49,82 @@ export default function ResultCanvas({
               {task.request?.count || 1} 张 · {formatTime(elapsedSeconds)}
             </p>
           </div>
-          <button className="workspace-button is-secondary" onClick={onStop}>
+          <button
+            className="workspace-button is-secondary result-canvas-stop"
+            onClick={onStop}
+          >
             停止生成
           </button>
         </section>
-      </main>
+      </section>
     );
   }
 
   if (task.status === "error") {
-    const title = task.error?.kind === "credits" ? "积分不足" : "生成没有完成";
+    const kind = task.error?.kind;
+    const title =
+      kind === "credits"
+        ? "积分不足"
+        : kind === "network"
+          ? "网络连接中断"
+          : "服务暂时没有完成生成";
     return (
-      <main className="result-canvas" aria-live="assertive">
+      <section className="result-canvas" aria-live="assertive">
         <section className="result-state-card is-error">
           <span className="result-error-mark">!</span>
           <div>
             <p className="result-state-title">{title}</p>
             <p className="result-state-copy">{task.error?.message}</p>
           </div>
-          <button className="workspace-button" onClick={onRetry}>
-            <AppIcon name="refresh" size={15} />
-            重新生成
-          </button>
+          <p className="result-state-copy">
+            {kind === "credits"
+              ? "查看余额后调整生成数量，描述和参数已保留。"
+              : kind === "network"
+                ? "请先检查网络，描述和参数已保留，可返回修改或手动重试。"
+                : "可以稍后重试或返回调整参数，不会自动再次提交。"}
+          </p>
+          <div className="result-error-actions">
+            {kind === "credits" ? (
+              onWalletClick && (
+                <Button variant="primary" onClick={onWalletClick}>
+                  查看积分
+                </Button>
+              )
+            ) : (
+              <Button variant="primary" onClick={onRetry}>
+                <AppIcon name="refresh" size={15} />
+                重新生成
+              </Button>
+            )}
+            <Button onClick={onClose}>返回修改</Button>
+          </div>
         </section>
-      </main>
+      </section>
     );
   }
 
-  const visibleResults = results.length > 0 ? results : activeImage ? [activeImage] : [];
+  const visibleResults =
+    results.length > 0 ? results : activeImage ? [activeImage] : [];
   if (visibleResults.length === 0) {
     return (
-      <main className="result-canvas">
+      <section className="result-canvas">
         <section className="result-state-card is-idle">
           <div>
             <p className="result-state-title">创作舞台已就绪</p>
-            <p className="result-state-copy">从左侧输入提示词，生成结果会集中出现在这里</p>
+            <p className="result-state-copy">
+              描述你想要的画面，生成结果会集中出现在这里
+            </p>
           </div>
         </section>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="result-canvas">
-      <div className={`result-grid ${visibleResults.length === 1 ? "is-single" : ""}`}>
+    <section className="result-canvas">
+      <div
+        className={`result-grid ${visibleResults.length === 1 ? "is-single" : ""}`}
+      >
         {visibleResults.map((image) => (
           <ResultCard
             key={image.id}
@@ -99,7 +136,7 @@ export default function ResultCanvas({
           />
         ))}
       </div>
-    </main>
+    </section>
   );
 }
 
@@ -117,20 +154,20 @@ function ResultCard({
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(image.prompt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [image.prompt]);
-
-  const handleDownload = useCallback(() => {
-    downloadImage(image);
-    setDownloaded(true);
-    setTimeout(() => setDownloaded(false), 1500);
-  }, [image]);
+  const copy = useActionFeedback(`${image.id}:copy`);
+  const download = useActionFeedback(`${image.id}:download`);
+  const copied = copy.status === "success";
+  const downloaded = download.status === "success";
+  const handleCopy = () => {
+    void copy.run(() => copyText(image.prompt), "提示词已复制");
+  };
+  const handleDownload = () => {
+    void download.run(
+      (signal) => downloadImage(image, signal),
+      "已发起下载",
+      "下载未完成，请检查网络后重试。",
+    );
+  };
 
   return (
     <article className="result-card">
@@ -144,13 +181,15 @@ function ResultCard({
       </button>
       <footer className="result-card-footer">
         <div className="min-w-0 flex-1">
-          <p
+          <button
+            type="button"
+            aria-expanded={expanded}
             className={`result-prompt ${expanded ? "is-expanded" : ""}`}
             onClick={() => setExpanded(!expanded)}
             title={expanded ? "点击收起" : "点击展开全部提示词"}
           >
             {image.prompt}
-          </p>
+          </button>
           <p className="result-meta">
             {image.size}
             {lastGenTime != null ? ` · ${formatTime(lastGenTime)}` : ""}
@@ -170,7 +209,15 @@ function ResultCard({
             type="button"
             className={`icon-button ${copied ? "is-success" : ""}`}
             onClick={handleCopy}
-            aria-label={copied ? "已复制" : "复制提示词"}
+            disabled={copy.status === "pending"}
+            aria-busy={copy.status === "pending"}
+            aria-label={
+              copied
+                ? "已复制"
+                : copy.status === "pending"
+                  ? "正在复制"
+                  : "复制提示词"
+            }
           >
             <AppIcon name={copied ? "check" : "copy"} />
           </button>
@@ -178,7 +225,15 @@ function ResultCard({
             type="button"
             className={`icon-button is-accent ${downloaded ? "is-success" : ""}`}
             onClick={handleDownload}
-            aria-label={downloaded ? "已下载" : "下载图片"}
+            disabled={download.status === "pending"}
+            aria-busy={download.status === "pending"}
+            aria-label={
+              downloaded
+                ? "已发起下载"
+                : download.status === "pending"
+                  ? "准备下载中"
+                  : "下载图片"
+            }
           >
             <AppIcon name={downloaded ? "check" : "download"} />
           </button>

@@ -1,6 +1,7 @@
 import type { ImageEditTask } from "@/lib/image-edit-contract";
 import {
   normalizeImageEditCount,
+  isImageRefundPending,
   publicImageEditError,
 } from "./image-edit-tasks";
 
@@ -22,6 +23,7 @@ export interface ImageEditTaskRun<T> {
   succeeded: number;
   failed: number;
   lastError: string | null;
+  refundPending?: true;
 }
 
 export async function executeImageEditTasks<T>(
@@ -33,6 +35,7 @@ export async function executeImageEditTasks<T>(
   const images: Array<ExecutedImageEditResult<T>> = [];
   let failed = 0;
   let lastError: string | null = null;
+  let pendingRefundMessage: string | null = null;
 
   for (let taskIndex = 0; taskIndex < tasks.length; taskIndex += 1) {
     const task = tasks[taskIndex]!;
@@ -42,7 +45,8 @@ export async function executeImageEditTasks<T>(
         images.push({ result, taskIndex, targetIndex: task.targetIndex });
       } catch (error) {
         failed += 1;
-        lastError = publicImageEditError(error);
+        if (isImageRefundPending(error)) pendingRefundMessage = publicImageEditError(error);
+        lastError = pendingRefundMessage ?? publicImageEditError(error);
       }
     }
   }
@@ -53,5 +57,6 @@ export async function executeImageEditTasks<T>(
     succeeded: images.length,
     failed,
     lastError,
+    ...(pendingRefundMessage ? { refundPending: true as const } : {}),
   };
 }

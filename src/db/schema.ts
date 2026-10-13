@@ -108,6 +108,22 @@ export const llmChannelModels = pgTable(
   }),
 );
 
+// Per-image credit cost for each normalized image model id.
+export const imageModelCreditCosts = pgTable(
+  "image_model_credit_costs",
+  {
+    modelId: text("model_id").primaryKey(),
+    creditsPerImage: integer("credits_per_image").notNull().default(5),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => ({
+    minimumCost: check(
+      "image_model_credit_costs_credits_per_image_check",
+      sql`${table.creditsPerImage} >= 1`,
+    ),
+  }),
+);
+
 // ── Site settings (single row): admin contact on login, etc. ──
 export const siteSettings = pgTable(
   "site_settings",
@@ -119,6 +135,10 @@ export const siteSettings = pgTable(
       .default(""),
     /** 是否开放注册；关闭后 register API 与登录页注册入口不可用 */
     registrationEnabled: integer("registration_enabled").notNull().default(1), // 1=开 0=关
+    /** 新用户注册赠送积分，允许为 0 */
+    signupBonusCredits: integer("signup_bonus_credits")
+      .notNull()
+      .default(50),
     /** 同一 IP 是否只能注册一个账号（1=开 0=关） */
     registrationIpLimitEnabled: integer("registration_ip_limit_enabled")
       .notNull()
@@ -147,6 +167,10 @@ export const siteSettings = pgTable(
   },
   (table) => ({
     singleRowCheck: check("site_settings_single_row", sql`${table.id} = 1`),
+    signupBonusCreditsNonNegative: check(
+      "site_settings_signup_bonus_credits_non_negative",
+      sql`${table.signupBonusCredits} >= 0`,
+    ),
     invitationRewardNonNegative: check(
       "site_settings_invitation_reward_non_negative",
       sql`${table.invitationReward} >= 0`,
@@ -171,6 +195,8 @@ export const users = pgTable("users", {
   credits: integer("credits").notNull().default(50), // 积分余额（新用户注册赠送 50）
   /** active | banned */
   status: text("status").notNull().default("active"),
+  /** 永久保号：不参与管理员的三天未使用账号清理 */
+  cleanupProtected: boolean("cleanup_protected").default(false).notNull(),
   /** 普通用户固定邀请代码；管理员保持 NULL */
   inviteCode: text("invite_code").unique(),
   /** 升级前的长邀请码；保留用于兼容已经发出的邀请链接 */
@@ -178,6 +204,7 @@ export const users = pgTable("users", {
   /** 上次签到的 Asia/Shanghai 日历日 YYYY-MM-DD */
   lastCheckinOn: text("last_checkin_on"),
   createdAt: timestamp("created_at").defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   legacyInviteCodeUnique: uniqueIndex("users_legacy_invite_code_unique").on(

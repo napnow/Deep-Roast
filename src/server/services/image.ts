@@ -5,7 +5,6 @@ import { getConfig } from "@/lib/config";
 import { mkdir, unlink, access, readFile, open, rename, chmod, type FileHandle } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { CREDIT_PER_IMAGE } from "@/types";
 import { ApiError } from "@/server/http";
 import {
   isConfiguredModelEnabled,
@@ -17,6 +16,10 @@ import {
   type CreditReservation,
 } from "@/server/services/credits";
 import {
+  calculateImageCreditCost,
+  getImageModelCreditCost,
+} from "@/server/services/image-costs";
+import {
   requestPublicHttpsBuffer,
   requestPublicHttpsResponse,
 } from "@/server/safe-http";
@@ -24,10 +27,10 @@ import { assertImageGenerationAllowed } from "@/server/services/site-settings";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import {
   PUBLIC_IMAGE_EDIT_ERROR,
-  calculateImageEditCost,
   normalizeImageEditCount,
   normalizeImageEditRequest,
 } from "./image-edit-tasks";
+import { isGptImageModel } from "@/lib/image-model-capabilities";
 import { executeImageEditTasks } from "./image-edit-runner";
 import {
   privateImagePath,
@@ -38,7 +41,7 @@ import {
 } from "./private-images";
 import { providerIdempotencyKey } from "./request-idempotency";
 
-const MAX_PROMPT_LENGTH = 2000;
+const MAX_PROMPT_LENGTH = 8000;
 
 export const MAX_IMAGE_EDGE = 2048;
 export const MAX_IMAGE_PIXELS = 4_194_304;
@@ -93,7 +96,6 @@ const NATIVE_SIZES = [
 ];
 
 /** 需要走「原生尺寸 + 精确裁切」的模型（其他模型直接用请求 size） */
-const CROP_MODELS = new Set(["gpt-image-2"]);
 const STANDARD_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024"]);
 
 class RetryableImageUpstreamError extends Error {}
@@ -103,7 +105,7 @@ export function assertImageSize(size: string, model: string): string {
   const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
 
   // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
-  if (CROP_MODELS.has(model)) {
+  if (isGptImageModel(model)) {
     if (!dimensions) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
@@ -582,6 +584,8 @@ export async function generateImage(opts: {
   size?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
+  /** 内部批量调用复用同一次请求解析出的费用 */
+  creditCostOverride?: number;
 }) {
   const {
     userId,
@@ -610,6 +614,8 @@ export async function generateImage(opts: {
     throw new ApiError("指定的模型不可用", 400);
   }
   const size = assertImageSize(requestedSize, model);
+  const imageCreditCost =
+    opts.creditCostOverride ?? (await getImageModelCreditCost(model));
 
   const chargeCredits = role !== "admin";
 
@@ -626,7 +632,7 @@ export async function generateImage(opts: {
 
   if (!apiKey) {
     const isGrok = model.startsWith("grok-");
-    const isGpt = model === "gpt-image-2";
+    const isGpt = isGptImageModel(model);
     throw new ApiError(
       isGrok
         ? "请在 .env.local 中设置 GROK_API_KEY"
@@ -642,14 +648,14 @@ export async function generateImage(opts: {
 
   // 仅 gpt-image-2：标准比例映射到最近原生尺寸生成，落盘前精确裁切；
   // 其他模型（seedream/grok 等）直接用请求 size，不裁切
-  const needsCrop = CROP_MODELS.has(model);
+  const needsCrop = isGptImageModel(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
   let reservation: CreditReservation | null = null;
   let lastError: unknown;
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
       userId,
-      CREDIT_PER_IMAGE,
+      imageCreditCost,
       `预扣生成图片: ${prompt.slice(0, 50)}`,
     );
   }
@@ -798,6 +804,8 @@ async function editImageOnce(opts: {
   size?: string;
   idempotencyKey?: string;
   operationIndex?: number;
+  /** 内部批量调用复用同一次请求解析出的费用 */
+  creditCostOverride?: number;
 }): Promise<EditImageResult> {
   const {
     userId,
@@ -830,6 +838,8 @@ async function editImageOnce(opts: {
   }
 
   const size = assertImageSize(requestedSize, model);
+  const imageCreditCost =
+    opts.creditCostOverride ?? (await getImageModelCreditCost(model));
   const chargeCredits = role !== "admin";
 
   const { apiKey, baseUrl, maxRetries, enforcePublicHttps } = await resolveConfiguredEndpoint(
@@ -841,7 +851,7 @@ async function editImageOnce(opts: {
   if (!baseUrl) throw new ApiError("未配置 API Base URL", 400);
 
   // 仅 gpt-image-2：标准比例映射到最近原生尺寸，落盘前精确裁切
-  const needsCrop = CROP_MODELS.has(model);
+  const needsCrop = isGptImageModel(model);
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
   // grok2api /v1/images/edits 要求 image 为 {url: dataURL} 对象（不接受裸字符串/URL），
   // 且当前 grok 代理不支持多参考图 → 多图时明确报错
@@ -854,7 +864,7 @@ async function editImageOnce(opts: {
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
       userId,
-      CREDIT_PER_IMAGE,
+      imageCreditCost,
       `预扣图生图: ${prompt.slice(0, 50)}`,
     );
   }
@@ -891,8 +901,8 @@ async function editImageOnce(opts: {
             ? {
                 "Idempotency-Key": providerIdempotencyKey(
                   "image-edit",
-                  opts.idempotencyKey,
-                  (opts.operationIndex || 0) * maxRetries + attempt,
+                  `${opts.idempotencyKey}:${opts.operationIndex ?? 0}`,
+                  attempt,
                 ),
               }
             : {}),
@@ -997,6 +1007,7 @@ export async function editImage(opts: {
   size?: string;
   idempotencyKey?: string;
   operationIndex?: number;
+  creditCostOverride?: number;
 }): Promise<EditImageResult | EditImageResult[]> {
   const images = Array.isArray(opts.image)
     ? opts.image.filter((value) => value?.trim())
@@ -1051,11 +1062,12 @@ export async function runImageEditTasks(opts: {
 
   const tasks = normalizeImageEditRequest(request, model);
   const normalizedCount = normalizeImageEditCount(count);
+  const imageCreditCost = await getImageModelCreditCost(model);
   const chargeCredits = role !== "admin";
   if (userId && chargeCredits) {
     await assertEnoughCredits(
       userId,
-      CREDIT_PER_IMAGE * calculateImageEditCost(tasks, normalizedCount),
+      calculateImageCreditCost(imageCreditCost, normalizedCount) * tasks.length,
     );
   }
 
@@ -1075,6 +1087,7 @@ export async function runImageEditTasks(opts: {
         size,
         idempotencyKey: opts.idempotencyKey,
         operationIndex: taskIndex * normalizedCount + variantIndex,
+        creditCostOverride: imageCreditCost,
       }),
   );
 
@@ -1088,6 +1101,7 @@ export async function runImageEditTasks(opts: {
     succeeded: execution.succeeded,
     failed: execution.failed,
     lastError: execution.lastError,
+    ...(execution.refundPending ? { refundPending: true as const } : {}),
   };
 }
 
@@ -1188,7 +1202,7 @@ export async function deleteImageRecord(userId: string, id: string) {
 /**
  * 批量图生图（同参考图 + 描述，生成 N 张变体，最大 5 张）。
  * 积分策略（无竞态）：
- * 1. 生成前一次性校验余额 >= 5 × n，不足直接拒绝（不扣款）
+ * 1. 生成前一次性校验余额 >= 当前模型费用 × n，不足直接拒绝（不扣款）
  * 2. 逐张生成，每次用一次性积分预扣；失败时幂等退款
  * 3. 单张失败跳过继续，返回成功/失败计数；最终扣款 = 成功张数
  */
@@ -1227,9 +1241,19 @@ export async function editImageBatch(opts: {
   }
 
   const chargeCredits = role !== "admin";
+  const config = await getConfig();
+  const model =
+    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+  if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
+    throw new ApiError("指定的模型不可用", 400);
+  }
+  const imageCreditCost = await getImageModelCreditCost(model);
   // 预校验总额度（不足直接拒绝，不扣款）：参考图张数 × 每张变体数
   if (userId && chargeCredits) {
-    await assertEnoughCredits(userId, CREDIT_PER_IMAGE * n * images.length);
+    await assertEnoughCredits(
+      userId,
+      calculateImageCreditCost(imageCreditCost, n) * images.length,
+    );
   }
 
   const results: Awaited<ReturnType<typeof editImage>>[] = [];
@@ -1245,8 +1269,9 @@ export async function editImageBatch(opts: {
           role,
           image: img,
           prompt,
-          modelOverride,
+          modelOverride: model,
           size,
+          creditCostOverride: imageCreditCost,
         });
         // 单图调用总是返回单个结果对象
         results.push(r as EditImageResult);

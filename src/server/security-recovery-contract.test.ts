@@ -17,7 +17,7 @@ test("recovered runtime keeps encrypted config, private images, and secure seedi
   assert.match(middleware, /\/images\/:path\*/);
   assert.match(middleware, /pathname\.startsWith\("\/images\/"\)/);
   assert.match(seed, /requireAdminSeedPassword\(process\.env\.ADMIN_PASSWORD\)/);
-  assert.doesNotMatch(seed, /ADMIN_PASSWORD\s*\|\|\s*["']admin123["']/);
+  assert.doesNotMatch(seed, /ADMIN_PASSWORD\s*\|\|/);
 });
 
 test("configured channels remain authoritative even with no default models", async () => {

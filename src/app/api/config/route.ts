@@ -21,6 +21,7 @@ import {
   replaceModelChannels,
   type ChannelPayloadInput,
 } from "@/server/services/model-channels";
+import { getImageModelCreditCosts } from "@/server/services/image-costs";
 
 function mask(key: string) {
   if (!key || key.length < 8) return key ? "****" : "";
@@ -31,7 +32,7 @@ function isMaskedKey(key: string | undefined): boolean {
   return !!key && key.includes("****");
 }
 
-function publicConfig(
+async function publicConfig(
   config: NonNullable<Awaited<ReturnType<typeof getConfig>>>,
   channels?: Awaited<ReturnType<typeof listModelChannels>>,
   configuredChannels = channels,
@@ -70,6 +71,7 @@ function publicConfig(
   const imageModel = visibleImageModels.includes(config.imageModel)
     ? config.imageModel
     : visibleImageModels[0] || "";
+  const imageModelCosts = await getImageModelCreditCosts(visibleImageModels);
 
   return {
     id: config.id,
@@ -94,6 +96,7 @@ function publicConfig(
       : "",
     enabledTextModels: visibleTextModels,
     enabledImageModels: visibleImageModels,
+    imageModelCosts,
     ...(channels && channels.length > 0 ? { channels } : {}),
   };
 }
@@ -118,7 +121,7 @@ export const GET = handleRoute(async (req) => {
   const configuredChannels = await listModelChannels();
   const channels = user.role === "admin" ? configuredChannels : undefined;
   return jsonOk({
-    ...publicConfig(config, channels, configuredChannels),
+    ...(await publicConfig(config, channels, configuredChannels)),
     imageGenerationEnabled: await isImageGenerationEnabled(),
   });
 });
@@ -267,5 +270,5 @@ export const PUT = handleRoute(async (req) => {
   const config = await getConfig();
   if (!config) throw new ApiError("未找到配置", 404);
   const channels = await listModelChannels();
-  return jsonOk(publicConfig(config, channels, channels));
+  return jsonOk(await publicConfig(config, channels, channels));
 });

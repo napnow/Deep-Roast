@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { IMAGE_STYLE_PRESETS, CREDIT_PER_IMAGE } from "@/types";
+import {
+  DEFAULT_IMAGE_MODEL_CREDIT_COST,
+  IMAGE_STYLE_PRESETS,
+} from "@/types";
 import ReversePromptPanel from "./ReversePromptPanel";
 import Img2ImgPanel from "./Img2ImgPanel";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
@@ -14,6 +17,8 @@ interface ImageInputColumnProps {
   sizeOptions: { value: string; label: string }[];
   generating: boolean;
   credits: number;
+  imageModel?: string;
+  imageModelCosts?: Record<string, number>;
   /** admin 生图免费，不因余额禁用 */
   isAdmin?: boolean;
   checkinEligible?: boolean;
@@ -40,6 +45,8 @@ export default function ImageInputColumn({
   sizeOptions,
   generating,
   credits,
+  imageModel,
+  imageModelCosts,
   isAdmin = false,
   checkinEligible = false,
   todayChecked = false,
@@ -50,7 +57,9 @@ export default function ImageInputColumn({
   onCheckinClick,
   onWalletClick,
 }: ImageInputColumnProps) {
-  const canAfford = isAdmin || credits >= CREDIT_PER_IMAGE;
+  const imageCostPerImage =
+    imageModelCosts?.[imageModel || ""] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
+  const canAfford = isAdmin || credits >= imageCostPerImage;
   const [toolbarOpen, setToolbarOpen] = useState<"reverse" | "img2img" | null>(
     null,
   );
@@ -128,6 +137,8 @@ export default function ImageInputColumn({
           {toolbarOpen === "img2img" && (
             <Img2ImgPanel
               size={size}
+              imageModel={imageModel}
+              imageModelCosts={imageModelCosts}
               sizeOptions={sizeOptions}
               generating={generating}
               onGenerate={onGenerate}
@@ -239,7 +250,7 @@ export default function ImageInputColumn({
           <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
             {isAdmin
               ? "管理员生图免费"
-              : `每张图消耗 ${CREDIT_PER_IMAGE} 积分 · 余额 ${credits} · 可生成 ${Math.floor(credits / CREDIT_PER_IMAGE)} 张`}
+              : `每张图消耗 ${imageCostPerImage} 积分 · 余额 ${credits} · 可生成 ${Math.floor(credits / imageCostPerImage)} 张`}
           </p>
           {!isAdmin && (
             <button

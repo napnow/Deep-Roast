@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useId } from "react";
+import Button from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Field";
 import { useAuth } from "@/components/AuthProvider";
 import { CREDIT_PER_CHAT } from "@/types";
 
@@ -19,6 +21,8 @@ export default function ChatInput({
 }: ChatInputProps) {
   const { user } = useAuth();
   const [input, setInput] = useState("");
+  const composing = useRef(false);
+  const hintId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function handleSend() {
@@ -32,6 +36,12 @@ export default function ChatInput({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (
+      e.nativeEvent.isComposing ||
+      composing.current ||
+      e.nativeEvent.keyCode === 229
+    )
+      return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -64,7 +74,15 @@ export default function ChatInput({
           boxShadow: "var(--shadow-md)",
         }}
       >
-        <textarea
+        <Textarea
+          aria-label="输入消息"
+          aria-describedby={hintId}
+          onCompositionStart={() => {
+            composing.current = true;
+          }}
+          onCompositionEnd={() => {
+            composing.current = false;
+          }}
           ref={textareaRef}
           value={input}
           onChange={handleChange}
@@ -84,7 +102,8 @@ export default function ChatInput({
         />
 
         {disabled ? (
-          <button
+          <Button
+            variant="danger"
             onClick={onStop}
             className="rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 shrink-0 active:scale-95"
             style={{
@@ -94,9 +113,10 @@ export default function ChatInput({
             }}
           >
             停止
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
+            variant="primary"
             onClick={handleSend}
             disabled={!canSend}
             className="rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all duration-200 shrink-0 active:scale-95 disabled:opacity-35 disabled:scale-100"
@@ -109,10 +129,11 @@ export default function ChatInput({
             }}
           >
             发送
-          </button>
+          </Button>
         )}
       </div>
       <p
+        id={hintId}
         className="max-w-3xl mx-auto mt-1.5 px-1 text-[10px]"
         style={{ color: "var(--text-muted)" }}
       >

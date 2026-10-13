@@ -5,18 +5,24 @@ import type {
   ImageEditTask,
 } from "@/lib/image-edit-contract";
 
+import { isGptImageModel } from "@/lib/image-model-capabilities";
+
 export const MAX_IMAGE_EDIT_INPUTS = 5;
 export const DEFAULT_IMAGE_EDIT_PROMPT = "生成这张图的变体";
 export const PUBLIC_IMAGE_EDIT_ERROR = "图生图失败，请稍后重试";
 
+export function isImageRefundPending(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "CREDIT_REFUND_PENDING";
+}
+
 export function publicImageEditError(error: unknown): string {
-  return error instanceof ApiError && error.status < 500
+  return error instanceof ApiError && (error.status < 500 || isImageRefundPending(error))
     ? error.message
     : PUBLIC_IMAGE_EDIT_ERROR;
 }
 
 export function supportsReferenceImageEdit(model: string): boolean {
-  return model.trim() === "gpt-image-2";
+  return isGptImageModel(model);
 }
 
 function cleanImage(value: unknown): string {

@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/Field";
+
 import type { TextToImageDraft } from "@/lib/image-workspace";
 import { IMAGE_STYLE_PRESETS } from "@/types";
 import { getCreationSettingsSummary } from "./creation-workbench-ui";
@@ -42,9 +44,14 @@ export default function TextToImageForm({
 
   return (
     <div className="creation-form">
-      <section className="creation-step-card" aria-labelledby="text-prompt-title">
+      <section
+        className="creation-step-card"
+        aria-labelledby="text-prompt-title"
+      >
         <div className="creation-step-card__heading">
-          <span className="creation-step-card__number" aria-hidden="true">01</span>
+          <span className="creation-step-card__number" aria-hidden="true">
+            01
+          </span>
           <div>
             <h2 id="text-prompt-title" className="creation-step-card__title">
               画面描述
@@ -64,9 +71,10 @@ export default function TextToImageForm({
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder="例如：雨夜霓虹街头，一位撑透明伞的旅人…"
             rows={6}
+            maxLength={8000}
           />
           <span className="creation-composer__counter">
-            {draft.prompt.length} / 2000
+            {draft.prompt.length} / 8000
           </span>
         </label>
 
@@ -80,7 +88,7 @@ export default function TextToImageForm({
                 className="creation-example"
                 onClick={() => onChange({ prompt: example })}
               >
-                灵感 {index + 1}
+                {["城市夜景", "商品摄影", "场景插画"][index]}
               </button>
             ))}
           </div>
@@ -90,7 +98,9 @@ export default function TextToImageForm({
       <details className="creation-settings creation-step-card">
         <summary>
           <span className="creation-step-card__summary">
-            <span className="creation-step-card__number" aria-hidden="true">02</span>
+            <span className="creation-step-card__number" aria-hidden="true">
+              02
+            </span>
             <span>
               <span className="creation-settings__title">生成设置</span>
               <span className="creation-step-card__description">
@@ -118,9 +128,7 @@ export default function TextToImageForm({
                     disabled={disabled}
                     aria-pressed={selected}
                     className={
-                      selected
-                        ? "creation-chip is-selected"
-                        : "creation-chip"
+                      selected ? "creation-chip is-selected" : "creation-chip"
                     }
                     onClick={() => onChange({ stylePrompt: preset.prompt })}
                   >
@@ -134,7 +142,7 @@ export default function TextToImageForm({
           <div className="creation-setting-grid">
             <label className="creation-setting-group">
               <span className="creation-section-label">图片比例</span>
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={draft.size}
                 disabled={disabled}
@@ -145,12 +153,12 @@ export default function TextToImageForm({
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="creation-setting-group">
               <span className="creation-section-label">生成数量</span>
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={draft.count}
                 disabled={disabled}
@@ -163,14 +171,14 @@ export default function TextToImageForm({
                     {count} 张
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 
           <div className="creation-setting-group creation-model-note">
             <span className="creation-section-label">当前模型</span>
             {imageModels.length > 1 ? (
-              <select
+              <Select
                 className="ui-field creation-select"
                 value={selectedImageModel}
                 disabled={disabled}
@@ -182,7 +190,7 @@ export default function TextToImageForm({
                     {modelId}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               <span className="creation-model-note__value">
                 {model || "未配置"}

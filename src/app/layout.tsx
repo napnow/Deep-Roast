@@ -1,19 +1,8 @@
 import type { Metadata } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import "./fonts.css";
 import { ToastProvider } from "@/components/Toast";
 import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";
-
-const display = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-});
-
-const body = Manrope({
-  variable: "--font-body",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "深焙",
@@ -88,11 +77,14 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        <link rel="preload" href="/fonts/3c7c6164b2587822-s.p.16u3vygyjnhr0.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/03bda585a99c6450-s.p.32sris142tqlb.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/a343f882a40d2cc9-s.p.1sj6eobyi31rd.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: suppressTransitionWarning }} />
       </head>
       <body
-        className={`${display.variable} ${body.variable} h-full antialiased`}
+        className="dr-fonts h-full antialiased"
       >
         <ToastProvider>
           <AuthProvider>

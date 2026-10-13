@@ -2,9 +2,15 @@ interface ApiQuickStartProps {
   command: string;
   copied: boolean;
   onCopy: () => void;
+  imageCostHint?: string;
 }
 
-export default function ApiQuickStart({ command, copied, onCopy }: ApiQuickStartProps) {
+export default function ApiQuickStart({
+  command,
+  copied,
+  onCopy,
+  imageCostHint = "每张图片按所选模型计费",
+}: ApiQuickStartProps) {
   return (
     <section
       className="rounded-2xl border p-4"
@@ -35,7 +41,7 @@ export default function ApiQuickStart({ command, copied, onCopy }: ApiQuickStart
         {command}
       </pre>
       <p className="mt-2 text-[10px]" style={{ color: "var(--text-muted)" }}>
-        可用模型：<code>GET /api/v1/models</code> · 每张图扣 5 积分
+        可用模型：<code>GET /api/v1/models</code> · {imageCostHint}
       </p>
     </section>
   );

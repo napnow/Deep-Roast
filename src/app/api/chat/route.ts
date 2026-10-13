@@ -33,7 +33,7 @@ export const POST = handleRoute(async (req) => {
       {
         requestId: claim.id,
         requestLeaseToken: claim.leaseToken,
-        idempotencyKey: claim.key,
+        idempotencyKey: claim.id,
       },
     );
   } catch (error) {

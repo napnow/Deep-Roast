@@ -1,6 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import Dialog from "@/components/ui/Dialog";
+import Button from "@/components/ui/Button";
+import { copyText } from "@/lib/browser-actions";
+import { useActionFeedback } from "@/hooks/useActionFeedback";
 import ChatInput from "./ChatInput";
 import type { Message } from "@/types";
 
@@ -15,6 +19,7 @@ interface ChatViewProps {
 }
 
 export default function ChatView({
+  conversationId,
   messages,
   streaming,
   streamingText,
@@ -23,14 +28,42 @@ export default function ChatView({
   modelAvailable = true,
 }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  const copy = useActionFeedback(conversationId);
+  const [copyTarget, setCopyTarget] = useState<number | null>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(
     new Set(),
   );
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const copiedIdx = copy.status === "success" ? copyTarget : null;
+  const [chatPreviewImage, setChatPreviewImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  function scrollToLatest() {
+    followLatest.current = true;
+    const scroll = scrollRef.current;
+    if (scroll) scroll.scrollTop = scroll.scrollHeight;
+    setShowLatest(false);
+  }
+  useLayoutEffect(() => {
+    scrollToLatest();
+  }, [conversationId]);
+  useLayoutEffect(() => {
+    if (followLatest.current) {
+      const scroll = scrollRef.current;
+      if (scroll) scroll.scrollTop = scroll.scrollHeight;
+    }
   }, [messages, streamingText]);
+  useEffect(() => {
+    const content = bottomRef.current?.parentElement;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current && scrollRef.current)
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   function toggleReasoning(idx: number) {
     setExpandedReasoning((prev) => {
@@ -42,9 +75,9 @@ export default function ChatView({
   }
 
   function handleCopy(idx: number, text: string) {
-    navigator.clipboard.writeText(text);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
+    if (copy.status === "pending") return;
+    setCopyTarget(idx);
+    void copy.run(() => copyText(text), "回复已复制");
   }
 
   function handleRegenerate() {
@@ -59,7 +92,18 @@ export default function ChatView({
 
   return (
     <div className="dr-canvas flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 py-6"
+        onScroll={() => {
+          const scroll = scrollRef.current;
+          if (!scroll) return;
+          const nearBottom =
+            scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 72;
+          followLatest.current = nearBottom;
+          setShowLatest(!nearBottom);
+        }}
+      >
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.length === 0 && !streaming && (
             <div className="text-center mt-24 animate-fade-up px-6">
@@ -155,12 +199,12 @@ export default function ChatView({
                       }}
                     >
                       {image.status === "success" && image.imageUrl ? (
-                        <a
-                          href={image.imageUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => setChatPreviewImage(image.imageUrl!)}
                           className="block cursor-zoom-in"
                           title="查看大图"
+                          aria-label="查看对话图片大图"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -169,7 +213,7 @@ export default function ChatView({
                             className="block max-h-[28rem] w-full object-contain"
                             style={{ background: "var(--bg-root)" }}
                           />
-                        </a>
+                        </button>
                       ) : image.status === "pending" ? (
                         <div className="flex min-h-44 min-w-64 flex-col items-center justify-center gap-3 px-8 py-8">
                           <div
@@ -247,6 +291,10 @@ export default function ChatView({
                   {!isUser && !streaming && (
                     <div className="flex gap-1 mt-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                       <button
+                        disabled={copy.status === "pending"}
+                        aria-busy={
+                          copy.status === "pending" && copyTarget === i
+                        }
                         onClick={() => handleCopy(i, m.content)}
                         className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all active:scale-95"
                         style={{
@@ -255,7 +303,11 @@ export default function ChatView({
                           border: "1px solid var(--border)",
                         }}
                       >
-                        {copiedIdx === i ? "已复制" : "复制"}
+                        {copy.status === "pending" && copyTarget === i
+                          ? "正在复制…"
+                          : copiedIdx === i
+                            ? "已复制"
+                            : "复制"}
                       </button>
                       {i === messages.length - 1 && (
                         <button
@@ -331,12 +383,47 @@ export default function ChatView({
         </div>
       </div>
 
+      {showLatest && (
+        <Button className="chat-latest" size="small" onClick={scrollToLatest}>
+          回到最新消息
+        </Button>
+      )}
+
       <ChatInput
         onSend={onSend}
         onStop={onStop}
         disabled={streaming}
         unavailable={!modelAvailable}
       />
+
+      {chatPreviewImage && (
+        <Dialog
+          open={!!chatPreviewImage}
+          onClose={() => setChatPreviewImage(null)}
+          label="对话图片预览"
+        >
+          <div
+            className="image-preview-modal fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3"
+            onClick={() => setChatPreviewImage(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setChatPreviewImage(null)}
+              className="mobile-image-preview-close flex"
+              aria-label="关闭对话图片预览"
+            >
+              ✕
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={chatPreviewImage}
+              alt="对话图片大图"
+              className="max-h-full max-w-full rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

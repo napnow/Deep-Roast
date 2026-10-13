@@ -5,6 +5,7 @@ import { assertImageGenerationPolicy } from "./image-generation-access";
 import { parseInvitationReward } from "./invitations";
 import type { InvitationSettingsPatch } from "./invitation-settings-input";
 import { parseCheckinReward } from "./checkin-settings-input";
+import { parseSignupBonusCredits } from "./signup-bonus-settings-input";
 import { removeSiteAsset, saveSiteAsset } from "./site-assets";
 
 async function ensureRow() {
@@ -25,6 +26,7 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     registrationEnabled: (row.registrationEnabled ?? 1) !== 0,
     registrationIpLimitEnabled: (row.registrationIpLimitEnabled ?? 1) !== 0,
     imageGenerationEnabled: (row.imageGenerationEnabled ?? 1) !== 0,
+    signupBonusCredits: row.signupBonusCredits ?? 50,
     checkinReward: row.checkinReward ?? 50,
     donationEnabled: (row.donationEnabled ?? 1) !== 0,
     donationImagePath: row.donationImagePath ?? "",
@@ -232,6 +234,17 @@ export async function setCheckinReward(value: unknown) {
   const [row] = await db
     .update(siteSettings)
     .set({ checkinReward: reward, updatedAt: new Date() })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function setSignupBonusCredits(value: unknown) {
+  const signupBonusCredits = parseSignupBonusCredits(value);
+  await ensureRow();
+  const [row] = await db
+    .update(siteSettings)
+    .set({ signupBonusCredits, updatedAt: new Date() })
     .where(eq(siteSettings.id, 1))
     .returning();
   return mapSettings(row!);

@@ -1,5 +1,8 @@
 "use client";
 
+import { useActionFeedback } from "@/hooks/useActionFeedback";
+import { copyText } from "@/lib/browser-actions";
+
 import type { ImageRecord } from "@/types";
 import { downloadImage, formatTime } from "./imageUtils";
 import SmartResultImage from "./SmartResultImage";
@@ -24,6 +27,8 @@ export default function ImageResultPanel({
   onClear,
   onPreview,
 }: ImageResultPanelProps) {
+  const copy = useActionFeedback(`${activeImage?.id || ""}:copy`);
+  const download = useActionFeedback(`${activeImage?.id || ""}:download`);
   return (
     <div className="dr-canvas flex-1 md:flex-[2] overflow-y-auto p-4 md:p-6 flex items-center justify-center min-h-0">
       {activeImage ? (
@@ -74,7 +79,10 @@ export default function ImageResultPanel({
                 {activeImage.prompt}
               </p>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                <p
+                  className="text-[10px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {activeImage.model} · {activeImage.size}
                   {lastGenTime != null && (
                     <span> · 耗时 {formatTime(lastGenTime)}</span>
@@ -82,7 +90,15 @@ export default function ImageResultPanel({
                 </p>
                 <div className="flex gap-1.5">
                   <button
-                    onClick={() => downloadImage(activeImage)}
+                    disabled={download.status === "pending"}
+                    aria-busy={download.status === "pending"}
+                    onClick={() => {
+                      void download.run(
+                        (signal) => downloadImage(activeImage, signal),
+                        "已发起下载",
+                        "下载未完成，请检查网络后重试。",
+                      );
+                    }}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 active:scale-95"
                     style={{
                       background: "var(--accent)",
@@ -100,12 +116,21 @@ export default function ImageResultPanel({
                     >
                       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
                     </svg>
-                    下载
+                    {download.status === "pending"
+                      ? "准备下载…"
+                      : download.status === "success"
+                        ? "已发起下载"
+                        : "下载"}
                   </button>
                   <button
-                    onClick={() =>
-                      navigator.clipboard.writeText(activeImage.prompt)
-                    }
+                    disabled={copy.status === "pending"}
+                    aria-busy={copy.status === "pending"}
+                    onClick={() => {
+                      void copy.run(
+                        () => copyText(activeImage.prompt),
+                        "提示词已复制",
+                      );
+                    }}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95"
                     style={{
                       background: "var(--bg-elevated)",
@@ -136,8 +161,7 @@ export default function ImageResultPanel({
         <div
           className="w-full max-w-xl rounded-xl border flex items-center justify-center h-64 animate-ember"
           style={{
-            borderColor:
-              "color-mix(in srgb, var(--accent) 45%, var(--border))",
+            borderColor: "color-mix(in srgb, var(--accent) 45%, var(--border))",
             background: "var(--bg-surface)",
           }}
         >

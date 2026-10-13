@@ -8,9 +8,10 @@ import { applyReversePrompt, generationCost } from "@/lib/image-workspace";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
 import { useDeepRoastStore } from "@/lib/store";
 import { AppIcon } from "@/components/ui/icons";
-import { CREDIT_PER_IMAGE } from "@/types";
+import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { WORKBENCH_CLASS_NAMES } from "./creation-workbench-ui";
+import { getImageModelLabel } from "./image-model-presentation";
 
 interface CreationPanelProps {
   model: string;
@@ -61,16 +62,20 @@ export default function CreationPanel({
     ? textToImageDraft.size
     : sizeOptions[0]?.value || "1024x1024";
   const visibleTextDraft = { ...textToImageDraft, size: normalizedSize };
-  const cost = generationCost(textToImageDraft.count, CREDIT_PER_IMAGE);
+  const imageCostPerImage =
+    config.imageModelCosts?.[selectedModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
+  const cost = generationCost(textToImageDraft.count, imageCostPerImage);
   const canAfford = isAdmin || credits >= cost;
-  const imageGenerationAvailable = canUseImageGeneration(
-    isAdmin ? "admin" : "user",
-    config.imageGenerationEnabled !== false,
-  ) && Boolean(model);
+  const imageGenerationAvailable =
+    canUseImageGeneration(
+      isAdmin ? "admin" : "user",
+      config.imageGenerationEnabled !== false,
+    ) && Boolean(model);
 
   function submitText() {
     const prompt = textToImageDraft.prompt.trim();
-    if (!prompt || generating || !canAfford || !imageGenerationAvailable) return;
+    if (!prompt || generating || !canAfford || !imageGenerationAvailable)
+      return;
     const finalPrompt = textToImageDraft.stylePrompt
       ? `${textToImageDraft.stylePrompt}\n\n${prompt}`
       : prompt;
@@ -83,7 +88,7 @@ export default function CreationPanel({
   }
 
   return (
-    <aside
+    <section
       className={`${WORKBENCH_CLASS_NAMES.panel} ${WORKBENCH_CLASS_NAMES.roomyPanel} ${WORKBENCH_CLASS_NAMES.richPanel}`}
     >
       <div className="creation-panel__header">
@@ -96,13 +101,17 @@ export default function CreationPanel({
         </div>
         <div className="creation-status-strip" aria-label="创作状态">
           <span className="creation-status-strip__model">
-            {model || "模型未配置"}
+            {getImageModelLabel(model)}
           </span>
           <span className="creation-status-strip__credits">
-            {isAdmin ? "管理员模式" : `${credits} 积分`}
+            {isAdmin ? "管理员模式" : `余额 ${credits} 积分`}
           </span>
         </div>
-        <div className="creation-mode-tabs" role="tablist" aria-label="生图方式">
+        <div
+          className="creation-mode-tabs"
+          role="tablist"
+          aria-label="生图方式"
+        >
           {MODES.map((mode) => (
             <button
               key={mode.id}
@@ -134,6 +143,9 @@ export default function CreationPanel({
         <div hidden={imageCreationMode !== "edit"}>
           <Img2ImgPanel
             size={normalizedSize}
+            imageModel={selectedModel}
+            imageModelCosts={config.imageModelCosts}
+            isAdmin={isAdmin}
             draft={imageToImageDraft}
             sizeOptions={sizeOptions}
             generating={generating}
@@ -170,7 +182,11 @@ export default function CreationPanel({
               </p>
             ) : (
               <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <span>{isAdmin ? "管理员免费" : `预计 ${cost} 积分`}</span>
+                <span>
+                  {isAdmin
+                    ? "管理员免费"
+                    : `预计 ${cost} 积分（${imageCostPerImage} / 张）`}
+                </span>
                 {!isAdmin ? <span>余额 {credits}</span> : null}
               </div>
             )}
@@ -196,17 +212,23 @@ export default function CreationPanel({
               )}
             </button>
             {!canAfford && onWalletClick ? (
-              <button type="button" className="text-xs text-[var(--danger)]" onClick={onWalletClick}>
+              <button
+                type="button"
+                className="text-xs text-[var(--danger)]"
+                onClick={onWalletClick}
+              >
                 积分不足，打开钱包
               </button>
             ) : null}
           </>
         ) : (
           <p className="text-xs text-[var(--text-muted)]">
-            {imageCreationMode === "edit" ? "在上方上传参考图并提交生成" : "上传图片后分析并带入文生图"}
+            {imageCreationMode === "edit"
+              ? "在上方上传参考图并提交生成"
+              : "上传图片后分析并带入文生图"}
           </p>
         )}
       </div>
-    </aside>
+    </section>
   );
 }
