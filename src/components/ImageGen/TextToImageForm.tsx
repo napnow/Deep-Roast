@@ -74,10 +74,10 @@ export default function TextToImageForm({
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder="例如：雨夜霓虹街头，一位撑透明伞的旅人…"
             rows={6}
-            maxLength={8000}
+            maxLength={12000}
           />
           <span className="creation-composer__counter">
-            {draft.prompt.length} / 8000
+            {draft.prompt.length} / 12000
           </span>
         </label>
 

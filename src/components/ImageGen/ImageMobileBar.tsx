@@ -385,7 +385,7 @@ export default function ImageMobileBar({
               id="mobile-image-prompt"
               ref={taRef}
               value={prompt}
-              maxLength={8000}
+              maxLength={12000}
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="描述主体、场景和你想要的光线…"
               rows={2}

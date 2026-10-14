@@ -673,12 +673,12 @@ export default function Img2ImgPanel({
                   : "例如：把背景改成海边日落，保留主体不变…"
               }
               rows={4}
-              maxLength={8000}
+              maxLength={12000}
               disabled={processing}
               className="creation-composer__input"
             />
             <span className="creation-composer__counter">
-              {currentPrompt.length} / 8000
+              {currentPrompt.length} / 12000
             </span>
           </label>
 
@@ -692,7 +692,7 @@ export default function Img2ImgPanel({
                 onBlur={releaseEditorScroll}
                 placeholder="例如：整体保持原构图，只统一色调…"
                 rows={2}
-                maxLength={8000}
+                maxLength={12000}
                 disabled={processing}
                 className="img2img-shared-prompt__input"
               />
@@ -709,12 +709,12 @@ export default function Img2ImgPanel({
             onBlur={releaseEditorScroll}
             placeholder="上传参考图后，描述你想要的修改…"
             rows={4}
-            maxLength={8000}
+            maxLength={12000}
             disabled={processing}
             className="creation-composer__input"
           />
           <span className="creation-composer__counter">
-            {edit.length} / 8000
+            {edit.length} / 12000
           </span>
         </label>
       )}

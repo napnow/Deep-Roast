@@ -41,7 +41,7 @@ import {
 } from "./private-images";
 import { providerIdempotencyKey } from "./request-idempotency";
 
-const MAX_PROMPT_LENGTH = 8000;
+const MAX_PROMPT_LENGTH = 12000;
 
 export const MAX_IMAGE_EDGE = 2048;
 export const MAX_IMAGE_PIXELS = 4_194_304;
