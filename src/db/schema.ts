@@ -30,7 +30,7 @@ export const llmConfig = pgTable(
       .default("doubao-seed-2-0-pro-260215"),
     imageModel: text("image_model")
       .notNull()
-      .default("doubao-seedream-4-5-251128"),
+      .default("gpt-image-2"),
     imageSystemPrompt: text("image_system_prompt")
       .notNull()
       .default(""),
@@ -50,7 +50,7 @@ export const llmConfig = pgTable(
     enabledImageModels: text("enabled_image_models")
       .notNull()
       .default(
-        '["doubao-seedream-4-5-251128","grok-imagine-image-lite","gpt-image-2"]',
+        '["gpt-image-2","gpt-image-2.5-flare","gpt-image-2.5-sunburst"]',
       ),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -301,7 +301,7 @@ export const messages = pgTable("messages", {
 export const imageGenerations = pgTable("image_generations", {
   id: uuid("id").defaultRandom().primaryKey(),
   prompt: text("prompt").notNull(),
-  model: text("model").notNull().default("doubao-seedream-4-5-251128"),
+  model: text("model").notNull().default("gpt-image-2"),
   imageUrl: text("image_url").notNull(),
   storageKey: text("storage_key"),
   thumbStorageKey: text("thumb_storage_key"),

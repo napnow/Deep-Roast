@@ -8,7 +8,7 @@ test("image completion event carries a renderable assistant message", () => {
     imageUrl: "/images/avatar.png",
     thumbUrl: "/images/thumbs/avatar.webp",
     prompt: "fictional assistant portrait",
-    model: "doubao-seedream-4-5-251128",
+    model: "gpt-image-2",
     size: "1024x1024",
   });
 

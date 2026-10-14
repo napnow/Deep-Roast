@@ -69,7 +69,7 @@ describe("image edit task normalization", () => {
             referenceImages: ["ref"],
             prompt: "修改",
           },
-          "grok-imagine-image-lite",
+          "not-gpt-image",
         ),
       /GPT Image 2/,
     );

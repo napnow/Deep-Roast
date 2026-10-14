@@ -57,7 +57,7 @@ CREATE TABLE "credit_transactions" (
 CREATE TABLE "image_generations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"prompt" text NOT NULL,
-	"model" text DEFAULT 'doubao-seedream-4-5-251128' NOT NULL,
+	"model" text DEFAULT 'gpt-image-2' NOT NULL,
 	"image_url" text NOT NULL,
 	"storage_key" text,
 	"thumb_storage_key" text,
@@ -107,12 +107,12 @@ CREATE TABLE "llm_config" (
 	"ark_api_key_auth_tag" text,
 	"base_url" text DEFAULT '' NOT NULL,
 	"text_model" text DEFAULT 'doubao-seed-2-0-pro-260215' NOT NULL,
-	"image_model" text DEFAULT 'doubao-seedream-4-5-251128' NOT NULL,
+	"image_model" text DEFAULT 'gpt-image-2' NOT NULL,
 	"image_system_prompt" text DEFAULT '' NOT NULL,
 	"assistant_image_prompt" text DEFAULT '' NOT NULL,
 	"reverse_prompt_model" text DEFAULT '' NOT NULL,
 	"enabled_text_models" text DEFAULT '["doubao-seed-2-0-pro-260215","doubao-seed-2-0-lite-260428","grok-4.20-fast"]' NOT NULL,
-	"enabled_image_models" text DEFAULT '["doubao-seedream-4-5-251128","grok-imagine-image-lite","gpt-image-2"]' NOT NULL,
+	"enabled_image_models" text DEFAULT '["gpt-image-2","gpt-image-2.5-flare","gpt-image-2.5-sunburst"]' NOT NULL,
 	"updated_at" timestamp DEFAULT now(),
 	CONSTRAINT "llm_config_single_row" CHECK ("llm_config"."id" = 1)
 );

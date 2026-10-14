@@ -65,7 +65,7 @@ async function runUpstreamRetry(editMode){
  const imageLoader=makeLoader({
   '@/db':{db:new Proxy({}, {get:()=>forbidden})},
   '@/db/schema':{imageGenerations:{}},
-  '@/lib/config':{getConfig:async()=>({imageModel:'grok-imagine-image-lite',imageSystemPrompt:''})},
+  '@/lib/config':{getConfig:async()=>({imageModel:'gpt-image-2',imageSystemPrompt:''})},
   '@/server/services/model-channels':{isConfiguredModelEnabled:async()=>true,resolveConfiguredEndpoint:async()=>({apiKey:'synthetic-key',baseUrl:'https://upstream.invalid/v1',maxRetries:3,enforcePublicHttps:false})},
   '@/server/services/credits':{assertEnoughCredits:async()=>{},reserveCredits:async(_u,cost)=>{reserved+=cost;return {refund:async()=>{refunded+=cost;}};}},
   '@/server/services/image-costs':{getImageModelCreditCost:async()=>5,calculateImageCreditCost:(cost,count)=>cost*count},
@@ -81,7 +81,7 @@ async function runUpstreamRetry(editMode){
   setTimeout:(fn)=>setTimeout(fn,0)
  });
  const image=imageLoader('src/server/services/image.ts');
- const options={userId:'audit-user',role:'user',prompt:'synthetic retry audit',modelOverride:'grok-imagine-image-lite',size:'1024x1024',idempotencyKey:'one-business-operation'};
+ const options={userId:'audit-user',role:'user',prompt:'synthetic retry audit',modelOverride:'gpt-image-2',size:'1024x1024',idempotencyKey:'one-business-operation'};
  if(editMode){
   const input='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=';
   for(let operationIndex=0;operationIndex<2;operationIndex++){

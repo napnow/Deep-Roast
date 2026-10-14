@@ -16,7 +16,7 @@ test("image creation exposes a selector for multiple enabled image models", () =
   assert.match(panel, /imageModels/);
   assert.match(panel, /setSelectedImageModel/);
   assert.match(form, /onModelChange/);
-  assert.match(form, /imageModels\.length > 1/);
+  assert.match(form, /imageModels\.length \? imageModels : \[model\]/);
   assert.match(form, /aria-label="选择生图模型"/);
 });
 

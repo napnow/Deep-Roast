@@ -219,7 +219,7 @@ export const PUT = handleRoute(async (req) => {
         arkApiKeyAuthTag: (updates.arkApiKeyAuthTag as string) || null,
         baseUrl: (updates.baseUrl as string) || "",
         imageModel:
-          (updates.imageModel as string) || "doubao-seedream-4-5-251128",
+          (updates.imageModel as string) || "gpt-image-2",
         imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
         assistantImagePrompt:
           (updates.assistantImagePrompt as string) || "",

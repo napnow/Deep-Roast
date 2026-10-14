@@ -247,9 +247,9 @@ export const DEFAULT_TEXT_MODELS: ModelInfo[] = [
 ];
 
 export const DEFAULT_IMAGE_MODELS: ModelInfo[] = [
-  { id: "doubao-seedream-4-5-251128" },
-  { id: "grok-imagine-image-lite" },
   { id: "gpt-image-2" },
+  { id: "gpt-image-2.5-flare" },
+  { id: "gpt-image-2.5-sunburst" },
 ];
 
 // ── Image generation style presets ──

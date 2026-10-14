@@ -265,7 +265,7 @@ export async function createChatStream(
       conversationId,
       imageIntent.prompt,
       config?.assistantImagePrompt || "",
-      config?.imageModel || "doubao-seedream-4-5-251128",
+      config?.imageModel || "gpt-image-2",
       options,
     );
   }

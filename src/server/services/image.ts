@@ -606,7 +606,7 @@ export async function generateImage(opts: {
   const config = await getConfig();
 
   const model =
-    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+    modelOverride || config?.imageModel || "gpt-image-2";
 
   // 越权防护：模型必须属于管理员启用的列表，
   // 防止普通用户通过 modelOverride 指定任意模型（绕过模型配置 / 调用未授权上游）。
@@ -830,7 +830,7 @@ async function editImageOnce(opts: {
 
   const config = await getConfig();
   const model =
-    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+    modelOverride || config?.imageModel || "gpt-image-2";
 
   // 越权防护：模型必须属于管理员启用的列表
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
@@ -1055,7 +1055,7 @@ export async function runImageEditTasks(opts: {
   await assertImageGenerationAllowed(role);
   const config = await getConfig();
   const model =
-    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+    modelOverride || config?.imageModel || "gpt-image-2";
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
@@ -1243,7 +1243,7 @@ export async function editImageBatch(opts: {
   const chargeCredits = role !== "admin";
   const config = await getConfig();
   const model =
-    modelOverride || config?.imageModel || "doubao-seedream-4-5-251128";
+    modelOverride || config?.imageModel || "gpt-image-2";
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }

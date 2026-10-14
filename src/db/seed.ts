@@ -192,7 +192,7 @@ async function seed() {
       // 不预置第三方中转；请在设置页或 env 自行配置
       baseUrl: "",
       textModel: "doubao-seed-2-0-pro-260215",
-      imageModel: "doubao-seedream-4-5-251128",
+      imageModel: "gpt-image-2",
     })
     .onConflictDoNothing();
   console.log("✓ Default LLM config seeded (empty baseUrl — configure in Settings)");

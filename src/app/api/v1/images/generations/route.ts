@@ -111,7 +111,7 @@ export const POST = handleRoute(async (req) => {
 
     const config = await getConfig();
     const resolvedModel =
-      model || config?.imageModel || "doubao-seedream-4-5-251128";
+      model || config?.imageModel || "gpt-image-2";
     imageCreditCost = await getImageModelCreditCost(resolvedModel);
 
     const results = [];

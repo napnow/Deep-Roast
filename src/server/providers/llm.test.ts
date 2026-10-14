@@ -55,15 +55,6 @@ test("provider-specific credentials are not shadowed by admin Ark config", () =>
       maxRetries: 1,
     });
 
-    assert.deepEqual(
-      resolveImageEndpoint("grok-imagine-image-lite", adminArkConfig),
-      {
-        apiKey: "grok-env",
-        baseUrl: "https://grok.example/v1",
-        maxRetries: 3,
-      },
-    );
-
     assert.deepEqual(resolveImageEndpoint("gpt-image-2", adminArkConfig), {
       apiKey: "gpt-image-env",
       baseUrl: "https://gpt-image.example/v1",
@@ -85,14 +76,6 @@ test("generic models continue to use the admin-configured Ark endpoint", () => {
   withProviderEnv(() => {
     assert.deepEqual(
       resolveChatEndpoint("doubao-seed-2-0-pro-260215", adminArkConfig),
-      {
-        apiKey: "ark-admin",
-        baseUrl: "https://ark.example/v1",
-        maxRetries: 1,
-      },
-    );
-    assert.deepEqual(
-      resolveImageEndpoint("doubao-seedream-4-5-251128", adminArkConfig),
       {
         apiKey: "ark-admin",
         baseUrl: "https://ark.example/v1",

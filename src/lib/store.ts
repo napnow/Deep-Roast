@@ -120,7 +120,7 @@ const initialConfig: Config = {
   arkApiKey: "",
   baseUrl: "",
   textModel: "doubao-seed-2-0-pro-260215",
-  imageModel: "doubao-seedream-4-5-251128",
+  imageModel: "gpt-image-2",
   imageSystemPrompt: "",
   assistantImagePrompt: "",
   reversePromptModel: "",

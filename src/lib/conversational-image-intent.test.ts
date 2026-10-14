@@ -20,7 +20,7 @@ test("image message metadata has a stable success shape", () => {
     id: "image-id",
     imageUrl: "/images/avatar.png",
     prompt: "fictional assistant portrait",
-    model: "doubao-seedream-4-5-251128",
+    model: "gpt-image-2",
     size: "1024x1024",
   };
   assert.equal(image.status, "success");
