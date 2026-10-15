@@ -1,5 +1,8 @@
 import { isGptImageModel, type ImageSizeOption } from "./image-model-capabilities";
 
+// Keep in sync with the server-side limits in src/server/services/image.ts.
+const MAX_IMAGE_PIXELS_LIMIT = 4_194_304;
+
 export function greatestCommonDivisor(a: number, b: number): number {
   return b === 0 ? a : greatestCommonDivisor(b, a % b);
 }
@@ -16,6 +19,14 @@ export function ratioToImageSize(width: string, height: string): string | null {
   const scale = Math.floor(1536 / Math.max(rw, rh));
   if (Math.min(rw, rh) * scale < 256) return null;
   return `${rw * scale}x${rh * scale}`;
+}
+
+export function pixelSizeToImageSize(width: string, height: string): string | null {
+  if (!/^\d{1,4}$/.test(width) || !/^\d{1,4}$/.test(height)) return null;
+  const w = Number(width);
+  const h = Number(height);
+  if (w < 256 || h < 256 || w > 2048 || h > 2048) return null;
+  return w * h <= MAX_IMAGE_PIXELS_LIMIT ? `${w}x${h}` : null;
 }
 
 export function normalizeImageSizeSelection(

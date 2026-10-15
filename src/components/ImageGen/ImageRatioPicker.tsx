@@ -2,7 +2,12 @@
 
 import { useId, useState } from "react";
 import { isGptImageModel, type ImageSizeOption } from "@/lib/image-model-capabilities";
-import { greatestCommonDivisor, imageSizeLabel, ratioToImageSize } from "@/lib/custom-image-ratio";
+import {
+  greatestCommonDivisor,
+  imageSizeLabel,
+  pixelSizeToImageSize,
+  ratioToImageSize,
+} from "@/lib/custom-image-ratio";
 
 interface Props {
   size: string;
@@ -12,6 +17,8 @@ interface Props {
   presentation?: "select" | "chips";
   onChange: (size: string) => void;
 }
+
+type EditorMode = "none" | "ratio" | "pixel";
 
 function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
   const match = /^(\d+)x(\d+)$/.exec(size);
@@ -44,10 +51,41 @@ function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "d
   );
 }
 
+function CustomPixelEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
+  const match = /^(\d+)x(\d+)$/.exec(size);
+  const [width, setWidth] = useState(match?.[1] || "1024");
+  const [height, setHeight] = useState(match?.[2] || "1024");
+  const id = useId();
+  const output = pixelSizeToImageSize(width, height);
+  return (
+    <div className="creation-setting-group custom-ratio-editor custom-pixel-editor">
+      <span className="custom-ratio-editor__heading">设定像素宽高</span>
+      <div className="custom-ratio-editor__inputs">
+        <input className="ui-field custom-ratio-editor__input" type="number" inputMode="numeric" min={256} max={2048} step={1}
+          aria-label="自定义像素宽" aria-describedby={id} aria-invalid={!output}
+          value={width} disabled={disabled} onChange={(event) => setWidth(event.target.value)} />
+        <span className="custom-ratio-editor__separator" aria-hidden="true">×</span>
+        <input className="ui-field custom-ratio-editor__input" type="number" inputMode="numeric" min={256} max={2048} step={1}
+          aria-label="自定义像素高" aria-describedby={id} aria-invalid={!output}
+          value={height} disabled={disabled} onChange={(event) => setHeight(event.target.value)} />
+        <button type="button" className="creation-chip custom-ratio-editor__apply" disabled={disabled || !output}
+          onClick={() => output && onChange(output)}>应用</button>
+      </div>
+      <p id={id} className="creation-setting-hint" role="status">
+        {output
+          ? `已选 ${width}×${height} 像素`
+          : "请输入 256–2048 的整数，宽高乘积不能超过 4194304（约 419 万像素）。"}
+      </p>
+    </div>
+  );
+}
+
 export default function ImageRatioPicker({ size, model = "", options, disabled, onChange, presentation = "select" }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [editor, setEditor] = useState<EditorMode>("none");
   const supported = isGptImageModel(model);
-  const custom = supported && (editing || !options.some((option) => option.value === size));
+  const sizeIsPreset = options.some((option) => option.value === size);
+  const custom = supported && (editor === "ratio" || (editor === "none" && !sizeIsPreset));
+  const pixelCustom = supported && editor === "pixel";
   return (
     <div className="creation-setting-group image-ratio-picker" data-custom={custom ? "true" : "false"}>
       <div className={presentation === "chips" ? "ratio-options mobile-size-picker" : "ratio-options"} role="group" aria-label="图片比例">
@@ -56,18 +94,23 @@ export default function ImageRatioPicker({ size, model = "", options, disabled, 
           const selected = !custom && option.value === size;
           return <button key={option.value} type="button" className="ratio-option"
             aria-pressed={selected} disabled={disabled} title={option.label}
-            onClick={() => { setEditing(false); onChange(option.value); }}>
+            onClick={() => { setEditor("none"); onChange(option.value); }}>
             <span className="ratio-option__frame" aria-hidden="true"
               style={{ width: 22 * Math.min(1, w / h), height: 22 * Math.min(1, h / w) }} />
             <span>{option.label.split(" ")[0]}</span>
           </button>;
         })}
         {supported && <button type="button" className="ratio-option ratio-option--custom"
-          aria-pressed={custom} disabled={disabled} onClick={() => setEditing(true)}>
+          aria-pressed={custom} disabled={disabled} onClick={() => setEditor("ratio")}>
           <span aria-hidden="true">＋</span><span>自定义</span>
+        </button>}
+        {supported && <button type="button" className="ratio-option ratio-option--custom"
+          aria-pressed={pixelCustom} disabled={disabled} onClick={() => setEditor("pixel")}>
+          <span aria-hidden="true">▣</span><span>像素设置</span>
         </button>}
       </div>
       {custom && <CustomRatioEditor key={`${model}:${size}`} size={size} disabled={disabled} onChange={onChange} />}
+      {pixelCustom && <CustomPixelEditor key={`pixel:${model}:${size}`} size={size} disabled={disabled} onChange={onChange} />}
     </div>
   );
 }
