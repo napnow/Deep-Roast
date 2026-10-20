@@ -4055,6 +4055,24 @@ html.dark .liquid-glass-strong {
   padding: 12px;
 }
 
+.result-card-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.result-card-footer.is-expanded {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.result-card-footer.is-expanded .result-card-copy {
+  flex-basis: 100%;
+}
+
+.result-card-footer.is-expanded .result-actions {
+  margin-left: auto;
+}
+
 .result-prompt {
   overflow: hidden;
   color: var(--text-secondary);
