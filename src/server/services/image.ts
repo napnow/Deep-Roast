@@ -30,7 +30,11 @@ import {
   normalizeImageEditCount,
   normalizeImageEditRequest,
 } from "./image-edit-tasks";
-import { isGptImageModel } from "@/lib/image-model-capabilities";
+import {
+  grokAspectRatio,
+  isGptImageModel,
+  isGrokImageModel,
+} from "@/lib/image-model-capabilities";
 import { executeImageEditTasks } from "./image-edit-runner";
 import {
   privateImagePath,
@@ -105,7 +109,8 @@ export function assertImageSize(size: string, model: string): string {
   const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
 
   // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
-  if (isGptImageModel(model)) {
+  // grok-imagine：上游只认比例（aspect_ratio），像素值仅用于展示与存档，同样按合法 WxH 校验
+  if (isGptImageModel(model) || isGrokImageModel(model)) {
     if (!dimensions) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
@@ -631,7 +636,7 @@ export async function generateImage(opts: {
   );
 
   if (!apiKey) {
-    const isGrok = model.startsWith("grok-");
+    const isGrok = isGrokImageModel(model);
     const isGpt = isGptImageModel(model);
     throw new ApiError(
       isGrok
@@ -677,13 +682,25 @@ export async function generateImage(opts: {
               }
             : {}),
         },
-        JSON.stringify({
-          model,
-          prompt: finalPrompt,
-          n: 1,
-          size: requestSize,
-          quality: "high",
-        }),
+        JSON.stringify(
+          isGrokImageModel(model)
+            ? {
+                model,
+                prompt: finalPrompt,
+                n: 1,
+                // grok2api 只接受七种 aspect_ratio，且不认 quality；
+                // 必须显式要 b64_json，否则返回的是 127.0.0.1 内网图片地址
+                aspect_ratio: grokAspectRatio(size),
+                response_format: "b64_json",
+              }
+            : {
+                model,
+                prompt: finalPrompt,
+                n: 1,
+                size: requestSize,
+                quality: "high",
+              },
+        ),
         enforcePublicHttps,
         opts.signal,
       );
@@ -855,7 +872,7 @@ async function editImageOnce(opts: {
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
   // grok2api /v1/images/edits 要求 image 为 {url: dataURL} 对象（不接受裸字符串/URL），
   // 且当前 grok 代理不支持多参考图 → 多图时明确报错
-  const isGrok = model.startsWith("grok-");
+  const isGrok = isGrokImageModel(model);
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
@@ -873,7 +890,9 @@ async function editImageOnce(opts: {
     ? {
         model,
         prompt,
-        size: requestSize,
+        // 同步文生图：grok2api 只认 aspect_ratio，并要求内联返回图片
+        aspect_ratio: grokAspectRatio(size),
+        response_format: "b64_json",
         n: 1,
         image: { url: normalizedImages[0] },
       }

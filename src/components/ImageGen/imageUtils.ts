@@ -1,31 +1,10 @@
 import { initiateImageDownload } from "@/lib/browser-actions";
+import { getImageSizeOptions } from "@/lib/image-model-capabilities";
 import type { ImageRecord } from "@/types";
 
-export const MODEL_SIZE_OPTIONS: Record<
-  string,
-  { value: string; label: string }[]
-> = {
-  // 豆包 Seedream：官方支持 1:1 / 9:16 / 16:9（720×1280 / 1280×720）
-  seedream: [
-    { value: "1024x1024", label: "1:1 (1024×1024)" },
-    { value: "720x1280", label: "9:16 (720×1280)" },
-    { value: "1280x720", label: "16:9 (1280×720)" },
-  ],
-  // gpt-image-2：请求接近的原生尺寸，后端 sharp 精确裁切到标准比例
-  "gpt-image-2": [
-    { value: "1024x1024", label: "1:1 (1024×1024)" },
-    { value: "1080x1920", label: "9:16 (1080×1920)" },
-    { value: "1920x1080", label: "16:9 (1920×1080)" },
-    { value: "1080x1440", label: "3:4 (1080×1440)" },
-    { value: "1440x1080", label: "4:3 (1440×1080)" },
-  ],
-};
-
+/** 尺寸清单统一由 image-model-capabilities 维护，避免前后端两处定义漂移。 */
 export function getSizeOptions(model: string) {
-  if (model.includes("seedream")) return MODEL_SIZE_OPTIONS.seedream;
-  if (model === "gpt-image-2") return MODEL_SIZE_OPTIONS["gpt-image-2"];
-  // OpenAI 兼容（grok-imagine 等）——与 gpt-image-2 同规格
-  return MODEL_SIZE_OPTIONS["gpt-image-2"];
+  return getImageSizeOptions(model);
 }
 
 export function formatTime(seconds: number): string {
