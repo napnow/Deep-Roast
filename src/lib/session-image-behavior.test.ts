@@ -61,6 +61,18 @@ test("text batches keep at most two requests in flight and retain request order"
   assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["first", "second", "third"]);
 });
 
+test("partial edit success explains a content policy rejection", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+  const pending = images.value.handleEditImageBatch(edit("test"), size, 2);
+  respond(env.requests[0], { images: [image("success")], total: 2, succeeded: 1, failed: 1,
+    contentPolicyRejected: true, lastError: "可能涉及裸露，请调整提示词或参考图" });
+  await pending; await env.flush();
+  assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["success"]);
+  assert.ok(env.notifications.some((notice) => Array.isArray(notice) && String(notice[0]).includes("裸露")));
+});
+
 test("a pending refund warning wins over a concurrent ordinary failure in either completion order", async (t) => {
   for (const pendingFirst of [true, false]) await t.test(String(pendingFirst), async (t) => {
     const env = sessionFixture(); t.after(() => env.dispose());
@@ -76,6 +88,19 @@ test("a pending refund warning wins over a concurrent ordinary failure in either
     await run; await env.flush();
     assert.ok(env.notifications.some((item) => Array.isArray(item) && item[0] === pending.error));
   });
+});
+
+test("content policy guidance wins over an ordinary concurrent failure", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+  const run = images.value.handleGenerateImageBatch("batch", size, 2);
+  await env.flush();
+  respond(env.requests[0], { error: "暂时失败", code: "UPSTREAM_IMAGE_ERROR" }, 502);
+  await env.flush();
+  respond(env.requests[1], { error: "可能涉及裸露，请调整提示词", code: "IMAGE_CONTENT_POLICY" }, 400);
+  await run; await env.flush();
+  assert.ok(env.notifications.some((notice) => Array.isArray(notice) && String(notice[0]).includes("裸露")));
 });
 
 test("session images: all generation paths and deletion reject the previous account's late results", async (t) => {

@@ -1,4 +1,5 @@
 import type { ImageEditTask } from "@/lib/image-edit-contract";
+import { ApiError } from "@/server/http";
 import {
   normalizeImageEditCount,
   isImageRefundPending,
@@ -26,6 +27,7 @@ export interface ImageEditTaskRun<T> {
   lastError: string | null;
   refundPending?: true;
   queueFull?: true;
+  contentPolicyRejected?: true;
 }
 
 export function largeOrUnknownReferences(inputs: string[]): boolean {
@@ -44,6 +46,7 @@ export async function executeImageEditTasks<T>(
   let failed = 0;
   let lastError: string | null = null;
   let pendingRefundMessage: string | null = null;
+  let policyMessage: string | null = null;
   let busyCount = 0;
 
   const jobs = tasks.flatMap((task, taskIndex) =>
@@ -71,7 +74,8 @@ export async function executeImageEditTasks<T>(
       failed += 1;
       if (isImageQueueFull(outcome.error)) busyCount++;
       if (isImageRefundPending(outcome.error)) pendingRefundMessage = publicImageEditError(outcome.error);
-      lastError = pendingRefundMessage ?? publicImageEditError(outcome.error);
+      if (outcome.error instanceof ApiError && outcome.error.code === "IMAGE_CONTENT_POLICY") policyMessage ??= outcome.error.message;
+      lastError = pendingRefundMessage ?? policyMessage ?? publicImageEditError(outcome.error);
     }
   }
 
@@ -83,5 +87,6 @@ export async function executeImageEditTasks<T>(
     lastError,
     ...(pendingRefundMessage ? { refundPending: true as const } : {}),
     ...(busyCount > 0 && busyCount === jobs.length ? { queueFull: true as const } : {}),
+    ...(policyMessage ? { contentPolicyRejected: true as const } : {}),
   };
 }

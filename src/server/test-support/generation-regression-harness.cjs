@@ -169,4 +169,24 @@ async function testGatewayConcurrency(){
  pending[0](); pending[2](); const result=await response; assert.equal(result.status,200); assert.equal(peak,2);
  assert.deepEqual(Array.from(stored.images,x=>x.storageKey),['claim:0','claim:1','claim:2']);
 }
-module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal,testGatewayConcurrency};
+async function testPolicyRejection(editMode){
+ let reserved=0, refunded=0, calls=0;
+ const forbidden=()=>{throw new Error('Unexpected persistence call');};
+ const loader=makeLoader({
+  '@/db':{db:new Proxy({}, {get:()=>forbidden})}, '@/db/schema':{imageGenerations:{}},
+  '@/lib/config':{getConfig:async()=>({imageModel:'gpt-image-2',imageSystemPrompt:''})},
+  '@/server/services/model-channels':{isConfiguredModelEnabled:async()=>true,resolveConfiguredEndpoint:async()=>({apiKey:'synthetic-key',baseUrl:'https://upstream.invalid/v1',maxRetries:3,enforcePublicHttps:false})},
+  '@/server/services/credits':{assertEnoughCredits:async()=>{},reserveCredits:async()=>{reserved++;return {refund:async()=>{refunded++;}};}},
+  '@/server/services/image-costs':{getImageModelCreditCost:async()=>5,calculateImageCreditCost:(cost,count)=>cost*count},
+  '@/server/services/site-settings':{assertImageGenerationAllowed:async()=>{}},
+  '@/server/safe-http':{requestPublicHttpsBuffer:forbidden,requestPublicHttpsResponse:forbidden},
+  'fs/promises':new Proxy({}, {get:()=>forbidden})
+ },{fetch:async()=>{calls++;return Response.json({error:{code:'content_policy_violation',message:'Nudity rejected; SECRET_UNTRUSTED',account_email:'private@example.test'}},{status:400});}});
+ const image=loader('src/server/services/image.ts');
+ const options={userId:'u',role:'user',prompt:'test',modelOverride:'gpt-image-2',size:'1024x1024'};
+ const input='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=';
+ const operation=editMode?()=>image.editImage({...options,image:input}):()=>image.generateImage(options);
+ await assert.rejects(operation, error=>error.code==='IMAGE_CONTENT_POLICY' && error.message.includes('裸露') && !error.message.includes('SECRET_UNTRUSTED') && !error.message.includes('private@example.test'));
+ assert.equal(calls,1);assert.equal(reserved,1);assert.equal(refunded,1);
+}
+module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal,testGatewayConcurrency,testPolicyRejection};

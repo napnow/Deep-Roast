@@ -200,7 +200,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
               } catch (error: unknown) {
                 if (!batchGeneration.isCurrent()) return;
                 const priority = (value: unknown) => value instanceof ApiError
-                  ? value.code === "CREDIT_REFUND_PENDING" ? 3 : value.code === "INSUFFICIENT_CREDITS" ? 2 : 1
+                  ? value.code === "CREDIT_REFUND_PENDING" ? 4 : value.code === "IMAGE_CONTENT_POLICY" ? 3 : value.code === "INSUFFICIENT_CREDITS" ? 2 : 1
                   : 1;
                 if (!failure || priority(error) > priority(failure)) failure = error;
               }
@@ -394,6 +394,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           failed: number;
           lastError?: string | null;
           refundPending?: boolean;
+          contentPolicyRejected?: boolean;
         }>("/api/image-edit/batch", {
           method: "POST",
           ...jsonBody({
@@ -426,6 +427,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         const refundNotice = getRefundPendingNotice(data);
         if (refundNotice) {
           toast(refundNotice, "error");
+        } else if (data.succeeded > 0 && data.contentPolicyRejected) {
+          toast(`生成成功 ${data.succeeded} 张，部分图片未通过内容审核。${data.lastError || "请检查提示词或参考图后重试。"}`, "error");
         } else if (data.succeeded > 0) {
           toast(
             data.failed > 0
