@@ -157,3 +157,28 @@ describe("image input safety", () => {
     );
   });
 });
+
+describe("grok imagine upstream contract", () => {
+  const source = readFileSync(new URL("./image.ts", import.meta.url), "utf8");
+
+  it("sends aspect_ratio and asks for inline base64 on both routes", () => {
+    // 文生图 + 图生图：grok2api 只认比例，且默认返回的是内网图片地址
+    const ratios = source.match(/aspect_ratio: grokAspectRatio\(size\)/g) ?? [];
+    const inlined = source.match(/response_format: "b64_json"/g) ?? [];
+    assert.equal(ratios.length, 2);
+    assert.equal(inlined.length, 2);
+  });
+
+  it("validates grok pixel sizes with the same WxH rules as gpt", () => {
+    assert.equal(assertImageSize("1280x720", "grok-imagine-image"), "1280x720");
+    assert.equal(
+      assertImageSize("2048x2048", "grok-imagine-image-2.0"),
+      "2048x2048",
+    );
+    assert.throws(
+      () => assertImageSize("2048x2049", "grok-imagine-image"),
+      /尺寸/,
+    );
+    assert.throws(() => assertImageSize("nonsense", "grok-imagine-image"), /尺寸/);
+  });
+});
