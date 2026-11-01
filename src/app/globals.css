@@ -1761,10 +1761,15 @@ html.dark .liquid-glass-strong {
   position: relative;
   z-index: 1;
   display: flex;
-  height: 100vh;
   height: 100svh;
   flex-direction: column;
   background: var(--bg-root);
+}
+
+@supports not (height: 100svh) {
+  .workspace-shell {
+    height: 100vh;
+  }
 }
 
 .workspace-main,
