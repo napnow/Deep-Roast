@@ -44,6 +44,7 @@ import {
   protectedImageUrl,
 } from "./private-images";
 import { providerIdempotencyKey } from "./request-idempotency";
+import { createImagePerformance, type ImagePerformance } from "./image-performance";
 
 const MAX_PROMPT_LENGTH = 12000;
 
@@ -523,7 +524,7 @@ async function refundImageReservation(
   throw lastError instanceof Error ? lastError : new Error("退款失败");
 }
 
-async function writeImageArtifacts(buffer: Buffer): Promise<{
+async function writeImageArtifacts(buffer: Buffer, perf: ImagePerformance): Promise<{
   storageKey: string;
   thumbStorageKey?: string;
   imageUrl: string;
@@ -533,11 +534,11 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
   const imagesDir = privateImageRoot();
   const writtenPaths: string[] = [];
   try {
-    await mkdir(imagesDir, { recursive: true });
+    await perf.measure("storage", () => mkdir(imagesDir, { recursive: true }));
     const ext = detectImageExt(buffer);
     const filename = `${crypto.randomUUID()}${ext}`;
     const imagePath = path.join(imagesDir, filename);
-    await writeFileAtomically(imagePath, buffer);
+    await perf.measure("storage", () => writeFileAtomically(imagePath, buffer));
     writtenPaths.push(imagePath);
     const storageKey = filename;
     const imageUrl = protectedImageUrl(storageKey);
@@ -548,15 +549,15 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
     try {
       const { default: sharp } = await import("sharp");
       const thumbDir = path.join(imagesDir, "thumbs");
-      await mkdir(thumbDir, { recursive: true });
+      await perf.measure("storage", () => mkdir(thumbDir, { recursive: true }));
       const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
       thumbStorageKey = thumbName;
       thumbPath = path.join(thumbDir, thumbName);
-      const thumbnail = await sharp(buffer)
+      const thumbnail = await perf.measure("processing", () => sharp(buffer)
         .resize(512, 512, { fit: "inside" })
         .webp({ quality: 80 })
-        .toBuffer();
-      await writeFileAtomically(thumbPath, thumbnail);
+        .toBuffer());
+      await perf.measure("storage", () => writeFileAtomically(thumbPath!, thumbnail));
       writtenPaths.push(thumbPath);
       thumbUrl = protectedImageUrl(storageKey, true);
     } catch {
@@ -580,7 +581,19 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
   }
 }
 
-export async function generateImage(opts: {
+export async function generateImage(opts: Parameters<typeof generateImageImpl>[0]) {
+  const perf = createImagePerformance("generate");
+  try {
+    const result = await generateImageImpl(opts, perf);
+    perf.finish("success");
+    return result;
+  } catch (error) {
+    perf.finish("failure");
+    throw error;
+  }
+}
+
+async function generateImageImpl(opts: {
   userId: string;
   /** admin 生图不扣积分 */
   role?: string;
@@ -591,7 +604,7 @@ export async function generateImage(opts: {
   signal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
-}) {
+}, perf: ImagePerformance) {
   const {
     userId,
     role = "user",
@@ -618,6 +631,7 @@ export async function generateImage(opts: {
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
+  perf.setModel(model);
   const size = assertImageSize(requestedSize, model);
   const imageCreditCost =
     opts.creditCostOverride ?? (await getImageModelCreditCost(model));
@@ -665,9 +679,10 @@ export async function generateImage(opts: {
     );
   }
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    perf.attempt();
     const writtenPaths: string[] = [];
     try {
-      const res = await postJsonUpstream(
+      const res = await perf.measure("upstream", () => postJsonUpstream(
         `${baseUrl}/images/generations`,
         {
           "Content-Type": "application/json",
@@ -703,7 +718,7 @@ export async function generateImage(opts: {
         ),
         enforcePublicHttps,
         opts.signal,
-      );
+      ));
 
       if (!res.ok) {
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
@@ -714,20 +729,20 @@ export async function generateImage(opts: {
         throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await readBoundedJsonResponse<{
+      const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
         data?: Array<{ b64_json?: string; url?: string }>;
-      }>(res);
+      }>(res));
       const item = result.data?.[0];
 
-      let buffer = await readUpstreamImage(item || {}, baseUrl, opts.signal);
+      let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl, opts.signal));
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await preserveOrCropImage(buffer, size, needsCrop);
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
 
-      const artifacts = await writeImageArtifacts(buffer);
+      const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
-      const [row] = await db
+      const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
           prompt,
@@ -738,7 +753,7 @@ export async function generateImage(opts: {
           size,
           userId,
         })
-        .returning({ id: imageGenerations.id });
+        .returning({ id: imageGenerations.id }));
 
       console.log(
         `Image gen success (attempt ${attempt}/${maxRetries}): ${model}`,
@@ -811,7 +826,19 @@ export type EditImageResult = {
 };
 
 /** 执行一次上游图像编辑请求并落盘一个结果。 */
-async function editImageOnce(opts: {
+async function editImageOnce(opts: Parameters<typeof editImageOnceImpl>[0]): Promise<EditImageResult> {
+  const perf = createImagePerformance("edit");
+  try {
+    const result = await editImageOnceImpl(opts, perf);
+    perf.finish("success");
+    return result;
+  } catch (error) {
+    perf.finish("failure");
+    throw error;
+  }
+}
+
+async function editImageOnceImpl(opts: {
   userId: string;
   role?: string;
   /** data URL（data:image/...;base64,...）或 http(s) 图片 URL，支持多张（最多 5 张） */
@@ -823,7 +850,7 @@ async function editImageOnce(opts: {
   operationIndex?: number;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
-}): Promise<EditImageResult> {
+}, perf: ImagePerformance): Promise<EditImageResult> {
   const {
     userId,
     role = "user",
@@ -853,6 +880,7 @@ async function editImageOnce(opts: {
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
+  perf.setModel(model);
 
   const size = assertImageSize(requestedSize, model);
   const imageCreditCost =
@@ -876,7 +904,7 @@ async function editImageOnce(opts: {
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
-  const normalizedImages = await normalizeReferenceImages(images, userId);
+  const normalizedImages = await perf.measure("reference", () => normalizeReferenceImages(images, userId));
   let reservation: CreditReservation | null = null;
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
@@ -909,9 +937,10 @@ async function editImageOnce(opts: {
             : normalizedImages,
       };
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    perf.attempt();
     const writtenPaths: string[] = [];
     try {
-      const res = await postJsonUpstream(
+      const res = await perf.measure("upstream", () => postJsonUpstream(
         `${baseUrl}/images/edits`,
         {
           "Content-Type": "application/json",
@@ -928,7 +957,7 @@ async function editImageOnce(opts: {
         },
         JSON.stringify(editPayload),
         enforcePublicHttps,
-      );
+      ));
 
       if (!res.ok) {
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
@@ -939,20 +968,20 @@ async function editImageOnce(opts: {
         throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await readBoundedJsonResponse<{
+      const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
         data?: Array<{ b64_json?: string; url?: string }>;
-      }>(res);
+      }>(res));
       const item = result.data?.[0];
 
-      let buffer = await readUpstreamImage(item || {}, baseUrl);
+      let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl));
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await preserveOrCropImage(buffer, size, needsCrop);
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
 
-      const artifacts = await writeImageArtifacts(buffer);
+      const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
-      const [row] = await db
+      const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
           prompt,
@@ -963,7 +992,7 @@ async function editImageOnce(opts: {
           size,
           userId,
         })
-        .returning({ id: imageGenerations.id });
+        .returning({ id: imageGenerations.id }));
 
       console.log(
         `Image edit success (attempt ${attempt}/${maxRetries}): ${model}`,
