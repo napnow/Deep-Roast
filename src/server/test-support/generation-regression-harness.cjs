@@ -146,4 +146,27 @@ async function testAllFailedRefundReplay(){
  }
 }
 
-module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal};
+async function testGatewayConcurrency(){
+ let ApiError, active=0, peak=0; const pending=[]; let stored;
+ const load=makeLoader({
+  '@/server/auth':{requireApiUser:async()=>({userId:'u',role:'user',apiKeyId:'k'})},
+  '@/server/rate-limit':{enforceRateLimit:async()=>{}},
+  '@/lib/config':{getConfig:async()=>({imageModel:'gpt-image-2'})},
+  '@/server/services/image-costs':{getImageModelCreditCost:async()=>5},
+  '@/server/services/api-keys':{recordApiKeyUsage:async()=>{}},
+  '@/server/services/private-images':{createImageAccessToken:()=> 'signed'},
+  '@/server/services/request-idempotency-store':{
+   beginRequest:async()=>({kind:'new',id:'claim',leaseToken:'lease'}),completeRequest:async(_id,_lease,_status,body)=>{stored=body;},
+   failRequest:async()=>{},inProgressError:()=>new ApiError('busy',409),requestErrorStatus:()=>500,requestErrorBody:e=>({error:e.message})
+  },
+  '@/server/services/image':{generateImage:async(o)=>{active++; peak=Math.max(peak,active); await new Promise(resolve=>pending.push(resolve)); active--; return {storageKey:o.idempotencyKey,imageUrl:'/api/images/'+o.idempotencyKey};}}
+ });
+ ApiError=load('src/server/http.ts').ApiError;
+ const {POST}=load('src/app/api/v1/images/generations/route.ts');
+ const response=POST(new Request('https://app.invalid/api/v1/images/generations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:'test',n:3})}));
+ await new Promise(resolve=>setImmediate(resolve)); assert.equal(active,2); assert.equal(pending.length,2);
+ pending[1](); await new Promise(resolve=>setImmediate(resolve)); assert.equal(active,2); assert.equal(pending.length,3);
+ pending[0](); pending[2](); const result=await response; assert.equal(result.status,200); assert.equal(peak,2);
+ assert.deepEqual(Array.from(stored.images,x=>x.storageKey),['claim:0','claim:1','claim:2']);
+}
+module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal,testGatewayConcurrency};

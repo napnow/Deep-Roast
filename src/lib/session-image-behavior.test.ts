@@ -46,6 +46,38 @@ function succeed(request: SessionRequest, kind: Kind, label: string) {
     refundPending: true, lastError: `${label}: refund pending` });
 }
 
+test("text batches keep at most two requests in flight and retain request order", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+  const pending = images.value.handleGenerateImageBatch("batch", size, 3);
+  await env.flush();
+  assert.equal(env.requests.length, 2);
+  respond(env.requests[1], image("second")); await env.flush();
+  assert.equal(env.requests.length, 3);
+  respond(env.requests[2], image("third"));
+  respond(env.requests[0], image("first"));
+  await pending; await env.flush();
+  assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["first", "second", "third"]);
+});
+
+test("a pending refund warning wins over a concurrent ordinary failure in either completion order", async (t) => {
+  for (const pendingFirst of [true, false]) await t.test(String(pendingFirst), async (t) => {
+    const env = sessionFixture(); t.after(() => env.dispose());
+    env.store.getState().setUserSession("A"); configure(env);
+    const images = env.mountImages(async () => {});
+    const run = images.value.handleGenerateImageBatch("batch", size, 2);
+    await env.flush();
+    const pending = { error: "退款未完成，请联系客服", code: "CREDIT_REFUND_PENDING" };
+    const ordinary = { error: "网络故障", code: "UPSTREAM_IMAGE_ERROR" };
+    respond(env.requests[0], pendingFirst ? pending : ordinary, pendingFirst ? 503 : 502);
+    await env.flush();
+    respond(env.requests[1], pendingFirst ? ordinary : pending, pendingFirst ? 502 : 503);
+    await run; await env.flush();
+    assert.ok(env.notifications.some((item) => Array.isArray(item) && item[0] === pending.error));
+  });
+});
+
 test("session images: all generation paths and deletion reject the previous account's late results", async (t) => {
   for (const kind of kinds) await t.test(kind, async (t) => {
     const env = sessionFixture(); t.after(() => env.dispose());

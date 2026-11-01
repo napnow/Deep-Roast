@@ -10,6 +10,7 @@ import { runImageEditTasks } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
+import { imageEditAdmission } from "@/server/services/image-concurrency";
 import {
   beginRequest,
   completeRequest,
@@ -27,6 +28,8 @@ const IMAGE_WINDOW = 60;
 export const POST = handleRoute(async (req) => {
   const user = await requireActiveUser(req);
   await enforceRateLimit("image-user", user.userId, IMAGE_LIMIT, IMAGE_WINDOW);
+  const releaseAdmission = await imageEditAdmission.acquire(req.signal);
+  try {
   const body = await readJson<ImageEditRequest>(req, {
     maxBytes: IMAGE_EDIT_JSON_MAX_BYTES,
   });
@@ -47,12 +50,13 @@ export const POST = handleRoute(async (req) => {
       size: body.size,
       count: 1,
       idempotencyKey: claim.id,
+      queueSignal: req.signal,
     });
     if (result.succeeded === 0) {
       throw new ApiError(
         result.lastError || "图生图失败",
-        result.refundPending ? 503 : 500,
-        result.refundPending ? "CREDIT_REFUND_PENDING" : undefined,
+        result.refundPending || result.queueFull ? 503 : 500,
+        result.refundPending ? "CREDIT_REFUND_PENDING" : result.queueFull ? "IMAGE_QUEUE_FULL" : undefined,
       );
     }
     await completeRequest(claim.id, claim.leaseToken, 200, result);
@@ -69,4 +73,5 @@ export const POST = handleRoute(async (req) => {
     );
     throw error;
   }
+  } finally { releaseAdmission(); }
 });

@@ -141,6 +141,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
+      const batchGeneration = generation;
       setGenerating(true);
       startImageTask({ mode: "text", prompt, size, count });
       const results: {
@@ -152,14 +153,16 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         size: string;
         createdAt: string;
         sourceMode: "text";
+        batchIndex: number;
       }[] = [];
       let failure: unknown = null;
       let published = false;
       const publishCompleted = () => {
         if (!generation.isCurrent() || published || results.length === 0) return false;
         published = true;
-        setImageHistory((previous) => [...results, ...previous]);
-        setActiveImageId(results[0].id);
+        const ordered = [...results].sort((a, b) => a.batchIndex - b.batchIndex);
+        setImageHistory((previous) => [...ordered.map(({ batchIndex: _index, ...item }) => item), ...previous]);
+        setActiveImageId(ordered[0].id);
         toast(`生成成功 ${results.length} 张`, "success");
         return true;
       };
@@ -172,30 +175,38 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
       try {
         try {
-          for (let index = 0; index < count; index += 1) {
-            if (!generation.isCurrent()) return;
-            const data = await apiJson<{
+          let nextIndex = 0;
+          async function worker() {
+            while (nextIndex < count && !failure && batchGeneration.isCurrent()) {
+              const index = nextIndex++;
+              try {
+                const data = await apiJson<{
               id: string;
               prompt: string;
               model: string;
               imageUrl: string;
               thumbUrl?: string;
               size: string;
-            }>("/api/image", {
+                }>("/api/image", {
               method: "POST",
               ...jsonBody(
                 { prompt, size, model: resolveRequestModel() },
                 idempotencyHeaders(),
               ),
-              signal: generation.signal,
+              signal: batchGeneration.signal,
             });
-            if (!generation.isCurrent()) return;
-            results.push({
-              ...data,
-              createdAt: new Date().toISOString(),
-              sourceMode: "text",
-            });
+                if (!batchGeneration.isCurrent()) return;
+                results.push({ ...data, createdAt: new Date().toISOString(), sourceMode: "text", batchIndex: index });
+              } catch (error: unknown) {
+                if (!batchGeneration.isCurrent()) return;
+                const priority = (value: unknown) => value instanceof ApiError
+                  ? value.code === "CREDIT_REFUND_PENDING" ? 3 : value.code === "INSUFFICIENT_CREDITS" ? 2 : 1
+                  : 1;
+                if (!failure || priority(error) > priority(failure)) failure = error;
+              }
+            }
           }
+          await Promise.all(Array.from({ length: Math.min(2, count) }, () => worker()));
         } catch (error: unknown) {
           if (!generation.isCurrent()) return;
           failure = error;
@@ -204,7 +215,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         // Never publish a cancelled batch's buffered images into another task/session.
         if (!generation.isCurrent()) return;
         if (publishCompleted()) {
-          finishImageTask(results.map((item) => item.id));
+          finishImageTask([...results].sort((a, b) => a.batchIndex - b.batchIndex).map((item) => item.id));
           await loadCredits();
           if (!generation.isCurrent()) return;
         }

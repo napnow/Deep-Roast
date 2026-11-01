@@ -15,8 +15,12 @@ export function isImageRefundPending(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === "CREDIT_REFUND_PENDING";
 }
 
+export function isImageQueueFull(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "IMAGE_QUEUE_FULL";
+}
+
 export function publicImageEditError(error: unknown): string {
-  return error instanceof ApiError && (error.status < 500 || isImageRefundPending(error))
+  return error instanceof ApiError && (error.status < 500 || isImageRefundPending(error) || isImageQueueFull(error))
     ? error.message
     : PUBLIC_IMAGE_EDIT_ERROR;
 }

@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 // 因此 API 鉴权全部下放到各 route 内部（Node Runtime，读取真实环境变量），
 // middleware 只做 /admin 页面的登录重定向。
 export const config = {
-  matcher: ["/api/:path*", "/admin/:path*", "/images/:path*"],
+  matcher: ["/admin/:path*", "/images/:path*"],
 };
 
 export async function middleware(req: NextRequest) {

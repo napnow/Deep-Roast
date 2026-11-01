@@ -1,6 +1,7 @@
 import { requireActiveUser } from "@/server/auth";
 import {
   handleRoute,
+  ApiError,
   IMAGE_EDIT_JSON_MAX_BYTES,
   jsonOk,
   readJson,
@@ -9,6 +10,7 @@ import { runImageEditTasks } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
+import { imageEditAdmission } from "@/server/services/image-concurrency";
 import {
   beginRequest,
   completeRequest,
@@ -31,6 +33,8 @@ export const POST = handleRoute(async (req) => {
     BATCH_LIMIT,
     BATCH_WINDOW,
   );
+  const releaseAdmission = await imageEditAdmission.acquire(req.signal);
+  try {
   const body = await readJson<ImageEditRequest>(req, {
     maxBytes: IMAGE_EDIT_JSON_MAX_BYTES,
   });
@@ -51,7 +55,11 @@ export const POST = handleRoute(async (req) => {
       size: body.size,
       count: body.count,
       idempotencyKey: claim.id,
+      queueSignal: req.signal,
     });
+    if (result.succeeded === 0 && result.queueFull) {
+      throw new ApiError(result.lastError || "生图任务较多，请稍后重试", 503, "IMAGE_QUEUE_FULL");
+    }
     await completeRequest(claim.id, claim.leaseToken, 200, result);
     return jsonOk(result);
   } catch (error) {
@@ -66,4 +74,5 @@ export const POST = handleRoute(async (req) => {
     );
     throw error;
   }
+  } finally { releaseAdmission(); }
 });

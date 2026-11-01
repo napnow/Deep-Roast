@@ -35,7 +35,7 @@ import {
   isGptImageModel,
   isGrokImageModel,
 } from "@/lib/image-model-capabilities";
-import { executeImageEditTasks } from "./image-edit-runner";
+import { executeImageEditTasks, largeOrUnknownReferences } from "./image-edit-runner";
 import {
   privateImagePath,
   privateImageRoot,
@@ -45,6 +45,7 @@ import {
 } from "./private-images";
 import { providerIdempotencyKey } from "./request-idempotency";
 import { createImagePerformance, type ImagePerformance } from "./image-performance";
+import { imageConcurrency } from "./image-concurrency";
 
 const MAX_PROMPT_LENGTH = 12000;
 
@@ -583,14 +584,16 @@ async function writeImageArtifacts(buffer: Buffer, perf: ImagePerformance): Prom
 
 export async function generateImage(opts: Parameters<typeof generateImageImpl>[0]) {
   const perf = createImagePerformance("generate");
+  let release: (() => void) | undefined;
   try {
+    release = await perf.measure("queue", () => imageConcurrency.acquire(opts.queueSignal ?? opts.signal));
     const result = await generateImageImpl(opts, perf);
     perf.finish("success");
     return result;
   } catch (error) {
     perf.finish("failure");
     throw error;
-  }
+  } finally { release?.(); }
 }
 
 async function generateImageImpl(opts: {
@@ -602,6 +605,7 @@ async function generateImageImpl(opts: {
   size?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
+  queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
 }, perf: ImagePerformance) {
@@ -828,14 +832,18 @@ export type EditImageResult = {
 /** 执行一次上游图像编辑请求并落盘一个结果。 */
 async function editImageOnce(opts: Parameters<typeof editImageOnceImpl>[0]): Promise<EditImageResult> {
   const perf = createImagePerformance("edit");
+  let release: (() => void) | undefined;
   try {
+    const references = Array.isArray(opts.image) ? opts.image : [opts.image];
+    const weight = largeOrUnknownReferences(references) ? 2 : 1;
+    release = await perf.measure("queue", () => imageConcurrency.acquire(opts.queueSignal, weight));
     const result = await editImageOnceImpl(opts, perf);
     perf.finish("success");
     return result;
   } catch (error) {
     perf.finish("failure");
     throw error;
-  }
+  } finally { release?.(); }
 }
 
 async function editImageOnceImpl(opts: {
@@ -848,6 +856,7 @@ async function editImageOnceImpl(opts: {
   size?: string;
   idempotencyKey?: string;
   operationIndex?: number;
+  queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
 }, perf: ImagePerformance): Promise<EditImageResult> {
@@ -1090,6 +1099,7 @@ export async function runImageEditTasks(opts: {
   size?: string;
   count?: number;
   idempotencyKey?: string;
+  queueSignal?: AbortSignal;
 }) {
   const {
     userId,
@@ -1135,8 +1145,10 @@ export async function runImageEditTasks(opts: {
         size,
         idempotencyKey: opts.idempotencyKey,
         operationIndex: taskIndex * normalizedCount + variantIndex,
+        queueSignal: opts.queueSignal,
         creditCostOverride: imageCreditCost,
       }),
+    opts.queueSignal,
   );
 
   return {
@@ -1150,6 +1162,7 @@ export async function runImageEditTasks(opts: {
     failed: execution.failed,
     lastError: execution.lastError,
     ...(execution.refundPending ? { refundPending: true as const } : {}),
+    ...(execution.queueFull ? { queueFull: true as const } : {}),
   };
 }
 

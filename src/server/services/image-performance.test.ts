@@ -15,5 +15,5 @@ test("records cumulative stage timings and a bounded privacy-safe result", async
   now += 2;
   perf.finish("failure");
   perf.finish("failure");
-  assert.deepEqual(records, [{ event: "image_performance", mode: "generate", model: "model-a", outcome: "failure", attempts: 2, total_ms: 30, upstream_ms: 25, image_load_ms: 0, reference_ms: 0, processing_ms: 3, storage_ms: 0, database_ms: 0, other_ms: 2, rss_bytes: 1234 }]);
+  assert.deepEqual(records, [{ event: "image_performance", mode: "generate", model: "model-a", outcome: "failure", attempts: 2, total_ms: 30, queue_ms: 0, upstream_ms: 25, image_load_ms: 0, reference_ms: 0, processing_ms: 3, storage_ms: 0, database_ms: 0, other_ms: 2, rss_bytes: 1234 }]);
 });
