@@ -24,7 +24,12 @@ describe("image edit UI request builder", () => {
     assert.deepEqual(
       buildImageEditRequest(
         ["target", "ref"],
-        { mode: "reference", targetIndex: 0, referenceIndexes: [0, 1] },
+        {
+          mode: "reference",
+          targetIndex: 0,
+          prompt: "描述参考修改",
+          referenceIndexes: [0, 1],
+        },
         "参考风格",
       ),
       {
@@ -32,7 +37,7 @@ describe("image edit UI request builder", () => {
         targetImage: "target",
         targetIndex: 0,
         referenceImages: ["ref"],
-        prompt: "参考风格",
+        prompt: "描述参考修改",
       },
     );
   });
@@ -41,7 +46,12 @@ describe("image edit UI request builder", () => {
     assert.deepEqual(
       buildImageEditRequest(
         ["a"],
-        { mode: "reference", targetIndex: 2, referenceIndexes: [0, 4] },
+        {
+          mode: "reference",
+          targetIndex: 2,
+          prompt: "",
+          referenceIndexes: [0, 4],
+        },
         "",
       ),
       {

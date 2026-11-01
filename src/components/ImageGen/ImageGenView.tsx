@@ -374,6 +374,7 @@ export default function ImageGenView({
           keyboardOpen={keyboardOpen}
           openImageToImage={openImageToImage}
           onImageToImageOpened={() => setOpenImageToImage(false)}
+          onWalletClick={onWalletClick}
         />
       )}
 

@@ -265,6 +265,25 @@ test("normal append preserves reference-mode target, references and batch count"
   }]);
 });
 
+test("reference edits keep the selected style prefix", async (t) => {
+  const panel = harness(t);
+  panel.upload(["A", "B"]);
+  await panel.finishCompression("A");
+  await panel.finishCompression("B");
+  panel.click("选择图片 2");
+  panel.click("参考修改");
+  panel.click("设为参考");
+  panel.setPrompt("让 B 参考 A 的光照");
+  panel.click("极简 Zine 海报");
+  await panel.click("生成图片");
+
+  const request = panel.submissions[0]!.request;
+  assert.equal(request.mode, "reference");
+  assert.ok(request.mode === "reference");
+  assert.match(request.prompt ?? "", /^把这张照片改造成极简 zine 海报风格/);
+  assert.match(request.prompt ?? "", /用户的修改要求：让 B 参考 A 的光照$/);
+});
+
 test("concurrent completions still enforce the five-image limit", async (t) => {
   const panel = harness(t);
   panel.upload(["A", "B", "C", "D", "E"]);
@@ -316,6 +335,23 @@ for (const count of [1, 2, 3, 4, 5]) {
   });
 }
 
+
+test("draft replacement invalidates an in-flight polish response", async (t) => {
+  const panel = harness(t);
+  panel.upload(["A"]);
+  await panel.finishCompression("A");
+  panel.setPrompt("旧素材的原始指令");
+  void panel.click("润色修改指令");
+  await panel.flush();
+  assert.equal(panel.pendingPolishCount(), 1);
+
+  const restored = draft();
+  panel.render({ draft: restored });
+  await panel.polish("不应写回的润色结果");
+
+  assert.equal(panel.prompt(), restored.prompt);
+  assert.deepEqual(panel.errors(), []);
+});
 
 test("account switch clears mounted uploads and rejects old compression", async (t) => {
   const env = sessionFixture({ pathname: "/" });

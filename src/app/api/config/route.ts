@@ -82,6 +82,7 @@ async function publicConfig(
     assistantImagePrompt:
       config.assistantImagePrompt || DEFAULT_ASSISTANT_IMAGE_PROMPT,
     reversePromptModel: config.reversePromptModel || "",
+    polishPromptModel: config.polishPromptModel || "",
     updatedAt: config.updatedAt,
     arkApiKey: "",
     hasApiKey: hasCredential,
@@ -173,6 +174,9 @@ export const PUT = handleRoute(async (req) => {
   if (body.reversePromptModel !== undefined) {
     updates.reversePromptModel = String(body.reversePromptModel ?? "").trim();
   }
+  if (body.polishPromptModel !== undefined) {
+    updates.polishPromptModel = String(body.polishPromptModel ?? "").trim();
+  }
 
   const enabledImage = asStringArray(body.enabledImageModels);
   if (enabledImage !== undefined) {
@@ -218,12 +222,17 @@ export const PUT = handleRoute(async (req) => {
         arkApiKeyIv: (updates.arkApiKeyIv as string) || null,
         arkApiKeyAuthTag: (updates.arkApiKeyAuthTag as string) || null,
         baseUrl: (updates.baseUrl as string) || "",
+        textModel: (updates.textModel as string) || defaultTextModelIds()[0] || "",
         imageModel:
           (updates.imageModel as string) || "gpt-image-2",
         imageSystemPrompt: (updates.imageSystemPrompt as string) || "",
         assistantImagePrompt:
           (updates.assistantImagePrompt as string) || "",
         reversePromptModel: (updates.reversePromptModel as string) || "",
+        polishPromptModel: (updates.polishPromptModel as string) || "",
+        enabledTextModels:
+          (updates.enabledTextModels as string) ||
+          serializeModelIds(defaultTextModelIds()),
         enabledImageModels:
           (updates.enabledImageModels as string) ||
           serializeModelIds(defaultImageModelIds()),

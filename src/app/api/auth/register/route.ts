@@ -341,7 +341,7 @@ export async function POST(req: Request) {
       userId: user.id,
       username: user.username,
       role: user.role,
-    });
+    }, hashedPassword);
     await setAuthCookie(token);
 
     return Response.json(

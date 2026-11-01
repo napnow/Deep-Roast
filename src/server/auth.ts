@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ApiError } from "@/server/http";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, sessionMatchesPassword } from "@/lib/auth";
 import { resolveApiKeyUser } from "@/server/services/api-keys";
 
 export interface RequestUser {
@@ -33,6 +33,10 @@ export async function resolveUserFromRequest(
 
   const payload = await verifyToken(token);
   if (!payload) return null;
+
+  const [row] = await db.select({ password: users.password }).from(users)
+    .where(eq(users.id, payload.userId)).limit(1);
+  if (!row || !sessionMatchesPassword(payload, row.password)) return null;
 
   return {
     userId: payload.userId as string,

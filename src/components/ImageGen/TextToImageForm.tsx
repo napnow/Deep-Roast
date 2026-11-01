@@ -10,7 +10,13 @@ import { IMAGE_STYLE_PRESETS } from "@/types";
 import { getCreationSettingsSummary } from "./creation-workbench-ui";
 
 interface TextToImageFormProps {
-  draft: TextToImageDraft;
+  draft: TextToImageDraft & {
+    prompt: string;
+  };
+  polishing: boolean;
+  polishError: string;
+  polishUndo: { original: string; polished: string } | null;
+  giftPolish: boolean;
   model: string;
   imageModels: string[];
   selectedImageModel: string;
@@ -18,6 +24,8 @@ interface TextToImageFormProps {
   disabled: boolean;
   onChange: (next: Partial<TextToImageDraft>) => void;
   onModelChange: (model: string) => void;
+  onPolish: () => void;
+  onRestorePrompt: () => void;
 }
 
 const EXAMPLES = [
@@ -28,6 +36,10 @@ const EXAMPLES = [
 
 export default function TextToImageForm({
   draft,
+  polishing,
+  polishError,
+  polishUndo,
+  giftPolish,
   model,
   imageModels,
   selectedImageModel,
@@ -35,6 +47,8 @@ export default function TextToImageForm({
   disabled,
   onChange,
   onModelChange,
+  onPolish,
+  onRestorePrompt,
 }: TextToImageFormProps) {
   const selectedStyle = IMAGE_STYLE_PRESETS.find(
     (preset) => preset.prompt === draft.stylePrompt,
@@ -65,12 +79,13 @@ export default function TextToImageForm({
           </div>
         </div>
 
-        <label className="creation-composer creation-step-card__composer">
+        <div className="creation-composer creation-step-card__composer">
           <span className="sr-only">画面描述</span>
           <textarea
+            aria-label="画面描述"
             className="creation-composer__input ui-field"
             value={draft.prompt}
-            disabled={disabled}
+            disabled={disabled || polishing}
             onChange={(event) => onChange({ prompt: event.target.value })}
             placeholder="例如：雨夜霓虹街头，一位撑透明伞的旅人…"
             rows={6}
@@ -79,7 +94,39 @@ export default function TextToImageForm({
           <span className="creation-composer__counter">
             {draft.prompt.length} / 12000
           </span>
-        </label>
+          <div className="creation-composer__tools">
+            {polishUndo ? (
+              <button
+                type="button"
+                className="creation-polish-undo"
+                disabled={disabled || polishing}
+                onClick={onRestorePrompt}
+              >
+                已润色 · 恢复原文
+              </button>
+            ) : null}
+            {polishError && !polishing ? (
+              <span className="creation-polish-error" role="alert">
+                {polishError}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="creation-polish-trigger"
+              aria-busy={polishing}
+              disabled={disabled || polishing || !draft.prompt.trim()}
+              onClick={onPolish}
+            >
+              <span className="creation-polish-trigger__spark" aria-hidden="true">
+                ✦
+              </span>
+              {polishing ? "润色中…" : "润色提示词"}
+              <span className="creation-polish-trigger__cost">
+                {giftPolish ? "免费" : "1 积分"}
+              </span>
+            </button>
+          </div>
+        </div>
 
         {!draft.prompt ? (
           <div className="creation-suggestions" aria-label="示例提示词">

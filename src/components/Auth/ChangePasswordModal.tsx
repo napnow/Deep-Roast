@@ -73,6 +73,7 @@ export default function ChangePasswordModal({
       });
       toast("密码已修改", "success");
       onClose();
+      window.location.assign("/login");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "修改失败");
     }

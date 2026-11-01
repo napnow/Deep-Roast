@@ -10,6 +10,12 @@ export interface TextToImageDraft {
   stylePrompt: string;
 }
 
+/** Transient undo history for a successful prompt polish. */
+export interface TextToImagePolishUndo {
+  original: string;
+  polished: string;
+}
+
 export interface ImageToImageDraft {
   prompt: string;
   size: string;
