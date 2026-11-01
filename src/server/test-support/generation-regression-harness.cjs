@@ -146,4 +146,47 @@ async function testAllFailedRefundReplay(){
  }
 }
 
-module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal};
+async function testGatewayConcurrency(){
+ let ApiError, active=0, peak=0; const pending=[]; let stored;
+ const load=makeLoader({
+  '@/server/auth':{requireApiUser:async()=>({userId:'u',role:'user',apiKeyId:'k'})},
+  '@/server/rate-limit':{enforceRateLimit:async()=>{}},
+  '@/lib/config':{getConfig:async()=>({imageModel:'gpt-image-2'})},
+  '@/server/services/image-costs':{getImageModelCreditCost:async()=>5},
+  '@/server/services/api-keys':{recordApiKeyUsage:async()=>{}},
+  '@/server/services/private-images':{createImageAccessToken:()=> 'signed'},
+  '@/server/services/request-idempotency-store':{
+   beginRequest:async()=>({kind:'new',id:'claim',leaseToken:'lease'}),completeRequest:async(_id,_lease,_status,body)=>{stored=body;},
+   failRequest:async()=>{},inProgressError:()=>new ApiError('busy',409),requestErrorStatus:()=>500,requestErrorBody:e=>({error:e.message})
+  },
+  '@/server/services/image':{generateImage:async(o)=>{active++; peak=Math.max(peak,active); await new Promise(resolve=>pending.push(resolve)); active--; return {storageKey:o.idempotencyKey,imageUrl:'/api/images/'+o.idempotencyKey};}}
+ });
+ ApiError=load('src/server/http.ts').ApiError;
+ const {POST}=load('src/app/api/v1/images/generations/route.ts');
+ const response=POST(new Request('https://app.invalid/api/v1/images/generations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:'test',n:3})}));
+ await new Promise(resolve=>setImmediate(resolve)); assert.equal(active,2); assert.equal(pending.length,2);
+ pending[1](); await new Promise(resolve=>setImmediate(resolve)); assert.equal(active,2); assert.equal(pending.length,3);
+ pending[0](); pending[2](); const result=await response; assert.equal(result.status,200); assert.equal(peak,2);
+ assert.deepEqual(Array.from(stored.images,x=>x.storageKey),['claim:0','claim:1','claim:2']);
+}
+async function testPolicyRejection(editMode){
+ let reserved=0, refunded=0, calls=0;
+ const forbidden=()=>{throw new Error('Unexpected persistence call');};
+ const loader=makeLoader({
+  '@/db':{db:new Proxy({}, {get:()=>forbidden})}, '@/db/schema':{imageGenerations:{}},
+  '@/lib/config':{getConfig:async()=>({imageModel:'gpt-image-2',imageSystemPrompt:''})},
+  '@/server/services/model-channels':{isConfiguredModelEnabled:async()=>true,resolveConfiguredEndpoint:async()=>({apiKey:'synthetic-key',baseUrl:'https://upstream.invalid/v1',maxRetries:3,enforcePublicHttps:false})},
+  '@/server/services/credits':{assertEnoughCredits:async()=>{},reserveCredits:async()=>{reserved++;return {refund:async()=>{refunded++;}};}},
+  '@/server/services/image-costs':{getImageModelCreditCost:async()=>5,calculateImageCreditCost:(cost,count)=>cost*count},
+  '@/server/services/site-settings':{assertImageGenerationAllowed:async()=>{}},
+  '@/server/safe-http':{requestPublicHttpsBuffer:forbidden,requestPublicHttpsResponse:forbidden},
+  'fs/promises':new Proxy({}, {get:()=>forbidden})
+ },{fetch:async()=>{calls++;return Response.json({error:{code:'content_policy_violation',message:'Nudity rejected; SECRET_UNTRUSTED',account_email:'private@example.test'}},{status:400});}});
+ const image=loader('src/server/services/image.ts');
+ const options={userId:'u',role:'user',prompt:'test',modelOverride:'gpt-image-2',size:'1024x1024'};
+ const input='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jL1sAAAAASUVORK5CYII=';
+ const operation=editMode?()=>image.editImage({...options,image:input}):()=>image.generateImage(options);
+ await assert.rejects(operation, error=>error.code==='IMAGE_CONTENT_POLICY' && error.message.includes('裸露') && !error.message.includes('SECRET_UNTRUSTED') && !error.message.includes('private@example.test'));
+ assert.equal(calls,1);assert.equal(reserved,1);assert.equal(refunded,1);
+}
+module.exports={testPartialBatch,testUpstreamRetry,testEditRetryIdentity,testAllFailedRefundReplay,testRefundSignal,testGatewayConcurrency,testPolicyRejection};

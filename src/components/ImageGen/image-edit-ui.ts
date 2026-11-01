@@ -8,6 +8,7 @@ export type ImageEditUiState =
   | {
       mode: "reference";
       targetIndex: number;
+      prompt: string;
       referenceIndexes: number[];
     };
 
@@ -35,6 +36,7 @@ export function buildImageEditRequest(
   }
 
   const targetIndex = clampIndex(state.targetIndex, images.length);
+  const visiblePrompt = state.prompt.trim() || prompt;
   const referenceImages = Array.from(new Set(state.referenceIndexes))
     .filter(
       (index) =>
@@ -50,7 +52,7 @@ export function buildImageEditRequest(
     targetImage: images[targetIndex] || "",
     targetIndex,
     referenceImages,
-    prompt,
+    prompt: visiblePrompt,
   };
 }
 

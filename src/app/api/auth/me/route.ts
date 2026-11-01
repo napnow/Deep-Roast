@@ -1,4 +1,5 @@
-import { verifyToken, clearAuthCookie } from "@/lib/auth";
+import { clearAuthCookie } from "@/lib/auth";
+import { resolveUserFromRequest } from "@/server/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -7,15 +8,7 @@ import { getCheckinReward } from "@/server/services/site-settings";
 
 export async function GET(req: Request) {
   try {
-    const cookieHeader = req.headers.get("cookie") || "";
-    const tokenMatch = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
-    const token = tokenMatch ? tokenMatch[1] : null;
-
-    if (!token) {
-      return Response.json({ error: "未登录" }, { status: 401 });
-    }
-
-    const payload = await verifyToken(token);
+    const payload = await resolveUserFromRequest(req);
     if (!payload) {
       return Response.json({ error: "登录已过期" }, { status: 401 });
     }

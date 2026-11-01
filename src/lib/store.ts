@@ -18,6 +18,7 @@ import type {
   ImageToImageDraft,
   ReversePromptDraft,
   TextToImageDraft,
+  TextToImagePolishUndo,
 } from "@/lib/image-workspace";
 import {
   INITIAL_IMAGE_TASK,
@@ -45,6 +46,7 @@ export interface DeepRoastState {
   inspectorCollapsed: boolean;
   activeImageId: string | null;
   textToImageDraft: TextToImageDraft;
+  textToImagePolishUndo: TextToImagePolishUndo | null;
   imageToImageDraft: ImageToImageDraft;
   reversePromptDraft: ReversePromptDraft;
 
@@ -86,6 +88,11 @@ export interface DeepRoastState {
   setInspectorCollapsed: (collapsed: boolean) => void;
   setActiveImageId: (id: string | null) => void;
   setTextToImageDraft: (next: Partial<TextToImageDraft>) => void;
+  setTextToImagePolishUndo: (next: TextToImagePolishUndo | null) => void;
+  commitPolishedPrompt: (next: {
+    original: string;
+    polished: string;
+  }) => void;
   setImageToImageDraft: (next: Partial<ImageToImageDraft>) => void;
   setReversePromptDraft: (next: Partial<ReversePromptDraft>) => void;
   setConfig: (updates: Partial<Config> | ((prev: Config) => Config)) => void;
@@ -103,7 +110,7 @@ export interface DeepRoastState {
   finishImageTask: (resultIds: string[]) => void;
   failImageTask: (error: ImageTaskError) => void;
   clearImageTask: () => void;
-  setCredits: (credits: number) => void;
+  setCredits: (credits: number | ((current: number) => number)) => void;
   setCheckinStatus: (status: {
     eligible?: boolean;
     todayChecked?: boolean;
@@ -124,6 +131,7 @@ const initialConfig: Config = {
   imageSystemPrompt: "",
   assistantImagePrompt: "",
   reversePromptModel: "",
+  polishPromptModel: "",
   hasApiKey: false,
   apiKeyHint: "",
   enabledImageModels: DEFAULT_IMAGE_MODELS.map((m) => m.id),
@@ -144,6 +152,7 @@ function createInitialUserState() {
       count: 1,
       stylePrompt: "",
     },
+    textToImagePolishUndo: null,
     imageToImageDraft: {
       prompt: "",
       size: "1024x1024",
@@ -201,6 +210,18 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setTextToImageDraft: (next) =>
     set((state) => ({
       textToImageDraft: { ...state.textToImageDraft, ...next },
+      // Manual edits end the undo window; stale undo must never replace new text.
+      ...(next.prompt !== undefined
+        ? { textToImagePolishUndo: null }
+        : {}),
+    })),
+  setTextToImagePolishUndo: (next) =>
+    set({ textToImagePolishUndo: next }),
+  commitPolishedPrompt: ({ original, polished }) =>
+    set((state) => ({
+      textToImageDraft: { ...state.textToImageDraft, prompt: polished },
+      // Unlike a manual edit, committing the request's own result preserves undo.
+      textToImagePolishUndo: { original, polished },
     })),
   setImageToImageDraft: (next) =>
     set((state) => ({
@@ -255,7 +276,11 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
       },
     })),
   clearImageTask: () => set({ imageTask: INITIAL_IMAGE_TASK }),
-  setCredits: (credits) => set({ credits }),
+  setCredits: (credits) =>
+    set((state) => ({
+      credits:
+        typeof credits === "function" ? credits(state.credits) : credits,
+    })),
   setCheckinStatus: (status) =>
     set((s) => ({
       checkinReward:

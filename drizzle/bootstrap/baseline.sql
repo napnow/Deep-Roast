@@ -111,6 +111,7 @@ CREATE TABLE "llm_config" (
 	"image_system_prompt" text DEFAULT '' NOT NULL,
 	"assistant_image_prompt" text DEFAULT '' NOT NULL,
 	"reverse_prompt_model" text DEFAULT '' NOT NULL,
+	"polish_prompt_model" text DEFAULT '' NOT NULL,
 	"enabled_text_models" text DEFAULT '["doubao-seed-2-0-pro-260215","doubao-seed-2-0-lite-260428","grok-4.20-fast"]' NOT NULL,
 	"enabled_image_models" text DEFAULT '["gpt-image-2","gpt-image-2.5-flare","gpt-image-2.5-sunburst"]' NOT NULL,
 	"updated_at" timestamp DEFAULT now(),

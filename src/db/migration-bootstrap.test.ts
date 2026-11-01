@@ -163,13 +163,16 @@ test("the actual Drizzle adapter keeps all 20 legacy rows when the cursor is cur
 });
 
 test("the actual Drizzle adapter appends only the newer journal migration", async () => {
-  const client = new RecordingClient(databaseState(legacySnapshot(journal.entries.at(-2).when)));
+  // The fixture only applies ledger rows, not historical DDL. Start from the
+  // cursor before the last two entries so both real SQL files are replayed.
+  const client = new RecordingClient(databaseState(legacySnapshot(journal.entries.at(-3).when)));
   const before = structuredClone(client.state.ledger);
   assert.equal((await subject().migrateDatabase({ client })).mode, "incremental");
-  assert.deepEqual(client.state.ledger.slice(0, -1), before);
-  assert.equal(client.state.ledger.length, before.length + 1);
+  assert.deepEqual(client.state.ledger.slice(0, -2), before);
+  assert.equal(client.state.ledger.length, before.length + 2);
   assert.equal(client.state.ledger.at(-1)?.created_at, String(lastTimestamp));
   assert.ok(client.state.tables.some((t) => t.name === "image_model_credit_costs"));
+  assert.ok(client.state.tables.some((t) => t.name === "llm_config"));
   assert.equal(client.calls.some((c) => /^CREATE TABLE "announcements"/i.test(c.text)), false);
 });
 

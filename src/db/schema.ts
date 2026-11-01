@@ -41,6 +41,10 @@ export const llmConfig = pgTable(
     reversePromptModel: text("reverse_prompt_model")
       .notNull()
       .default(""),
+    /** 文生图提示词润色模型（空则回落 textModel；需为文本模型） */
+    polishPromptModel: text("polish_prompt_model")
+      .notNull()
+      .default(""),
     // JSON 数组字符串：用户启用的模型 id 列表（设置页勾选，顶栏只显示这些）
     enabledTextModels: text("enabled_text_models")
       .notNull()

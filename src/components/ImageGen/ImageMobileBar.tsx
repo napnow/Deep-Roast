@@ -15,6 +15,13 @@ import Img2ImgPanel from "./Img2ImgPanel";
 import { getImageModelLabel } from "./image-model-presentation";
 import { resolveMobileComposerDrag } from "./mobile-composer-state";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import { apiJson, ApiError } from "@/lib/client-api";
+import {
+  POLISH_PROMPT_CREDIT_COST,
+  parsePromptPolishResponse,
+  promptPolishError,
+} from "@/lib/prompt-polish";
+import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
 
 interface ImageMobileBarProps {
   prompt: string;
@@ -49,6 +56,7 @@ interface ImageMobileBarProps {
   /** 外部请求直接打开图生图面板（用于对已有生成图继续修改） */
   openImageToImage: boolean;
   onImageToImageOpened?: () => void;
+  onWalletClick?: () => void;
 }
 
 /** Mobile presentation of the same session-scoped draft used on desktop. */
@@ -77,6 +85,7 @@ export default function ImageMobileBar({
   keyboardOpen,
   openImageToImage,
   onImageToImageOpened,
+  onWalletClick,
 }: ImageMobileBarProps) {
   const imageToImageDraft = useDeepRoastStore(
     (state) => state.imageToImageDraft,
@@ -87,10 +96,26 @@ export default function ImageMobileBar({
   const userSessionVersion = useDeepRoastStore(
     (state) => state.userSessionVersion,
   );
+  const polishUndo = useDeepRoastStore((state) => {
+    const undo = state.textToImagePolishUndo;
+    return undo?.polished === state.textToImageDraft.prompt ? undo : null;
+  });
+  const setTextToImageDraft = useDeepRoastStore(
+    (state) => state.setTextToImageDraft,
+  );
+  const setTextToImagePolishUndo = useDeepRoastStore(
+    (state) => state.setTextToImagePolishUndo,
+  );
+  const commitPolishedPrompt = useDeepRoastStore(
+    (state) => state.commitPolishedPrompt,
+  );
+  const setCredits = useDeepRoastStore((state) => state.setCredits);
   const imageCostPerImage =
     imageModelCosts?.[selectedImageModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
   const cost = generationCost(count, imageCostPerImage);
   const canAfford = isAdmin || credits >= cost;
+  const canAffordPolish =
+    isAdmin || credits >= POLISH_PROMPT_CREDIT_COST;
   const imageGenerationAvailable = canUseImageGeneration(
     isAdmin ? "admin" : "user",
     imageGenerationEnabled,
@@ -99,6 +124,10 @@ export default function ImageMobileBar({
     "reverse" | "img2img" | "model" | "size" | null
   >(null);
   const [expanded, setExpanded] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [polishError, setPolishError] = useState("");
+  const polishRef = useRef(false);
+  const [polishRequests] = useState(createClientSessionLifecycle);
   const barRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const dragStartYRef = useRef<number | null>(null);
@@ -107,7 +136,14 @@ export default function ImageMobileBar({
   useEffect(() => {
     setToolbarOpen(null);
     setExpanded(false);
-  }, [userSessionVersion]);
+    polishRef.current = false;
+    setPolishing(false);
+    polishRequests.invalidate();
+  }, [userSessionVersion, polishRequests]);
+  useEffect(() => {
+    polishRequests.activate();
+    return () => polishRequests.dispose();
+  }, [polishRequests]);
   useEffect(() => {
     if (!generating) return;
     setToolbarOpen(null);
@@ -167,6 +203,63 @@ export default function ImageMobileBar({
     const finalPrompt = stylePrompt ? `${stylePrompt}\n\n${text}` : text;
     onGenerate(finalPrompt, size, count);
     // Keep the draft editable after an error and consistent across screen sizes.
+  }
+
+  async function handlePolishPrompt() {
+    const original = prompt.trim();
+    if (!original || polishRef.current || generating) return;
+    if (!canAffordPolish) {
+      setPolishError("积分不足，润色需要 1 积分");
+      onWalletClick?.();
+      return;
+    }
+
+    const request = polishRequests.start("polish");
+    if (!request) return;
+    polishRef.current = true;
+    setPolishing(true);
+    setPolishError("");
+    try {
+      const data = await apiJson<{ prompt?: string; model?: string }>(
+        "/api/polish-prompt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({ prompt: original }),
+          signal: request.signal,
+        },
+      );
+      if (!request.isCurrent()) return;
+      const result = parsePromptPolishResponse(data);
+      commitPolishedPrompt({ original, polished: result.prompt });
+      if (!isAdmin) {
+        setCredits((current) =>
+          Math.max(0, current - POLISH_PROMPT_CREDIT_COST),
+        );
+      }
+    } catch (error: unknown) {
+      if (!request.isCurrent()) return;
+      setPolishError(promptPolishError(error));
+      if (error instanceof ApiError && error.status === 402) {
+        onWalletClick?.();
+      }
+    } finally {
+      if (request.isCurrent()) {
+        polishRef.current = false;
+        setPolishing(false);
+      }
+      request.finish();
+    }
+  }
+
+  function restoreOriginalPrompt() {
+    if (!polishUndo) return;
+    setTextToImageDraft({ prompt: polishUndo.original });
+    setTextToImagePolishUndo(null);
+    setPolishError("");
   }
 
   function finishDrag(clientY: number) {
@@ -439,10 +532,43 @@ export default function ImageMobileBar({
           >
             反推提示词
           </button>
+          <button
+            type="button"
+            className="mobile-composer-chip mobile-composer-chip--polish"
+            aria-busy={polishing}
+            disabled={
+              generating ||
+              polishing ||
+              !prompt.trim() ||
+              !imageGenerationAvailable
+            }
+            onClick={handlePolishPrompt}
+          >
+            <span aria-hidden="true">✦</span>
+            {polishing ? "润色中…" : "润色提示词"}
+            <span className="mobile-composer-chip__meta">
+              {isAdmin ? "免费" : "1 积分"}
+            </span>
+          </button>
+          {polishUndo?.polished === prompt ? (
+            <button
+              type="button"
+              className="mobile-composer-chip"
+              disabled={polishing}
+              onClick={restoreOriginalPrompt}
+            >
+              已润色 · 恢复原文
+            </button>
+          ) : null}
           {stylePrompt ? (
             <span className="mobile-style-applied">已应用桌面风格</span>
           ) : null}
         </div>
+        {polishError && !polishing ? (
+          <p className="mobile-composer-alert" role="alert">
+            {polishError}
+          </p>
+        ) : null}
         {!imageGenerationAvailable ? (
           <p className="mobile-composer-alert">
             生图功能暂时关闭，反推提示词仍可使用

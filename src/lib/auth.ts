@@ -1,12 +1,14 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 // ── Types ──
 export interface AuthPayload {
   userId: string;
   username: string;
   role: string;
+  sessionProof?: string;
 }
 
 const DEV_FALLBACK_SECRET = "doubao-dev-secret-change-me";
@@ -35,8 +37,22 @@ function getSecret(): Uint8Array {
 }
 
 // ── Token helpers ──
-export async function signToken(payload: AuthPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+function passwordProof(userId: string, passwordHash: string): string {
+  return createHmac("sha256", getSecret())
+    .update("deeproast-password-session-v1\0")
+    .update(userId).update("\0").update(passwordHash)
+    .digest("base64url");
+}
+
+export function sessionMatchesPassword(payload: AuthPayload, passwordHash: string): boolean {
+  if (typeof payload.userId !== "string" || typeof payload.sessionProof !== "string") return false;
+  const actual = Buffer.from(payload.sessionProof);
+  const expected = Buffer.from(passwordProof(payload.userId, passwordHash));
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export async function signToken(payload: AuthPayload, passwordHash: string): Promise<string> {
+  return new SignJWT({ ...payload, sessionProof: passwordProof(payload.userId, passwordHash) })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")

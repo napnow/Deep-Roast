@@ -30,8 +30,12 @@ import {
   normalizeImageEditCount,
   normalizeImageEditRequest,
 } from "./image-edit-tasks";
-import { isGptImageModel } from "@/lib/image-model-capabilities";
-import { executeImageEditTasks } from "./image-edit-runner";
+import {
+  grokAspectRatio,
+  isGptImageModel,
+  isGrokImageModel,
+} from "@/lib/image-model-capabilities";
+import { executeImageEditTasks, largeOrUnknownReferences } from "./image-edit-runner";
 import {
   privateImagePath,
   privateImageRoot,
@@ -40,6 +44,9 @@ import {
   protectedImageUrl,
 } from "./private-images";
 import { providerIdempotencyKey } from "./request-idempotency";
+import { createImagePerformance, type ImagePerformance } from "./image-performance";
+import { imageConcurrency } from "./image-concurrency";
+import { imagePolicyError } from "./image-policy";
 
 const MAX_PROMPT_LENGTH = 12000;
 
@@ -105,7 +112,8 @@ export function assertImageSize(size: string, model: string): string {
   const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
 
   // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
-  if (isGptImageModel(model)) {
+  // grok-imagine：上游只认比例（aspect_ratio），像素值仅用于展示与存档，同样按合法 WxH 校验
+  if (isGptImageModel(model) || isGrokImageModel(model)) {
     if (!dimensions) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
@@ -518,7 +526,7 @@ async function refundImageReservation(
   throw lastError instanceof Error ? lastError : new Error("退款失败");
 }
 
-async function writeImageArtifacts(buffer: Buffer): Promise<{
+async function writeImageArtifacts(buffer: Buffer, perf: ImagePerformance): Promise<{
   storageKey: string;
   thumbStorageKey?: string;
   imageUrl: string;
@@ -528,11 +536,11 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
   const imagesDir = privateImageRoot();
   const writtenPaths: string[] = [];
   try {
-    await mkdir(imagesDir, { recursive: true });
+    await perf.measure("storage", () => mkdir(imagesDir, { recursive: true }));
     const ext = detectImageExt(buffer);
     const filename = `${crypto.randomUUID()}${ext}`;
     const imagePath = path.join(imagesDir, filename);
-    await writeFileAtomically(imagePath, buffer);
+    await perf.measure("storage", () => writeFileAtomically(imagePath, buffer));
     writtenPaths.push(imagePath);
     const storageKey = filename;
     const imageUrl = protectedImageUrl(storageKey);
@@ -543,15 +551,15 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
     try {
       const { default: sharp } = await import("sharp");
       const thumbDir = path.join(imagesDir, "thumbs");
-      await mkdir(thumbDir, { recursive: true });
+      await perf.measure("storage", () => mkdir(thumbDir, { recursive: true }));
       const thumbName = filename.replace(/\.(png|jpe?g)$/i, ".webp");
       thumbStorageKey = thumbName;
       thumbPath = path.join(thumbDir, thumbName);
-      const thumbnail = await sharp(buffer)
+      const thumbnail = await perf.measure("processing", () => sharp(buffer)
         .resize(512, 512, { fit: "inside" })
         .webp({ quality: 80 })
-        .toBuffer();
-      await writeFileAtomically(thumbPath, thumbnail);
+        .toBuffer());
+      await perf.measure("storage", () => writeFileAtomically(thumbPath!, thumbnail));
       writtenPaths.push(thumbPath);
       thumbUrl = protectedImageUrl(storageKey, true);
     } catch {
@@ -575,7 +583,21 @@ async function writeImageArtifacts(buffer: Buffer): Promise<{
   }
 }
 
-export async function generateImage(opts: {
+export async function generateImage(opts: Parameters<typeof generateImageImpl>[0]) {
+  const perf = createImagePerformance("generate");
+  let release: (() => void) | undefined;
+  try {
+    release = await perf.measure("queue", () => imageConcurrency.acquire(opts.queueSignal ?? opts.signal));
+    const result = await generateImageImpl(opts, perf);
+    perf.finish("success");
+    return result;
+  } catch (error) {
+    perf.finish("failure");
+    throw error;
+  } finally { release?.(); }
+}
+
+async function generateImageImpl(opts: {
   userId: string;
   /** admin 生图不扣积分 */
   role?: string;
@@ -584,9 +606,10 @@ export async function generateImage(opts: {
   size?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
+  queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
-}) {
+}, perf: ImagePerformance) {
   const {
     userId,
     role = "user",
@@ -613,6 +636,7 @@ export async function generateImage(opts: {
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
+  perf.setModel(model);
   const size = assertImageSize(requestedSize, model);
   const imageCreditCost =
     opts.creditCostOverride ?? (await getImageModelCreditCost(model));
@@ -631,7 +655,7 @@ export async function generateImage(opts: {
   );
 
   if (!apiKey) {
-    const isGrok = model.startsWith("grok-");
+    const isGrok = isGrokImageModel(model);
     const isGpt = isGptImageModel(model);
     throw new ApiError(
       isGrok
@@ -660,9 +684,10 @@ export async function generateImage(opts: {
     );
   }
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    perf.attempt();
     const writtenPaths: string[] = [];
     try {
-      const res = await postJsonUpstream(
+      const res = await perf.measure("upstream", () => postJsonUpstream(
         `${baseUrl}/images/generations`,
         {
           "Content-Type": "application/json",
@@ -677,18 +702,35 @@ export async function generateImage(opts: {
               }
             : {}),
         },
-        JSON.stringify({
-          model,
-          prompt: finalPrompt,
-          n: 1,
-          size: requestSize,
-          quality: "high",
-        }),
+        JSON.stringify(
+          isGrokImageModel(model)
+            ? {
+                model,
+                prompt: finalPrompt,
+                n: 1,
+                // grok2api 只接受七种 aspect_ratio，且不认 quality；
+                // 必须显式要 b64_json，否则返回的是 127.0.0.1 内网图片地址
+                aspect_ratio: grokAspectRatio(size),
+                response_format: "b64_json",
+              }
+            : {
+                model,
+                prompt: finalPrompt,
+                n: 1,
+                size: requestSize,
+                quality: "high",
+              },
+        ),
         enforcePublicHttps,
         opts.signal,
-      );
+      ));
 
       if (!res.ok) {
+        if (res.status === 400 || res.status === 403 || res.status === 422) {
+          const body = await perf.measure("upstream", () => readBoundedJsonResponse<unknown>(res, 64 * 1024)).catch(() => null);
+          const policyError = imagePolicyError(body, "generate");
+          if (policyError) throw policyError;
+        }
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
           throw new RetryableImageUpstreamError(
             `上游图片服务返回 HTTP ${res.status}`,
@@ -697,20 +739,20 @@ export async function generateImage(opts: {
         throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await readBoundedJsonResponse<{
+      const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
         data?: Array<{ b64_json?: string; url?: string }>;
-      }>(res);
+      }>(res));
       const item = result.data?.[0];
 
-      let buffer = await readUpstreamImage(item || {}, baseUrl, opts.signal);
+      let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl, opts.signal));
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await preserveOrCropImage(buffer, size, needsCrop);
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
 
-      const artifacts = await writeImageArtifacts(buffer);
+      const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
-      const [row] = await db
+      const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
           prompt,
@@ -721,7 +763,7 @@ export async function generateImage(opts: {
           size,
           userId,
         })
-        .returning({ id: imageGenerations.id });
+        .returning({ id: imageGenerations.id }));
 
       console.log(
         `Image gen success (attempt ${attempt}/${maxRetries}): ${model}`,
@@ -794,7 +836,23 @@ export type EditImageResult = {
 };
 
 /** 执行一次上游图像编辑请求并落盘一个结果。 */
-async function editImageOnce(opts: {
+async function editImageOnce(opts: Parameters<typeof editImageOnceImpl>[0]): Promise<EditImageResult> {
+  const perf = createImagePerformance("edit");
+  let release: (() => void) | undefined;
+  try {
+    const references = Array.isArray(opts.image) ? opts.image : [opts.image];
+    const weight = largeOrUnknownReferences(references) ? 2 : 1;
+    release = await perf.measure("queue", () => imageConcurrency.acquire(opts.queueSignal, weight));
+    const result = await editImageOnceImpl(opts, perf);
+    perf.finish("success");
+    return result;
+  } catch (error) {
+    perf.finish("failure");
+    throw error;
+  } finally { release?.(); }
+}
+
+async function editImageOnceImpl(opts: {
   userId: string;
   role?: string;
   /** data URL（data:image/...;base64,...）或 http(s) 图片 URL，支持多张（最多 5 张） */
@@ -804,9 +862,10 @@ async function editImageOnce(opts: {
   size?: string;
   idempotencyKey?: string;
   operationIndex?: number;
+  queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
-}): Promise<EditImageResult> {
+}, perf: ImagePerformance): Promise<EditImageResult> {
   const {
     userId,
     role = "user",
@@ -836,6 +895,7 @@ async function editImageOnce(opts: {
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
   }
+  perf.setModel(model);
 
   const size = assertImageSize(requestedSize, model);
   const imageCreditCost =
@@ -855,11 +915,11 @@ async function editImageOnce(opts: {
   const requestSize = needsCrop ? nearestNativeSize(size) : size;
   // grok2api /v1/images/edits 要求 image 为 {url: dataURL} 对象（不接受裸字符串/URL），
   // 且当前 grok 代理不支持多参考图 → 多图时明确报错
-  const isGrok = model.startsWith("grok-");
+  const isGrok = isGrokImageModel(model);
   if (isGrok && images.length > 1) {
     throw new ApiError("当前模型仅支持单张参考图，请切换模型或减少参考图", 400);
   }
-  const normalizedImages = await normalizeReferenceImages(images, userId);
+  const normalizedImages = await perf.measure("reference", () => normalizeReferenceImages(images, userId));
   let reservation: CreditReservation | null = null;
   if (userId && chargeCredits) {
     reservation = await reserveCredits(
@@ -873,7 +933,9 @@ async function editImageOnce(opts: {
     ? {
         model,
         prompt,
-        size: requestSize,
+        // 同步文生图：grok2api 只认 aspect_ratio，并要求内联返回图片
+        aspect_ratio: grokAspectRatio(size),
+        response_format: "b64_json",
         n: 1,
         image: { url: normalizedImages[0] },
       }
@@ -889,10 +951,12 @@ async function editImageOnce(opts: {
             ? normalizedImages[0]
             : normalizedImages,
       };
+  let lastEditError: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    perf.attempt();
     const writtenPaths: string[] = [];
     try {
-      const res = await postJsonUpstream(
+      const res = await perf.measure("upstream", () => postJsonUpstream(
         `${baseUrl}/images/edits`,
         {
           "Content-Type": "application/json",
@@ -909,9 +973,14 @@ async function editImageOnce(opts: {
         },
         JSON.stringify(editPayload),
         enforcePublicHttps,
-      );
+      ));
 
       if (!res.ok) {
+        if (res.status === 400 || res.status === 403 || res.status === 422) {
+          const body = await perf.measure("upstream", () => readBoundedJsonResponse<unknown>(res, 64 * 1024)).catch(() => null);
+          const policyError = imagePolicyError(body, "edit");
+          if (policyError) throw policyError;
+        }
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
           throw new RetryableImageUpstreamError(
             `上游图片服务返回 HTTP ${res.status}`,
@@ -920,20 +989,20 @@ async function editImageOnce(opts: {
         throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await readBoundedJsonResponse<{
+      const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
         data?: Array<{ b64_json?: string; url?: string }>;
-      }>(res);
+      }>(res));
       const item = result.data?.[0];
 
-      let buffer = await readUpstreamImage(item || {}, baseUrl);
+      let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl));
 
       // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await preserveOrCropImage(buffer, size, needsCrop);
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
 
-      const artifacts = await writeImageArtifacts(buffer);
+      const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
-      const [row] = await db
+      const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
           prompt,
@@ -944,7 +1013,7 @@ async function editImageOnce(opts: {
           size,
           userId,
         })
-        .returning({ id: imageGenerations.id });
+        .returning({ id: imageGenerations.id }));
 
       console.log(
         `Image edit success (attempt ${attempt}/${maxRetries}): ${model}`,
@@ -959,6 +1028,7 @@ async function editImageOnce(opts: {
         size,
       };
     } catch (err) {
+      lastEditError = err;
       await cleanupWrittenPaths(writtenPaths);
       console.error(
         `Image edit error (attempt ${attempt}/${maxRetries}):`,
@@ -991,6 +1061,7 @@ async function editImageOnce(opts: {
       "CREDIT_REFUND_PENDING",
     );
   }
+  if (lastEditError instanceof ApiError && lastEditError.code === "IMAGE_CONTENT_POLICY") throw lastEditError;
   throw new ApiError(PUBLIC_IMAGE_EDIT_ERROR, 502, "UPSTREAM_IMAGE_ERROR");
 }
 
@@ -1042,6 +1113,7 @@ export async function runImageEditTasks(opts: {
   size?: string;
   count?: number;
   idempotencyKey?: string;
+  queueSignal?: AbortSignal;
 }) {
   const {
     userId,
@@ -1087,8 +1159,10 @@ export async function runImageEditTasks(opts: {
         size,
         idempotencyKey: opts.idempotencyKey,
         operationIndex: taskIndex * normalizedCount + variantIndex,
+        queueSignal: opts.queueSignal,
         creditCostOverride: imageCreditCost,
       }),
+    opts.queueSignal,
   );
 
   return {
@@ -1102,6 +1176,8 @@ export async function runImageEditTasks(opts: {
     failed: execution.failed,
     lastError: execution.lastError,
     ...(execution.refundPending ? { refundPending: true as const } : {}),
+    ...(execution.queueFull ? { queueFull: true as const } : {}),
+    ...(execution.contentPolicyRejected ? { contentPolicyRejected: true as const } : {}),
   };
 }
 

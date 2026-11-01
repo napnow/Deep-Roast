@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { executeImageEditTasks } from "./image-edit-runner";
+import { executeImageEditTasks, largeOrUnknownReferences } from "./image-edit-runner";
 import type { ImageEditTask } from "@/lib/image-edit-contract";
 import { ApiError } from "@/server/http";
 
@@ -10,6 +10,73 @@ type Output = {
 };
 
 describe("image edit task runner", () => {
+  it("preserves a policy rejection ahead of ordinary failures", async () => {
+    const tasks: ImageEditTask[] = [{ mode: "per-image", targetImage: "a", prompt: "edit", targetIndex: 0 }];
+    const result = await executeImageEditTasks(tasks, 2, async (_task, _i, variant) => {
+      if (variant === 0) throw new ApiError("请检查描述或参考图", 400, "IMAGE_CONTENT_POLICY");
+      throw new ApiError("temporary failure", 502, "UPSTREAM_IMAGE_ERROR");
+    });
+    assert.equal(result.contentPolicyRejected, true);
+    assert.equal(result.lastError, "请检查描述或参考图");
+  });
+  it("preserves the safe busy message and code if all operations are rejected", async () => {
+    const tasks: ImageEditTask[] = [{ mode: "per-image", targetImage: "a", prompt: "edit", targetIndex: 0 }];
+    const result = await executeImageEditTasks(tasks, 2, async () => { throw new ApiError("生图任务较多，请稍后重试", 503, "IMAGE_QUEUE_FULL"); });
+    assert.equal(result.failed, 2);
+    assert.equal(result.lastError, "生图任务较多，请稍后重试");
+    assert.equal(result.queueFull, true);
+  });
+  it("treats whitespace-padded remote and stored images as unknown size", () => {
+    assert.equal(largeOrUnknownReferences(["  https://example.test/picture.png  "]), true);
+    assert.equal(largeOrUnknownReferences(["  /api/images/picture.png  "]), true);
+  });
+  it("runs large reference payloads one at a time to reduce memory pressure", async () => {
+    const tasks: ImageEditTask[] = [{ mode: "per-image", targetImage: "data:image/png;base64," + "a".repeat(5 * 1024 * 1024), prompt: "edit", targetIndex: 0 }];
+    const gates: Array<() => void> = [];
+    let started = 0;
+    const run = executeImageEditTasks(tasks, 2, async () => { started++; await new Promise<void>((resolve) => gates.push(resolve)); return "ok"; });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(started, 1);
+    gates[0]!(); await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(started, 2);
+    gates[1]!(); await run;
+  });
+  it("does not start further edits after cancellation", async () => {
+    const tasks: ImageEditTask[] = [0, 1, 2].map((i) => ({ mode: "per-image", targetImage: String(i), prompt: "edit", targetIndex: i }));
+    const controller = new AbortController();
+    const gates: Array<() => void> = [];
+    let started = 0;
+    const run = executeImageEditTasks(tasks, 1, async () => {
+      started++; await new Promise<void>((resolve) => gates.push(resolve)); return "ok";
+    }, controller.signal);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(started, 2);
+    controller.abort(); gates[0]!(); gates[1]!();
+    const result = await run;
+    assert.equal(started, 2);
+    assert.equal(result.succeeded, 2);
+    assert.equal(result.failed, 1);
+  });
+  it("runs at most two edits in parallel and returns results in task order", async () => {
+    const tasks: ImageEditTask[] = [0, 1, 2].map((i) => ({ mode: "per-image", targetImage: String(i), prompt: "edit", targetIndex: i }));
+    let active = 0, peak = 0;
+    const gates: Array<() => void> = [];
+    const run = executeImageEditTasks(tasks, 1, async (task) => {
+      active++; peak = Math.max(peak, active);
+      await new Promise<void>((resolve) => gates.push(resolve));
+      active--;
+      return task.targetImage;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(active, 2);
+    gates[1]!();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(active, 2);
+    gates[0]!(); gates[2]!();
+    const result = await run;
+    assert.equal(peak, 2);
+    assert.deepEqual(result.images.map((entry) => entry.result), ["0", "1", "2"]);
+  });
   it("sends only the target image for per-image tasks", async () => {
     const calls: Array<string | string[]> = [];
     const tasks: ImageEditTask[] = [

@@ -12,6 +12,7 @@ import ChannelManager, {
   type ChannelDraft,
 } from "@/components/Settings/ChannelManager";
 import ReversePromptModelPicker from "@/components/Settings/ReversePromptModelPicker";
+import PromptModelPicker from "@/components/Settings/PromptModelPicker";
 
 interface SettingsModalProps {
   open: boolean;
@@ -39,6 +40,9 @@ export default function SettingsModal({
   const [reversePromptModel, setReversePromptModel] = useState(
     config.reversePromptModel || "",
   );
+  const [polishPromptModel, setPolishPromptModel] = useState(
+    config.polishPromptModel || "",
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const wasOpen = useRef(false);
@@ -51,6 +55,7 @@ export default function SettingsModal({
     imageSystemPrompt,
     assistantImagePrompt,
     reversePromptModel,
+    polishPromptModel,
   });
   const dirty = !!baseline && snapshot !== baseline;
   useEffect(() => {
@@ -71,6 +76,7 @@ export default function SettingsModal({
       setImageSystemPrompt(config.imageSystemPrompt || "");
       setAssistantImagePrompt(config.assistantImagePrompt || "");
       setReversePromptModel(config.reversePromptModel || "");
+      setPolishPromptModel(config.polishPromptModel || "");
       setMessage("");
       setSaving(false);
       setDiscardOpen(false);
@@ -80,6 +86,7 @@ export default function SettingsModal({
           imageSystemPrompt: config.imageSystemPrompt || "",
           assistantImagePrompt: config.assistantImagePrompt || "",
           reversePromptModel: config.reversePromptModel || "",
+          polishPromptModel: config.polishPromptModel || "",
         }),
       );
     }
@@ -136,6 +143,7 @@ export default function SettingsModal({
         assistantImagePrompt,
         // 允许留空：运行时回落默认视觉模型
         reversePromptModel: reversePromptModel.trim(),
+        polishPromptModel: polishPromptModel.trim(),
         enabledTextModels: channelModels("text"),
         enabledImageModels: channelModels("image"),
       };
@@ -152,6 +160,7 @@ export default function SettingsModal({
           imageSystemPrompt,
           assistantImagePrompt,
           reversePromptModel,
+          polishPromptModel,
         }),
       );
       setMessage("✓ 保存成功");
@@ -234,6 +243,19 @@ export default function SettingsModal({
                 <ReversePromptModelPicker
                   value={reversePromptModel}
                   onChange={setReversePromptModel}
+                  baseUrl={reverseBaseUrl}
+                  savedBaseUrl={config.baseUrl}
+                  apiKey={reverseApiKey}
+                  hasSavedApiKey={reverseHasSavedKey}
+                />
+
+                <PromptModelPicker
+                  label="润色模型"
+                  description="文生图提示词润色 · 需支持文本对话 · 留空时使用当前对话模型"
+                  fallbackLabel="未设置 · 将用当前对话模型"
+                  placeholder="手动输入文本模型 id，例如 gpt6…"
+                  value={polishPromptModel}
+                  onChange={setPolishPromptModel}
                   baseUrl={reverseBaseUrl}
                   savedBaseUrl={config.baseUrl}
                   apiKey={reverseApiKey}

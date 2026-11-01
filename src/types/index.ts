@@ -141,6 +141,8 @@ export interface Config {
   assistantImagePrompt: string;
   /** 图推 / 反推提示词使用的视觉模型 */
   reversePromptModel: string;
+  /** 文生图提示词润色模型（空则回落 textModel） */
+  polishPromptModel: string;
   hasApiKey?: boolean;
   /** 已配置 key 的脱敏提示，如 g2a_****xxxx；不用于回传保存 */
   apiKeyHint?: string;

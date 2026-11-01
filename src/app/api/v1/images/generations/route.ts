@@ -95,6 +95,7 @@ export const POST = handleRoute(async (req) => {
     );
   }
   if (claim.kind === "in_progress") throw inProgressError();
+  const claimId = claim.id;
 
   let imageCreditCost = 0;
   let successfulImageCount = 0;
@@ -114,35 +115,42 @@ export const POST = handleRoute(async (req) => {
       model || config?.imageModel || "gpt-image-2";
     imageCreditCost = await getImageModelCreditCost(resolvedModel);
 
-    const results = [];
+    const results: Array<Awaited<ReturnType<typeof generateImage>>> = [];
     const errors: Array<{ index: number; error: string; code?: string }> = [];
     let firstError: unknown;
     let refundPendingError: ApiError | undefined;
-    for (let i = 0; i < n; i++) {
-      try {
-        const result = await generateImage({
+    const outcomes: Array<{ ok: true; result: Awaited<ReturnType<typeof generateImage>> } | { ok: false; error: unknown }> = new Array(n);
+    let nextIndex = 0;
+    async function worker() {
+      while (nextIndex < n) {
+        const i = nextIndex++;
+        try {
+          const result = await generateImage({
           userId: user.userId,
           role: user.role,
           prompt,
           size,
           modelOverride: resolvedModel,
           creditCostOverride: imageCreditCost,
-          idempotencyKey: `${claim.id}:${i}`,
+          idempotencyKey: `${claimId}:${i}`,
         });
-        results.push(result);
-        successfulImageCount += 1;
-      } catch (error) {
-        firstError ??= error;
-        if (error instanceof ApiError && error.code === "CREDIT_REFUND_PENDING") {
-          refundPendingError ??= error;
+          outcomes[i] = { ok: true, result };
+          successfulImageCount += 1;
+        } catch (error) {
+          outcomes[i] = { ok: false, error };
         }
-        const publicError = requestErrorBody(error);
-        errors.push({
-          index: i,
-          error: String(publicError.error || "图片生成失败"),
-          ...(typeof publicError.code === "string" ? { code: publicError.code } : {}),
-        });
       }
+    }
+    await Promise.all(Array.from({ length: Math.min(2, n) }, () => worker()));
+    for (let i = 0; i < n; i++) {
+      const outcome = outcomes[i]!;
+      if (outcome.ok) { results.push(outcome.result); continue; }
+      const error = outcome.error;
+      firstError ??= error;
+      if (error instanceof ApiError && error.code === "CREDIT_REFUND_PENDING") refundPendingError ??= error;
+      const publicError = requestErrorBody(error);
+      errors.push({ index: i, error: String(publicError.error || "图片生成失败"),
+        ...(typeof publicError.code === "string" ? { code: publicError.code } : {}) });
     }
     // A charged successful image must remain deliverable, including on replay.
     if (results.length === 0) {

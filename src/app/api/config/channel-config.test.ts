@@ -9,3 +9,14 @@ test("config API exposes masked channels to admins and saves channel payloads", 
   assert.match(source, /body\.channels/);
   assert.match(source, /role === "admin"/);
 });
+
+test("creating the initial config row persists text defaults for prompt polish", () => {
+  const source = readFileSync("src/app/api/config/route.ts", "utf8");
+  const insertStart = source.indexOf("await tx.insert(llmConfig)");
+  const insertEnd = source.indexOf("const [latest]", insertStart);
+  assert.ok(insertStart >= 0 && insertEnd > insertStart);
+  const insert = source.slice(insertStart, insertEnd);
+  assert.match(insert, /textModel:/);
+  assert.match(insert, /enabledTextModels:/);
+  assert.match(insert, /polishPromptModel:/);
+});

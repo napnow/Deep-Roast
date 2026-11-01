@@ -6,10 +6,25 @@ import { normalizeImageSizeSelection, imageSizeLabel } from "@/lib/custom-image-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
+import { apiJson, ApiError } from "@/lib/client-api";
+import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
+import {
+  POLISH_PROMPT_CREDIT_COST,
+  parsePromptPolishResponse,
+  promptPolishError,
+} from "@/lib/prompt-polish";
+import { useDeepRoastStore } from "@/lib/store";
 import { DEFAULT_IMAGE_MODEL_CREDIT_COST, type EditStyle } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import type { ImageToImageDraft } from "@/lib/image-workspace";
 import { buildImageEditRequest, type ImageEditUiState } from "./image-edit-ui";
+import {
+  commitImageEditPolish,
+  createImageEditPolishState,
+  restoreImageEditPolish,
+  type ImageEditPolishState,
+  withImageEditPolishUndo,
+} from "@/lib/image-edit-polish";
 import {
   getActiveEditPrompt,
   getCreationSettingsSummary,
@@ -78,6 +93,11 @@ export default function Img2ImgPanel({
   const [referenceIndexes, setReferenceIndexes] = useState<number[]>([]);
   const [processing, setProcessing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [polishError, setPolishError] = useState("");
+  const [polishUndo, setPolishUndo] = useState<ImageEditPolishState["undo"]>(
+    null,
+  );
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
   // 图生图独立比例（默认与父级一致，面板内可单独切换）
@@ -92,6 +112,9 @@ export default function Img2ImgPanel({
   const [styles, setStyles] = useState<EditStylePreset[]>(EDIT_STYLE_PRESETS);
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const polishRef = useRef(false);
+  const [polishRequests] = useState(createClientSessionLifecycle);
+  const { credits, setCredits, setWalletOpen } = useDeepRoastStore();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
   const uploadEpochRef = useRef(0);
@@ -109,6 +132,22 @@ export default function Img2ImgPanel({
   }, []);
   useEffect(() => releaseEditorScroll, [releaseEditorScroll]);
 
+  useEffect(() => {
+    polishRequests.activate();
+    const unsubscribe = useDeepRoastStore.subscribe((state, previous) => {
+      if (state.userSessionVersion === previous.userSessionVersion) return;
+      polishRef.current = false;
+      setPolishing(false);
+      setPolishError("");
+      setPolishUndo(null);
+      polishRequests.invalidate();
+    });
+    return () => {
+      unsubscribe();
+      polishRequests.dispose();
+    };
+  }, [polishRequests]);
+
   const invalidateUploads = useCallback(() => {
     // Invalidate first: even an already-queued callback must not restore old assets.
     uploadEpochRef.current += 1;
@@ -125,6 +164,9 @@ export default function Img2ImgPanel({
   useEffect(() => {
     if (!draft) return;
     invalidateUploads();
+    polishRequests.invalidate();
+    polishRef.current = false;
+    setPolishing(false);
     const next = hydrateImg2ImgDraft(draft);
     setRefs(next.refs);
     setEdit(next.edit);
@@ -140,7 +182,9 @@ export default function Img2ImgPanel({
     setError("");
     setProcessing(false);
     setAnalyzing(false);
-  }, [draft, invalidateUploads]);
+    setPolishError("");
+    setPolishUndo(null);
+  }, [draft, invalidateUploads, polishRequests]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +212,10 @@ export default function Img2ImgPanel({
   const activeEditPrompt = getActiveEditPrompt(perImagePrompts, targetIndex);
   const currentPrompt =
     editMode === "per-image" && refs.length > 0 ? activeEditPrompt : edit;
+  const canAffordPolish = isAdmin || credits >= POLISH_PROMPT_CREDIT_COST;
+  const hasPolishUndo =
+    polishUndo?.ownerIndex === targetIndex &&
+    polishUndo?.polished === currentPrompt;
   const effectiveEditSize = sizeOptions?.length
     ? normalizeImageSizeSelection(editSize, imageModel || "", sizeOptions)
     : editSize;
@@ -278,6 +326,8 @@ export default function Img2ImgPanel({
   }
 
   function removeRef(idx: number) {
+    setPolishError("");
+    setPolishUndo(null);
     setRefs((prev) => prev.filter((_, i) => i !== idx));
     setPerImagePrompts((prev) => prev.filter((_, i) => i !== idx));
     setReferenceIndexes((prev) =>
@@ -292,6 +342,8 @@ export default function Img2ImgPanel({
   }
 
   function toggleEditMode(mode: ImageEditUiState["mode"]) {
+    setPolishError("");
+    setPolishUndo(null);
     setEditMode(mode);
     if (mode === "reference") {
       setReferenceIndexes((prev) =>
@@ -312,6 +364,10 @@ export default function Img2ImgPanel({
   }
 
   function updateCurrentPrompt(value: string) {
+    if (value !== currentPrompt) {
+      setPolishUndo(null);
+      setPolishError("");
+    }
     if (editMode === "per-image" && refs.length > 0) {
       setPerImagePrompts((prev) => {
         const next = [...prev];
@@ -323,8 +379,99 @@ export default function Img2ImgPanel({
     setEdit(value);
   }
 
+  async function handlePolishPrompt() {
+    const original = currentPrompt.trim();
+    if (!original || polishRef.current || processing) return;
+    if (!canAffordPolish) {
+      setPolishError("积分不足，润色需要 1 积分");
+      setWalletOpen(true);
+      return;
+    }
+
+    const request = polishRequests.start("polish");
+    if (!request) return;
+    const ownerIndex = targetIndex;
+    polishRef.current = true;
+    setPolishing(true);
+    setPolishError("");
+    try {
+      const data = await apiJson<{ prompt?: string; model?: string }>(
+        "/api/polish-prompt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({ prompt: original }),
+          signal: request.signal,
+        },
+      );
+      if (!request.isCurrent()) return;
+      const result = parsePromptPolishResponse(data);
+      const polishState = createImageEditPolishState({
+        // Never let a late response write into whichever image is selected now.
+        mode: editMode === "per-image" && refs.length > 0 ? "per-image" : "reference",
+        prompts: editMode === "per-image" && refs.length > 0 ? perImagePrompts : [],
+        edit,
+        targetIndex: ownerIndex,
+      });
+      const committed = commitImageEditPolish(
+        polishState,
+        { original, polished: result.prompt },
+      );
+      if (committed === polishState) {
+        setPolishError("指令已修改，请重新润色");
+        return;
+      }
+      if (editMode === "per-image" && refs.length > 0) {
+        setPerImagePrompts(committed.prompts);
+      } else if (editMode !== "per-image") {
+        setEdit(committed.edit);
+      } else {
+        setPolishError("指令已切换，请重新润色");
+        return;
+      }
+      setPolishUndo({ ...committed.undo!, ownerIndex });
+      if (!isAdmin) {
+        setCredits((current) =>
+          Math.max(0, current - POLISH_PROMPT_CREDIT_COST),
+        );
+      }
+    } catch (error: unknown) {
+      if (!request.isCurrent()) return;
+      setPolishError(promptPolishError(error));
+      if (error instanceof ApiError && error.status === 402) {
+        setWalletOpen(true);
+      }
+    } finally {
+      if (request.isCurrent()) {
+        polishRef.current = false;
+        setPolishing(false);
+      }
+      request.finish();
+    }
+  }
+
+  function restoreOriginalPrompt() {
+    if (!polishUndo || !hasPolishUndo) return;
+    const restored = restoreImageEditPolish(
+      withImageEditPolishUndo({
+        mode: editMode,
+        prompts: perImagePrompts,
+        edit,
+        targetIndex,
+      }, polishUndo),
+      { edit, prompts: perImagePrompts },
+    );
+    setEdit(restored.edit);
+    setPerImagePrompts(restored.prompts);
+    setPolishUndo(null);
+    setPolishError("");
+  }
+
   async function handleGenerate() {
-    if (disabled || refs.length === 0 || generating) return;
+    if (disabled || refs.length === 0 || generating || polishing) return;
     setError("");
     setElapsed(0);
     setProcessing(true);
@@ -339,7 +486,12 @@ export default function Img2ImgPanel({
       const imageData = refs.map((r) => r.base64 || r.preview);
       const uiState: ImageEditUiState =
         editMode === "reference"
-          ? { mode: "reference", targetIndex, referenceIndexes }
+          ? {
+              mode: "reference",
+              targetIndex,
+              prompt: compileEditPrompt(),
+              referenceIndexes,
+            }
           : {
               mode: "per-image",
               prompts: perImagePrompts.map((prompt) =>
@@ -420,6 +572,8 @@ export default function Img2ImgPanel({
     setTargetIndex(0);
     setReferenceIndexes([]);
     setError("");
+    setPolishError("");
+    setPolishUndo(null);
     setProcessing(false);
     setAnalyzing(false);
   }
@@ -481,7 +635,7 @@ export default function Img2ImgPanel({
             <button
               type="button"
               onClick={clearAll}
-              disabled={processing}
+              disabled={processing || polishing}
               className="creation-link"
             >
               清空全部
@@ -522,7 +676,7 @@ export default function Img2ImgPanel({
                       );
                     }
                   }}
-                  disabled={processing}
+                  disabled={processing || polishing}
                   aria-label={"选择图片 " + (idx + 1)}
                   aria-pressed={selected}
                 >
@@ -538,7 +692,7 @@ export default function Img2ImgPanel({
                 <button
                   type="button"
                   onClick={() => removeRef(idx)}
-                  disabled={processing}
+                  disabled={processing || polishing}
                   className="img2img-asset__remove"
                   title="删除此图"
                   aria-label={"删除参考图 " + (idx + 1)}
@@ -549,7 +703,7 @@ export default function Img2ImgPanel({
                   <button
                     type="button"
                     onClick={() => toggleReference(idx)}
-                    disabled={processing}
+                    disabled={processing || polishing}
                     className="img2img-asset__reference-toggle"
                   >
                     {referenceIndexes.includes(idx) ? "取消参考" : "设为参考"}
@@ -563,7 +717,7 @@ export default function Img2ImgPanel({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              disabled={disabled || processing || generating}
+              disabled={disabled || processing || polishing || generating}
               className="img2img-add-card"
             >
               <span className="img2img-add-card__icon">+</span>
@@ -615,7 +769,7 @@ export default function Img2ImgPanel({
                   role="tab"
                   aria-selected={editMode === mode}
                   onClick={() => toggleEditMode(mode)}
-                  disabled={processing}
+                  disabled={processing || polishing}
                   className={editMode === mode ? "is-active" : ""}
                 >
                   {label}
@@ -635,7 +789,7 @@ export default function Img2ImgPanel({
               <select
                 value={targetIndex}
                 onChange={(event) => setTargetIndex(Number(event.target.value))}
-                disabled={processing}
+                disabled={processing || polishing}
                 className="img2img-current-editor__select"
               >
                 {refs.map((_, idx) => (
@@ -656,7 +810,7 @@ export default function Img2ImgPanel({
             </div>
           )}
 
-          <label className="creation-composer">
+          <div className="creation-composer">
             <span className="creation-section-label">
               {editMode === "reference"
                 ? "描述参考修改"
@@ -674,13 +828,50 @@ export default function Img2ImgPanel({
               }
               rows={4}
               maxLength={12000}
-              disabled={processing}
+              disabled={processing || polishing}
               className="creation-composer__input"
             />
-            <span className="creation-composer__counter">
-              {currentPrompt.length} / 12000
-            </span>
-          </label>
+            <div className="creation-composer__tools">
+              {hasPolishUndo ? (
+                <button
+                  type="button"
+                  className="creation-polish-undo"
+                  disabled={processing || polishing}
+                  onClick={restoreOriginalPrompt}
+                >
+                  已润色 · 恢复原文
+                </button>
+              ) : null}
+              {polishError && !polishing ? (
+                <span className="creation-polish-error" role="alert">
+                  {polishError}
+                </span>
+              ) : null}
+              <span className="creation-composer__counter">
+                {currentPrompt.length} / 12000
+              </span>
+              <button
+                type="button"
+                className="creation-polish-trigger"
+                aria-busy={polishing}
+                disabled={
+                  disabled || processing || polishing || !currentPrompt.trim()
+                }
+                onClick={handlePolishPrompt}
+              >
+                <span
+                  className="creation-polish-trigger__spark"
+                  aria-hidden="true"
+                >
+                  ✦
+                </span>
+                {polishing ? "润色中…" : "润色修改指令"}
+                <span className="creation-polish-trigger__cost">
+                  {isAdmin ? "免费" : `${POLISH_PROMPT_CREDIT_COST} 积分`}
+                </span>
+              </button>
+            </div>
+          </div>
 
           {editMode === "per-image" ? (
             <details className="img2img-shared-prompt">
@@ -693,7 +884,7 @@ export default function Img2ImgPanel({
                 placeholder="例如：整体保持原构图，只统一色调…"
                 rows={2}
                 maxLength={12000}
-                disabled={processing}
+                disabled={processing || polishing}
                 className="img2img-shared-prompt__input"
               />
             </details>
@@ -710,7 +901,7 @@ export default function Img2ImgPanel({
             placeholder="上传参考图后，描述你想要的修改…"
             rows={4}
             maxLength={12000}
-            disabled={processing}
+            disabled={processing || polishing}
             className="creation-composer__input"
           />
           <span className="creation-composer__counter">
@@ -898,7 +1089,13 @@ export default function Img2ImgPanel({
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={disabled || refs.length === 0 || generating || processing}
+            disabled={
+              disabled ||
+              refs.length === 0 ||
+              generating ||
+              processing ||
+              polishing
+            }
             className="ui-button ui-button--primary"
           >
             生成图片

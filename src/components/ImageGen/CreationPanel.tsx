@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Img2ImgPanel from "./Img2ImgPanel";
 import ReversePromptPanel from "./ReversePromptPanel";
 import TextToImageForm from "./TextToImageForm";
@@ -13,6 +14,13 @@ import { DEFAULT_IMAGE_MODEL_CREDIT_COST } from "@/types";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { WORKBENCH_CLASS_NAMES } from "./creation-workbench-ui";
 import { getImageModelLabel } from "./image-model-presentation";
+import { apiJson, ApiError } from "@/lib/client-api";
+import {
+  POLISH_PROMPT_CREDIT_COST,
+  parsePromptPolishResponse,
+  promptPolishError,
+} from "@/lib/prompt-polish";
+import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
 
 interface CreationPanelProps {
   model: string;
@@ -45,13 +53,35 @@ export default function CreationPanel({
     imageCreationMode,
     setImageCreationMode,
     textToImageDraft,
+    textToImagePolishUndo,
     imageToImageDraft,
     setTextToImageDraft,
+    setTextToImagePolishUndo,
+    commitPolishedPrompt,
+    setCredits,
     imageModels,
     selectedImageModel,
     setSelectedImageModel,
     config,
   } = useDeepRoastStore();
+  const [polishing, setPolishing] = useState(false);
+  const [polishError, setPolishError] = useState("");
+  const polishRef = useRef(false);
+  const [polishRequests] = useState(createClientSessionLifecycle);
+  useEffect(() => {
+    polishRequests.activate();
+    const unsubscribe = useDeepRoastStore.subscribe((state, previous) => {
+      if (state.userSessionVersion !== previous.userSessionVersion) {
+        polishRef.current = false;
+        setPolishing(false);
+        polishRequests.invalidate();
+      }
+    });
+    return () => {
+      unsubscribe();
+      polishRequests.dispose();
+    };
+  }, [polishRequests]);
   const imageModelIds = imageModels.map((item) => item.id);
   const selectedModel = imageModelIds.includes(selectedImageModel)
     ? selectedImageModel
@@ -63,6 +93,10 @@ export default function CreationPanel({
     config.imageModelCosts?.[selectedModel] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST;
   const cost = generationCost(textToImageDraft.count, imageCostPerImage);
   const canAfford = isAdmin || credits >= cost;
+  const canAffordPolish =
+    isAdmin || credits >= POLISH_PROMPT_CREDIT_COST;
+  const hasPolishUndo =
+    textToImagePolishUndo?.polished === textToImageDraft.prompt;
   const imageGenerationAvailable =
     canUseImageGeneration(
       isAdmin ? "admin" : "user",
@@ -82,6 +116,67 @@ export default function CreationPanel({
   function useReversePrompt(prompt: string) {
     setTextToImageDraft(applyReversePrompt(textToImageDraft, prompt));
     setImageCreationMode("text");
+  }
+
+  async function handlePolishPrompt() {
+    const original = textToImageDraft.prompt.trim();
+    if (!original || polishRef.current || generating) return;
+    if (!canAffordPolish) {
+      setPolishError("积分不足，润色需要 1 积分");
+      onWalletClick?.();
+      return;
+    }
+
+    const request = polishRequests.start("polish");
+    if (!request) return;
+    polishRef.current = true;
+    setPolishing(true);
+    setPolishError("");
+    try {
+      const data = await apiJson<{ prompt?: string; model?: string }>(
+        "/api/polish-prompt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({ prompt: original }),
+          signal: request.signal,
+        },
+      );
+      if (!request.isCurrent()) return;
+      const result = parsePromptPolishResponse(data);
+      commitPolishedPrompt({
+        original,
+        polished: result.prompt,
+      });
+      if (!isAdmin) {
+        setCredits((current) =>
+          Math.max(0, current - POLISH_PROMPT_CREDIT_COST),
+        );
+      }
+    } catch (error: unknown) {
+      if (!request.isCurrent()) return;
+      setPolishError(promptPolishError(error));
+      // A 402 from a stale balance needs the wallet even when the button was enabled.
+      if (error instanceof ApiError && error.status === 402) {
+        onWalletClick?.();
+      }
+    } finally {
+      if (request.isCurrent()) {
+        polishRef.current = false;
+        setPolishing(false);
+      }
+      request.finish();
+    }
+  }
+
+  function restoreOriginalPrompt() {
+    if (!textToImagePolishUndo) return;
+    setTextToImageDraft({ prompt: textToImagePolishUndo.original });
+    setTextToImagePolishUndo(null);
+    setPolishError("");
   }
 
   return (
@@ -128,6 +223,10 @@ export default function CreationPanel({
         <div hidden={imageCreationMode !== "text"}>
           <TextToImageForm
             draft={visibleTextDraft}
+            polishing={polishing}
+            polishError={polishError}
+            polishUndo={hasPolishUndo ? textToImagePolishUndo : null}
+            giftPolish={isAdmin}
             model={model}
             imageModels={imageModelIds}
             selectedImageModel={selectedModel}
@@ -135,6 +234,8 @@ export default function CreationPanel({
             disabled={generating || !imageGenerationAvailable}
             onChange={setTextToImageDraft}
             onModelChange={setSelectedImageModel}
+            onPolish={handlePolishPrompt}
+            onRestorePrompt={restoreOriginalPrompt}
           />
         </div>
         <div hidden={imageCreationMode !== "edit"}>
@@ -192,6 +293,7 @@ export default function CreationPanel({
               className={`ui-button w-full ${generating ? "ui-button--danger" : "ui-button--primary"}`}
               disabled={
                 !generating &&
+                !polishing &&
                 (!textToImageDraft.prompt.trim() ||
                   !canAfford ||
                   !imageGenerationAvailable)

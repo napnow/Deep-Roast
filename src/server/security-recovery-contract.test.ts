@@ -32,6 +32,7 @@ test("all billable routes and browser callers retain durable idempotency", async
     "src/app/api/image/route.ts",
     "src/app/api/image-edit/route.ts",
     "src/app/api/image-edit/batch/route.ts",
+    "src/app/api/polish-prompt/route.ts",
     "src/app/api/v1/images/generations/route.ts",
   ];
   for (const path of routePaths) {

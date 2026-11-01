@@ -13,6 +13,8 @@ import * as draftUi from "./image-to-image-draft";
 import * as workbenchUi from "./creation-workbench-ui";
 import * as customRatio from "@/lib/custom-image-ratio";
 import * as editStyles from "./editStyles";
+import * as imageEditPolish from "@/lib/image-edit-polish";
+import * as promptPolish from "@/lib/prompt-polish";
 import { formatTime } from "./imageUtils";
 
 // Adapted from the offline concurrency review. Execute the actual panel and pure
@@ -71,6 +73,7 @@ const compiledPanel = ts.transpileModule(readFileSync(panelUrl, "utf8"), {
 
 export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
   const slots: Slot[] = [];
+  const polishRequests: ReturnType<typeof deferred<{ prompt: string }>>[] = [];
   const submissions: UploadSubmission[] = [];
   const compression = new Map<string, ReturnType<typeof deferred<string>>>();
   const readers: MockFileReader[] = [];
@@ -180,6 +183,12 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
   }
 
   const jsx = (type: unknown, props: Record<string, unknown> | null) => ({ type, props: props || {} });
+  const storeState = {
+    credits: 20,
+    setCredits() {},
+    setWalletOpen() {},
+    userSessionVersion: 0,
+  };
   const stubs: Record<string, unknown> = {
     react,
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: Symbol("Fragment") },
@@ -199,10 +208,52 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
     "./image-to-image-draft": draftUi,
     "./creation-workbench-ui": workbenchUi,
     "./editStyles": editStyles,
+    "@/lib/client-api": {
+      ApiError: class ApiError extends Error {
+        status: number;
+        constructor(message: string, status: number) {
+          super(message);
+          this.status = status;
+        }
+      },
+      apiJson: () => {
+        const pending = deferred<{ prompt: string }>();
+        polishRequests.push(pending);
+        return pending.promise;
+      },
+    },
+    "@/lib/client-session-lifecycle": {
+      createClientSessionLifecycle() {
+        let current = false;
+        return {
+          activate() { current = true; },
+          invalidate() { current = false; },
+          dispose() { current = false; },
+          start() {
+            if (!current) return null;
+            return {
+              signal: new AbortController().signal,
+              isCurrent: () => current,
+              abort() { current = false; },
+              finish() { current = false; },
+            };
+          },
+        };
+      },
+    },
+    "@/lib/prompt-polish": promptPolish,
+    "@/lib/image-edit-polish": imageEditPolish,
+    "@/lib/store": {
+      useDeepRoastStore: Object.assign(() => storeState, {
+        subscribe: () => () => {},
+      }),
+    },
   };
   const context = createContext({
+    console,
     Error,
     AbortController,
+    crypto: globalThis.crypto,
     FileReader: MockFileReader,
     fetch(url: unknown) {
       if (url !== "/api/public/styles") {
@@ -221,6 +272,7 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
     assert.ok(Object.hasOwn(stubs, name), `Unmocked module blocked: ${name}`);
     return stubs[name];
   }, compiledModule, compiledModule.exports);
+
 
   function submit(kind: UploadSubmission["kind"], request: ImageEditRequest, size: string, count: number) {
     // Normalize VM-realm arrays before node:assert's prototype-sensitive checks.
@@ -255,8 +307,12 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
     return found[0]!;
   }
   function button(label: string) {
-    return unique((node) => node.type === "button" &&
-      (node.props["aria-label"] === label || text(node) === label), `button ${label}`);
+    return unique((node) => {
+      if (node.type !== "button") return false;
+      if (node.props["aria-label"] === label) return true;
+      if (label === "润色修改指令") return node.props.className === "creation-polish-trigger";
+      return text(node) === label;
+    }, `button ${label}`);
   }
   function click(label: string) {
     const node = button(label);
@@ -325,6 +381,13 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
       pendingCompression(name).reject(new Error(`synthetic compression failure: ${name}`));
       await flush();
     },
+    async polish(nextPrompt: string) {
+      const pending = polishRequests.at(-1);
+      assert.ok(pending, "a prompt polish request must be pending");
+      pending.resolve({ prompt: nextPrompt });
+      await flush();
+    },
+    pendingPolishCount: () => polishRequests.length,
     replayEffects() {
       // React Strict Mode replays mount effects without replacing component refs.
       for (const slot of slots) if (slot.kind === "effect") slot.cleanup?.();
