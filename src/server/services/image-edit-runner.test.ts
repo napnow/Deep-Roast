@@ -10,6 +10,27 @@ type Output = {
 };
 
 describe("image edit task runner", () => {
+  it("preserves a policy rejection ahead of ordinary failures", async () => {
+    const tasks: ImageEditTask[] = [
+      {
+        mode: "per-image",
+        targetImage: "a",
+        prompt: "edit",
+        targetIndex: 0,
+      },
+    ];
+
+    const result = await executeImageEditTasks(tasks, 2, async (_task, _i, variant) => {
+      if (variant === 0) {
+        throw new ApiError("请检查描述或参考图", 400, "IMAGE_CONTENT_POLICY");
+      }
+      throw new ApiError("temporary failure", 502, "UPSTREAM_IMAGE_ERROR");
+    });
+
+    assert.equal(result.contentPolicyRejected, true);
+    assert.equal(result.lastError, "请检查描述或参考图");
+  });
+
   it("sends only the target image for per-image tasks", async () => {
     const calls: Array<string | string[]> = [];
     const tasks: ImageEditTask[] = [

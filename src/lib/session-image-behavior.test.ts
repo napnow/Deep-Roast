@@ -149,6 +149,35 @@ test("session image batch: a stale post-success credit refresh cannot warn or cl
   });
 });
 
+test("partial edit success explains a content policy rejection", async (t) => {
+  const env = sessionFixture();
+  t.after(() => env.dispose());
+  env.store.getState().setUserSession("A");
+  configure(env);
+  const images = env.mountImages(async () => {});
+  const pending = images.value.handleEditImageBatch(edit("test"), size, 2);
+  respond(env.requests[0], {
+    images: [image("success")],
+    total: 2,
+    succeeded: 1,
+    failed: 1,
+    contentPolicyRejected: true,
+    lastError: "可能涉及裸露，请调整提示词或参考图",
+  });
+  await pending;
+  await env.flush();
+  assert.deepEqual(
+    plain(env.store.getState().imageHistory.map((item) => item.id)),
+    ["success"],
+  );
+  assert.ok(
+    env.notifications.some(
+      (notice) =>
+        Array.isArray(notice) && String(notice[0]).includes("裸露"),
+    ),
+  );
+});
+
 
 test("stopping a current batch preserves acknowledged images exactly once", async (t) => {
   for (const outcome of ["abort", "late-success"] as const) await t.test(outcome, async (t) => {

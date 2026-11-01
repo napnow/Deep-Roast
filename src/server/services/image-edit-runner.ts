@@ -1,4 +1,5 @@
 import type { ImageEditTask } from "@/lib/image-edit-contract";
+import { ApiError } from "@/server/http";
 import {
   normalizeImageEditCount,
   isImageRefundPending,
@@ -24,6 +25,7 @@ export interface ImageEditTaskRun<T> {
   failed: number;
   lastError: string | null;
   refundPending?: true;
+  contentPolicyRejected?: true;
 }
 
 export async function executeImageEditTasks<T>(
@@ -36,6 +38,7 @@ export async function executeImageEditTasks<T>(
   let failed = 0;
   let lastError: string | null = null;
   let pendingRefundMessage: string | null = null;
+  let policyMessage: string | null = null;
 
   for (let taskIndex = 0; taskIndex < tasks.length; taskIndex += 1) {
     const task = tasks[taskIndex]!;
@@ -46,7 +49,10 @@ export async function executeImageEditTasks<T>(
       } catch (error) {
         failed += 1;
         if (isImageRefundPending(error)) pendingRefundMessage = publicImageEditError(error);
-        lastError = pendingRefundMessage ?? publicImageEditError(error);
+        if (error instanceof ApiError && error.code === "IMAGE_CONTENT_POLICY") {
+          policyMessage ??= error.message;
+        }
+        lastError = pendingRefundMessage ?? policyMessage ?? publicImageEditError(error);
       }
     }
   }
@@ -58,5 +64,6 @@ export async function executeImageEditTasks<T>(
     failed,
     lastError,
     ...(pendingRefundMessage ? { refundPending: true as const } : {}),
+    ...(policyMessage ? { contentPolicyRejected: true as const } : {}),
   };
 }

@@ -51,8 +51,12 @@ export const POST = handleRoute(async (req) => {
     if (result.succeeded === 0) {
       throw new ApiError(
         result.lastError || "图生图失败",
-        result.refundPending ? 503 : 500,
-        result.refundPending ? "CREDIT_REFUND_PENDING" : undefined,
+        result.refundPending ? 503 : result.contentPolicyRejected ? 400 : 500,
+        result.refundPending
+          ? "CREDIT_REFUND_PENDING"
+          : result.contentPolicyRejected
+            ? "IMAGE_CONTENT_POLICY"
+            : undefined,
       );
     }
     await completeRequest(claim.id, claim.leaseToken, 200, result);

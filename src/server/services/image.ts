@@ -36,6 +36,7 @@ import {
   isGrokImageModel,
 } from "@/lib/image-model-capabilities";
 import { executeImageEditTasks } from "./image-edit-runner";
+import { imagePolicyError } from "./image-policy";
 import {
   privateImagePath,
   privateImageRoot,
@@ -706,6 +707,13 @@ export async function generateImage(opts: {
       );
 
       if (!res.ok) {
+        if (res.status === 400 || res.status === 403 || res.status === 422) {
+          const body = await readBoundedJsonResponse<unknown>(res, 64 * 1024).catch(
+            () => null,
+          );
+          const policyError = imagePolicyError(body, "generate");
+          if (policyError) throw policyError;
+        }
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
           throw new RetryableImageUpstreamError(
             `上游图片服务返回 HTTP ${res.status}`,
@@ -908,6 +916,7 @@ async function editImageOnce(opts: {
             ? normalizedImages[0]
             : normalizedImages,
       };
+  let lastEditError: unknown;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const writtenPaths: string[] = [];
     try {
@@ -931,6 +940,13 @@ async function editImageOnce(opts: {
       );
 
       if (!res.ok) {
+        if (res.status === 400 || res.status === 403 || res.status === 422) {
+          const body = await readBoundedJsonResponse<unknown>(res, 64 * 1024).catch(
+            () => null,
+          );
+          const policyError = imagePolicyError(body, "edit");
+          if (policyError) throw policyError;
+        }
         if (res.status === 408 || res.status === 429 || res.status >= 500) {
           throw new RetryableImageUpstreamError(
             `上游图片服务返回 HTTP ${res.status}`,
@@ -978,6 +994,7 @@ async function editImageOnce(opts: {
         size,
       };
     } catch (err) {
+      lastEditError = err;
       await cleanupWrittenPaths(writtenPaths);
       console.error(
         `Image edit error (attempt ${attempt}/${maxRetries}):`,
@@ -1009,6 +1026,9 @@ async function editImageOnce(opts: {
       503,
       "CREDIT_REFUND_PENDING",
     );
+  }
+  if (lastEditError instanceof ApiError && lastEditError.code === "IMAGE_CONTENT_POLICY") {
+    throw lastEditError;
   }
   throw new ApiError(PUBLIC_IMAGE_EDIT_ERROR, 502, "UPSTREAM_IMAGE_ERROR");
 }
@@ -1121,6 +1141,7 @@ export async function runImageEditTasks(opts: {
     failed: execution.failed,
     lastError: execution.lastError,
     ...(execution.refundPending ? { refundPending: true as const } : {}),
+    ...(execution.contentPolicyRejected ? { contentPolicyRejected: true as const } : {}),
   };
 }
 
