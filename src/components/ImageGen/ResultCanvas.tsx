@@ -179,8 +179,10 @@ function ResultCard({
       >
         <SmartResultImage record={image} className="result-image" />
       </button>
-      <footer className="result-card-footer">
-        <div className="min-w-0 flex-1">
+      <footer
+        className={`result-card-footer ${expanded ? "is-expanded" : ""}`}
+      >
+        <div className="result-card-copy">
           <button
             type="button"
             aria-expanded={expanded}
