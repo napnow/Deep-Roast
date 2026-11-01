@@ -1766,6 +1766,33 @@ html.dark .liquid-glass-strong {
   background: var(--bg-root);
 }
 
+/* Older mobile browsers may discard an entire color-mix background. */
+@supports not (background: color-mix(in srgb, red, blue)) {
+  .dr-header-bar,
+  .workspace-topbar,
+  .mobile-workspace-nav,
+  .result-canvas,
+  .mobile-creation-sheet .creation-segmented {
+    background: var(--bg-surface);
+  }
+
+  .mobile-composer-shell,
+  .mobile-creation-sheet .img2img-add-card,
+  .mobile-creation-sheet .img2img-current-editor,
+  .mobile-creation-sheet .img2img-role-summary,
+  .mobile-creation-sheet .creation-composer__input,
+  .mobile-creation-sheet .creation-settings,
+  .mobile-size-picker button,
+  .mobile-model-picker button,
+  .result-state-card {
+    background: var(--bg-elevated);
+  }
+
+  .mobile-creation-overlay {
+    background: rgba(26, 22, 18, 0.28);
+  }
+}
+
 @supports not (height: 100svh) {
   .workspace-shell {
     height: 100vh;
