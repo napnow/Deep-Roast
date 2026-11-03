@@ -135,6 +135,16 @@ CREATE TABLE "registration_records" (
 	CONSTRAINT "registration_records_ip_unique" UNIQUE("ip")
 );
 
+CREATE TABLE "registration_risk_marks" (
+	"ip_hash" text PRIMARY KEY NOT NULL,
+	"cleanup_count" integer DEFAULT 1 NOT NULL,
+	"last_cleaned_at" timestamp DEFAULT now() NOT NULL,
+	"restricted_until" timestamp NOT NULL,
+	"last_username" text DEFAULT '' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
 CREATE TABLE "request_idempotency" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -156,6 +166,11 @@ CREATE TABLE "site_settings" (
 	"registration_enabled" integer DEFAULT 1 NOT NULL,
 	"signup_bonus_credits" integer DEFAULT 50 NOT NULL,
 	"registration_ip_limit_enabled" integer DEFAULT 1 NOT NULL,
+	"repeat_registration_limit_enabled" integer DEFAULT 1 NOT NULL,
+	"repeat_registration_window_days" integer DEFAULT 30 NOT NULL,
+	"repeat_registration_signup_bonus" integer DEFAULT 0 NOT NULL,
+	"repeat_registration_checkin_reward" integer DEFAULT 10 NOT NULL,
+	"repeat_registration_invitation_reward" integer DEFAULT 0 NOT NULL,
 	"image_generation_enabled" integer DEFAULT 1 NOT NULL,
 	"checkin_reward" integer DEFAULT 50 NOT NULL,
 	"donation_enabled" integer DEFAULT 1 NOT NULL,
@@ -169,7 +184,11 @@ CREATE TABLE "site_settings" (
 	CONSTRAINT "site_settings_signup_bonus_credits_non_negative" CHECK ("site_settings"."signup_bonus_credits" >= 0),
 	CONSTRAINT "site_settings_invitation_reward_non_negative" CHECK ("site_settings"."invitation_reward" >= 0),
 	CONSTRAINT "site_settings_invitation_invitee_reward_non_negative" CHECK ("site_settings"."invitation_invitee_reward" >= 0),
-	CONSTRAINT "site_settings_checkin_reward_non_negative" CHECK ("site_settings"."checkin_reward" >= 0)
+	CONSTRAINT "site_settings_checkin_reward_non_negative" CHECK ("site_settings"."checkin_reward" >= 0),
+	CONSTRAINT "site_settings_repeat_registration_window_days_range" CHECK ("site_settings"."repeat_registration_window_days" BETWEEN 1 AND 365),
+	CONSTRAINT "site_settings_repeat_registration_signup_bonus_non_negative" CHECK ("site_settings"."repeat_registration_signup_bonus" >= 0),
+	CONSTRAINT "site_settings_repeat_registration_checkin_reward_non_negative" CHECK ("site_settings"."repeat_registration_checkin_reward" >= 0),
+	CONSTRAINT "site_settings_repeat_registration_invitation_reward_non_negative" CHECK ("site_settings"."repeat_registration_invitation_reward" >= 0)
 );
 
 CREATE TABLE "styles" (
@@ -205,6 +224,8 @@ CREATE TABLE "users" (
 	"credits" integer DEFAULT 50 NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"cleanup_protected" boolean DEFAULT false NOT NULL,
+	"restricted_until" timestamp,
+	"registration_ip_hash" text,
 	"invite_code" text,
 	"legacy_invite_code" text,
 	"last_checkin_on" text,
@@ -235,6 +256,7 @@ CREATE UNIQUE INDEX "llm_channel_models_channel_kind_model_unique" ON "llm_chann
 CREATE UNIQUE INDEX "llm_channel_models_default_kind_model_unique" ON "llm_channel_models" USING btree ("kind","model_id") WHERE "llm_channel_models"."is_default" = 1;
 CREATE UNIQUE INDEX "llm_channels_name_unique" ON "llm_channels" USING btree ("name");
 CREATE INDEX "messages_conversation_created_idx" ON "messages" USING btree ("conversation_id","created_at");
+CREATE INDEX "registration_risk_marks_restricted_until_idx" ON "registration_risk_marks" USING btree ("restricted_until");
 CREATE UNIQUE INDEX "request_idempotency_user_scope_key" ON "request_idempotency" USING btree ("user_id","scope","key");
 CREATE INDEX "request_idempotency_expires_at_idx" ON "request_idempotency" USING btree ("expires_at");
 CREATE UNIQUE INDEX "user_invitations_invitee_unique" ON "user_invitations" USING btree ("invitee_id");

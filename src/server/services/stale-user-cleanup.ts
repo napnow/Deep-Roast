@@ -7,6 +7,7 @@ import type {
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/db";
+import { lockRegistrationCleanup } from "./registration-cleanup-lock";
 import * as schema from "@/db/schema";
 import {
   apiKeys,
@@ -14,6 +15,8 @@ import {
   creditTransactions,
   imageGenerations,
   registrationRecords,
+  registrationRiskMarks,
+  siteSettings,
   users,
 } from "@/db/schema";
 import type {
@@ -33,6 +36,12 @@ import {
   isStaleUser,
   type ActivityTimestamps,
 } from "./stale-user-activity";
+import {
+  getRegistrationRiskHashSecret,
+  hashRegistrationIp,
+  normalizeClientIp,
+  registrationRestrictionUntil,
+} from "./registration-risk";
 
 type Schema = typeof schema;
 type DatabaseTransaction = NodePgTransaction<
@@ -55,6 +64,46 @@ interface ImageArtifact {
   imageUrl: string;
   storageKey: string | null;
   thumbStorageKey: string | null;
+}
+
+export interface RegistrationRiskPolicy {
+  enabled: boolean;
+  windowDays: number;
+}
+
+export interface RegistrationRiskMarkValue {
+  ipHash: string;
+  cleanupCount: number;
+  lastCleanedAt: Date;
+  restrictedUntil: Date;
+  lastUsername: string;
+  updatedAt: Date;
+}
+
+export function buildRegistrationRiskMarks(
+  records: Array<{ ip: string; username: string }>,
+  policy: RegistrationRiskPolicy,
+  now: Date,
+  secret: string,
+): RegistrationRiskMarkValue[] {
+  if (!policy.enabled) return [];
+
+  const marks = new Map<string, RegistrationRiskMarkValue>();
+  for (const record of records) {
+    const ip = normalizeClientIp(record.ip);
+    if (!ip) continue;
+
+    const ipHash = hashRegistrationIp(ip, secret);
+    marks.set(ipHash, {
+      ipHash,
+      cleanupCount: 1,
+      lastCleanedAt: now,
+      restrictedUntil: registrationRestrictionUntil(now, policy.windowDays),
+      lastUsername: record.username,
+      updatedAt: now,
+    });
+  }
+  return [...marks.values()];
 }
 
 export function filterStaleUserCandidates(
@@ -195,6 +244,7 @@ export async function cleanupStaleUsers(
 ): Promise<CleanupResult> {
   const cutoff = getStaleUserCutoff(now);
   const cleanup = await db.transaction(async (tx) => {
+    await lockRegistrationCleanup(tx);
     const snapshot = await loadUserActivityRows(tx);
     const snapshotCandidates = filterStaleUserCandidates(snapshot, cutoff);
     const snapshotIds = snapshotCandidates.map((candidate) => candidate.id);
@@ -205,6 +255,53 @@ export async function cleanupStaleUsers(
     const candidates = filterStaleUserCandidates(lockedRows, cutoff);
     const ids = candidates.map((candidate) => candidate.id);
     const usernames = candidates.map((candidate) => candidate.username);
+    const [riskSettings] = usernames.length
+      ? await tx
+          .select({
+            enabled: siteSettings.repeatRegistrationLimitEnabled,
+            windowDays: siteSettings.repeatRegistrationWindowDays,
+          })
+          .from(siteSettings)
+          .where(eq(siteSettings.id, 1))
+          .limit(1)
+      : [];
+    const registrationRows = usernames.length
+      ? await tx
+          .select({
+            ip: registrationRecords.ip,
+            username: registrationRecords.username,
+          })
+          .from(registrationRecords)
+          .where(inArray(registrationRecords.username, usernames))
+      : [];
+    const riskMarks = buildRegistrationRiskMarks(
+      registrationRows,
+      {
+        enabled: (riskSettings?.enabled ?? 1) !== 0,
+        windowDays: riskSettings?.windowDays ?? 30,
+      },
+      now,
+      getRegistrationRiskHashSecret(),
+    );
+    if ((riskSettings?.enabled ?? 1) !== 0 && ids.length) {
+      const hashedRows = await tx.select({
+        ipHash: users.registrationIpHash,
+        username: users.username,
+      }).from(users).where(inArray(users.id, ids));
+      const marksByHash = new Map(riskMarks.map((mark) => [mark.ipHash, mark]));
+      for (const row of hashedRows) {
+        if (!row.ipHash) continue;
+        marksByHash.set(row.ipHash, {
+          ipHash: row.ipHash,
+          cleanupCount: 1,
+          lastCleanedAt: now,
+          restrictedUntil: registrationRestrictionUntil(now, riskSettings?.windowDays ?? 30),
+          lastUsername: row.username,
+          updatedAt: now,
+        });
+      }
+      riskMarks.splice(0, riskMarks.length, ...marksByHash.values());
+    }
     const images = ids.length
       ? await tx
           .select({
@@ -217,6 +314,21 @@ export async function cleanupStaleUsers(
       : [];
 
     if (ids.length) {
+      for (const mark of riskMarks) {
+        await tx
+          .insert(registrationRiskMarks)
+          .values(mark)
+          .onConflictDoUpdate({
+            target: registrationRiskMarks.ipHash,
+            set: {
+              cleanupCount: sql`${registrationRiskMarks.cleanupCount} + 1`,
+              lastCleanedAt: mark.lastCleanedAt,
+              restrictedUntil: mark.restrictedUntil,
+              lastUsername: mark.lastUsername,
+              updatedAt: mark.updatedAt,
+            },
+          });
+      }
       await tx.delete(users).where(
         and(
           inArray(users.id, ids),

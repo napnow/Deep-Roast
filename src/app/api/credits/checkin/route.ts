@@ -5,13 +5,18 @@ import {
   getUserRow,
   performCheckin,
 } from "@/server/services/credits";
-import { getCheckinReward } from "@/server/services/site-settings";
+import { getRegistrationBenefitSettings } from "@/server/services/site-settings";
+import { resolveCheckinReward } from "@/server/services/registration-benefits";
 
 // GET /api/credits/checkin — 今日是否已签 + 奖励说明
 export const GET = handleRoute(async (req) => {
   const auth = await requireActiveUser(req);
   const user = await getUserRow(auth.userId);
-  const status = checkinStatusFromUser(user, await getCheckinReward());
+  const reward = resolveCheckinReward(
+    await getRegistrationBenefitSettings(),
+    user.restrictedUntil,
+  );
+  const status = checkinStatusFromUser(user, reward);
   return jsonOk({
     ...status,
     credits: user.credits,

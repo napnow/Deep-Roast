@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { resolveJwtSecretString, usesDevFallbackSecret } from "./auth-secret";
 
 // ── Types ──
 export interface AuthPayload {
@@ -11,29 +12,20 @@ export interface AuthPayload {
   sessionProof?: string;
 }
 
-const DEV_FALLBACK_SECRET = "doubao-dev-secret-change-me";
-
 // ── Secret ──
 function getSecret(): Uint8Array {
-  const fromEnv = process.env.JWT_SECRET?.trim();
-  if (fromEnv) {
-    return new TextEncoder().encode(fromEnv);
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "JWT_SECRET is required in production. Set it in the environment (see .env.example).",
-    );
-  }
-
   // 仅开发：可启动，但每次进程应意识到这是不安全默认
-  if (!(globalThis as { __drJwtDevWarned?: boolean }).__drJwtDevWarned) {
+  if (
+    usesDevFallbackSecret() &&
+    !(globalThis as { __drJwtDevWarned?: boolean }).__drJwtDevWarned
+  ) {
     console.warn(
       "[auth] JWT_SECRET unset — using insecure dev fallback. Set JWT_SECRET before any real deploy.",
     );
     (globalThis as { __drJwtDevWarned?: boolean }).__drJwtDevWarned = true;
   }
-  return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+
+  return new TextEncoder().encode(resolveJwtSecretString());
 }
 
 // ── Token helpers ──

@@ -10,6 +10,18 @@ export default function AdminSiteSettingsCard() {
   const [signupBonusCredits, setSignupBonusCredits] = useState("50");
   const [registrationIpLimitEnabled, setRegistrationIpLimitEnabled] =
     useState(false);
+  const [repeatRegistrationLimitEnabled, setRepeatRegistrationLimitEnabled] =
+    useState(true);
+  const [repeatRegistrationWindowDays, setRepeatRegistrationWindowDays] =
+    useState("30");
+  const [repeatRegistrationSignupBonus, setRepeatRegistrationSignupBonus] =
+    useState("0");
+  const [repeatRegistrationCheckinReward, setRepeatRegistrationCheckinReward] =
+    useState("10");
+  const [
+    repeatRegistrationInvitationReward,
+    setRepeatRegistrationInvitationReward,
+  ] = useState("0");
   const [imageGenerationEnabled, setImageGenerationEnabled] = useState(true);
   const [invitationEnabled, setInvitationEnabled] = useState(true);
   const [invitationReward, setInvitationReward] = useState("200");
@@ -32,6 +44,11 @@ export default function AdminSiteSettingsCard() {
         invitationReward?: number;
         invitationInviteeReward?: number;
         checkinReward?: number;
+        repeatRegistrationLimitEnabled?: boolean;
+        repeatRegistrationWindowDays?: number;
+        repeatRegistrationSignupBonus?: number;
+        repeatRegistrationCheckinReward?: number;
+        repeatRegistrationInvitationReward?: number;
       }>("/api/admin/site-settings")
       .then((data) => {
         if (cancelled) return;
@@ -45,6 +62,21 @@ export default function AdminSiteSettingsCard() {
       setInvitationReward(String(data.invitationReward ?? 200));
       setInvitationInviteeReward(String(data.invitationInviteeReward ?? 50));
       setCheckinReward(String(data.checkinReward ?? 50));
+      setRepeatRegistrationLimitEnabled(
+        data.repeatRegistrationLimitEnabled !== false,
+      );
+      setRepeatRegistrationWindowDays(
+        String(data.repeatRegistrationWindowDays ?? 30),
+      );
+      setRepeatRegistrationSignupBonus(
+        String(data.repeatRegistrationSignupBonus ?? 0),
+      );
+      setRepeatRegistrationCheckinReward(
+        String(data.repeatRegistrationCheckinReward ?? 10),
+      );
+      setRepeatRegistrationInvitationReward(
+        String(data.repeatRegistrationInvitationReward ?? 0),
+      );
       })
       .catch((e: unknown) => {
         if (!cancelled) {
@@ -177,6 +209,81 @@ export default function AdminSiteSettingsCard() {
       setMsg(next ? "已开启同 IP 注册限制" : "已关闭同 IP 注册限制");
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function toggleRepeatRegistrationLimit(next: boolean) {
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{ repeatRegistrationLimitEnabled?: boolean }>(
+        "/api/admin/site-settings",
+        {
+          method: "PUT",
+          ...jsonBody({ repeatRegistrationLimitEnabled: next }),
+        },
+      );
+      setRepeatRegistrationLimitEnabled(
+        data.repeatRegistrationLimitEnabled !== false,
+      );
+      setMsg(next ? "已开启清理后重注册限制" : "已关闭清理后重注册限制");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "更新失败");
+    }
+    setSaving(false);
+  }
+
+  async function saveRepeatRegistrationSettings() {
+    const daysRaw = repeatRegistrationWindowDays.trim();
+    const signupRaw = repeatRegistrationSignupBonus.trim();
+    const checkinRaw = repeatRegistrationCheckinReward.trim();
+    const inviteRaw = repeatRegistrationInvitationReward.trim();
+    if (
+      !/^\d+$/.test(daysRaw) ||
+      !/^\d+$/.test(signupRaw) ||
+      !/^\d+$/.test(checkinRaw) ||
+      !/^\d+$/.test(inviteRaw)
+    ) {
+      setMsg("限制天数与积分都必须是非负整数");
+      return;
+    }
+    if (Number(daysRaw) < 1 || Number(daysRaw) > 365) {
+      setMsg("限制天数必须在 1-365 之间");
+      return;
+    }
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await apiJson<{
+        repeatRegistrationWindowDays?: number;
+        repeatRegistrationSignupBonus?: number;
+        repeatRegistrationCheckinReward?: number;
+        repeatRegistrationInvitationReward?: number;
+      }>("/api/admin/site-settings", {
+        method: "PUT",
+        ...jsonBody({
+          repeatRegistrationWindowDays: Number(daysRaw),
+          repeatRegistrationSignupBonus: Number(signupRaw),
+          repeatRegistrationCheckinReward: Number(checkinRaw),
+          repeatRegistrationInvitationReward: Number(inviteRaw),
+        }),
+      });
+      setRepeatRegistrationWindowDays(
+        String(data.repeatRegistrationWindowDays ?? daysRaw),
+      );
+      setRepeatRegistrationSignupBonus(
+        String(data.repeatRegistrationSignupBonus ?? signupRaw),
+      );
+      setRepeatRegistrationCheckinReward(
+        String(data.repeatRegistrationCheckinReward ?? checkinRaw),
+      );
+      setRepeatRegistrationInvitationReward(
+        String(data.repeatRegistrationInvitationReward ?? inviteRaw),
+      );
+      setMsg("设置已保存；奖励调整会影响受限账号后续的签到和邀请");
+    } catch (e: unknown) {
+      setMsg(e instanceof Error ? e.message : "保存失败");
     }
     setSaving(false);
   }
@@ -464,6 +571,147 @@ export default function AdminSiteSettingsCard() {
                 />
                 {registrationIpLimitEnabled ? "限制中" : "已关闭"}
               </button>
+            </div>
+
+            <div
+              className="rounded-[var(--radius)] px-3.5 py-3 space-y-3"
+              style={{
+                background: "var(--bg-root)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    清理后重注册限制
+                  </p>
+                  <p
+                    className="text-[10.5px] mt-0.5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    被三天清理的账号，其 IP 在限定天数内重新注册时降低注册与签到奖励；受限期内作为邀请人只发受限邀请奖励，使用邀请码注册也不发邀请奖励
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() =>
+                    toggleRepeatRegistrationLimit(
+                      !repeatRegistrationLimitEnabled,
+                    )
+                  }
+                  className={`admin-btn shrink-0 ${
+                    repeatRegistrationLimitEnabled
+                      ? "admin-btn--accent"
+                      : "admin-btn--danger"
+                  }`}
+                  aria-pressed={repeatRegistrationLimitEnabled}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: repeatRegistrationLimitEnabled
+                        ? "var(--success)"
+                        : "var(--danger)",
+                    }}
+                  />
+                  {repeatRegistrationLimitEnabled ? "限制中" : "已关闭"}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex-1 min-w-[9rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    限制天数
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    step={1}
+                    value={repeatRegistrationWindowDays}
+                    onChange={(e) =>
+                      setRepeatRegistrationWindowDays(e.target.value)
+                    }
+                    className="admin-input"
+                    inputMode="numeric"
+                    aria-label="清理后重注册限制天数"
+                  />
+                </label>
+                <label className="flex-1 min-w-[9rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    受限注册赠送积分
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={repeatRegistrationSignupBonus}
+                    onChange={(e) =>
+                      setRepeatRegistrationSignupBonus(e.target.value)
+                    }
+                    className="admin-input"
+                    inputMode="numeric"
+                    aria-label="受限注册赠送积分"
+                  />
+                </label>
+                <label className="flex-1 min-w-[9rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    受限签到奖励积分
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={repeatRegistrationCheckinReward}
+                    onChange={(e) =>
+                      setRepeatRegistrationCheckinReward(e.target.value)
+                    }
+                    className="admin-input"
+                    inputMode="numeric"
+                    aria-label="受限签到奖励积分"
+                  />
+                </label>
+                <label className="flex-1 min-w-[9rem]">
+                  <span
+                    className="mb-1.5 block text-[11px] font-semibold"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    受限账号邀请奖励
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={repeatRegistrationInvitationReward}
+                    onChange={(e) =>
+                      setRepeatRegistrationInvitationReward(e.target.value)
+                    }
+                    className="admin-input"
+                    inputMode="numeric"
+                    aria-label="受限账号邀请奖励"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={saveRepeatRegistrationSettings}
+                  className="admin-btn admin-btn--solid shrink-0"
+                >
+                  保存限制设置
+                </button>
+              </div>
             </div>
 
             <div

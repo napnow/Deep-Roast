@@ -38,7 +38,11 @@ export async function register(
   username: string,
   password: string,
   inviteCode?: string | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  benefitsRestricted?: boolean;
+}> {
   try {
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -47,7 +51,10 @@ export async function register(
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || "注册失败" };
-    return { success: true };
+    return {
+      success: true,
+      benefitsRestricted: data.benefitsRestricted === true,
+    };
   } catch {
     return { success: false, error: "网络错误" };
   }

@@ -6,6 +6,8 @@ import { parseInvitationReward } from "./invitations";
 import type { InvitationSettingsPatch } from "./invitation-settings-input";
 import { parseCheckinReward } from "./checkin-settings-input";
 import { parseSignupBonusCredits } from "./signup-bonus-settings-input";
+import type { RepeatRegistrationSettingsPatch } from "./repeat-registration-settings-input";
+import type { RegistrationBenefitSettings } from "./registration-benefits";
 import { removeSiteAsset, saveSiteAsset } from "./site-assets";
 
 async function ensureRow() {
@@ -34,6 +36,14 @@ function mapSettings(row: typeof siteSettings.$inferSelect) {
     invitationEnabled: (row.invitationEnabled ?? 1) !== 0,
     invitationReward: row.invitationReward ?? 200,
     invitationInviteeReward: row.invitationInviteeReward ?? 50,
+    repeatRegistrationLimitEnabled:
+      (row.repeatRegistrationLimitEnabled ?? 1) !== 0,
+    repeatRegistrationWindowDays: row.repeatRegistrationWindowDays ?? 30,
+    repeatRegistrationSignupBonus: row.repeatRegistrationSignupBonus ?? 0,
+    repeatRegistrationCheckinReward:
+      row.repeatRegistrationCheckinReward ?? 10,
+    repeatRegistrationInvitationReward:
+      row.repeatRegistrationInvitationReward ?? 0,
     updatedAt: row.updatedAt,
   };
 }
@@ -51,6 +61,20 @@ export async function isRegistrationEnabled(): Promise<boolean> {
 export async function getCheckinReward(): Promise<number> {
   const settings = await getSiteSettings();
   return settings.checkinReward;
+}
+
+/** 注册与签到奖励决策所需的设置快照 */
+export async function getRegistrationBenefitSettings(): Promise<RegistrationBenefitSettings> {
+  const settings = await getSiteSettings();
+  return {
+    repeatRegistrationLimitEnabled: settings.repeatRegistrationLimitEnabled,
+    repeatRegistrationSignupBonus: settings.repeatRegistrationSignupBonus,
+    repeatRegistrationCheckinReward: settings.repeatRegistrationCheckinReward,
+    repeatRegistrationInvitationReward:
+      settings.repeatRegistrationInvitationReward,
+    signupBonusCredits: settings.signupBonusCredits,
+    checkinReward: settings.checkinReward,
+  };
 }
 
 export async function isImageGenerationEnabled(): Promise<boolean> {
@@ -234,6 +258,40 @@ export async function setCheckinReward(value: unknown) {
   const [row] = await db
     .update(siteSettings)
     .set({ checkinReward: reward, updatedAt: new Date() })
+    .where(eq(siteSettings.id, 1))
+    .returning();
+  return mapSettings(row!);
+}
+
+export async function updateRepeatRegistrationSettings(
+  patch: RepeatRegistrationSettingsPatch,
+) {
+  await ensureRow();
+  const values: Partial<typeof siteSettings.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+  if (patch.repeatRegistrationLimitEnabled !== undefined) {
+    values.repeatRegistrationLimitEnabled = patch.repeatRegistrationLimitEnabled
+      ? 1
+      : 0;
+  }
+  if (patch.repeatRegistrationWindowDays !== undefined) {
+    values.repeatRegistrationWindowDays = patch.repeatRegistrationWindowDays;
+  }
+  if (patch.repeatRegistrationSignupBonus !== undefined) {
+    values.repeatRegistrationSignupBonus = patch.repeatRegistrationSignupBonus;
+  }
+  if (patch.repeatRegistrationCheckinReward !== undefined) {
+    values.repeatRegistrationCheckinReward =
+      patch.repeatRegistrationCheckinReward;
+  }
+  if (patch.repeatRegistrationInvitationReward !== undefined) {
+    values.repeatRegistrationInvitationReward =
+      patch.repeatRegistrationInvitationReward;
+  }
+  const [row] = await db
+    .update(siteSettings)
+    .set(values)
     .where(eq(siteSettings.id, 1))
     .returning();
   return mapSettings(row!);

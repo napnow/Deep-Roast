@@ -4,7 +4,8 @@ import { eq, desc, sql, and, type SQL } from "drizzle-orm";
 import { CREDIT_PER_IMAGE, CHECKIN_REWARD } from "@/types";
 import { ApiError } from "@/server/http";
 import { shanghaiToday } from "@/lib/shanghai-date";
-import { getCheckinReward } from "@/server/services/site-settings";
+import { getRegistrationBenefitSettings } from "@/server/services/site-settings";
+import { resolveCheckinReward } from "@/server/services/registration-benefits";
 
 export async function getUserCredits(userId: string): Promise<number> {
   const [user] = await db
@@ -195,7 +196,10 @@ export async function performCheckin(userId: string) {
   }
 
   const today = shanghaiToday();
-  const reward = await getCheckinReward();
+  const reward = resolveCheckinReward(
+    await getRegistrationBenefitSettings(),
+    user.restrictedUntil,
+  );
 
   return db.transaction(async (tx) => {
     const rows = await tx

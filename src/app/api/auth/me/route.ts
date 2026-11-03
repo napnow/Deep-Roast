@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkinStatusFromUser } from "@/server/services/credits";
-import { getCheckinReward } from "@/server/services/site-settings";
+import { getRegistrationBenefitSettings } from "@/server/services/site-settings";
+import { resolveCheckinReward } from "@/server/services/registration-benefits";
 
 export async function GET(req: Request) {
   try {
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
         credits: users.credits,
         status: users.status,
         lastCheckinOn: users.lastCheckinOn,
+        restrictedUntil: users.restrictedUntil,
       })
       .from(users)
       .where(eq(users.id, payload.userId as string));
@@ -37,7 +39,13 @@ export async function GET(req: Request) {
       );
     }
 
-    const checkin = checkinStatusFromUser(user, await getCheckinReward());
+    const checkin = checkinStatusFromUser(
+      user,
+      resolveCheckinReward(
+        await getRegistrationBenefitSettings(),
+        user.restrictedUntil,
+      ),
+    );
 
     return Response.json({
       id: user.id,

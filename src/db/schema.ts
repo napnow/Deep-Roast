@@ -147,6 +147,32 @@ export const siteSettings = pgTable(
     registrationIpLimitEnabled: integer("registration_ip_limit_enabled")
       .notNull()
       .default(1),
+    /** 被三天清理后同 IP 重注册时，是否降低新用户奖励（1=开 0=关） */
+    repeatRegistrationLimitEnabled: integer(
+      "repeat_registration_limit_enabled",
+    )
+      .notNull()
+      .default(1),
+    /** 清理后识别同 IP 重注册的天数 */
+    repeatRegistrationWindowDays: integer("repeat_registration_window_days")
+      .notNull()
+      .default(30),
+    /** 受限重注册账号的注册赠送积分 */
+    repeatRegistrationSignupBonus: integer("repeat_registration_signup_bonus")
+      .notNull()
+      .default(0),
+    /** 受限重注册账号的每日签到积分 */
+    repeatRegistrationCheckinReward: integer(
+      "repeat_registration_checkin_reward",
+    )
+      .notNull()
+      .default(10),
+    /** 受限账号作为邀请人在受限期内获得的邀请奖励 */
+    repeatRegistrationInvitationReward: integer(
+      "repeat_registration_invitation_reward",
+    )
+      .notNull()
+      .default(0),
     /** 普通用户生图总开关；管理员不受影响 */
     imageGenerationEnabled: integer("image_generation_enabled")
       .notNull()
@@ -187,6 +213,22 @@ export const siteSettings = pgTable(
       "site_settings_checkin_reward_non_negative",
       sql`${table.checkinReward} >= 0`,
     ),
+    repeatRegistrationWindowDaysRange: check(
+      "site_settings_repeat_registration_window_days_range",
+      sql`${table.repeatRegistrationWindowDays} BETWEEN 1 AND 365`,
+    ),
+    repeatRegistrationSignupBonusNonNegative: check(
+      "site_settings_repeat_registration_signup_bonus_non_negative",
+      sql`${table.repeatRegistrationSignupBonus} >= 0`,
+    ),
+    repeatRegistrationCheckinRewardNonNegative: check(
+      "site_settings_repeat_registration_checkin_reward_non_negative",
+      sql`${table.repeatRegistrationCheckinReward} >= 0`,
+    ),
+    repeatRegistrationInvitationRewardNonNegative: check(
+      "site_settings_repeat_registration_invitation_reward_non_negative",
+      sql`${table.repeatRegistrationInvitationReward} >= 0`,
+    ),
   }),
 );
 
@@ -201,6 +243,10 @@ export const users = pgTable("users", {
   status: text("status").notNull().default("active"),
   /** 永久保号：不参与管理员的三天未使用账号清理 */
   cleanupProtected: boolean("cleanup_protected").default(false).notNull(),
+  /** 重复注册受限奖励到期时间；为空表示正常奖励 */
+  restrictedUntil: timestamp("restricted_until"),
+  /** 注册地址的 HMAC，用于账号清理后的风险标记 */
+  registrationIpHash: text("registration_ip_hash"),
   /** 普通用户固定邀请代码；管理员保持 NULL */
   inviteCode: text("invite_code").unique(),
   /** 升级前的长邀请码；保留用于兼容已经发出的邀请链接 */
@@ -236,6 +282,26 @@ export const registrationRecords = pgTable("registration_records", {
   username: text("username").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── 清理后同 IP 重注册风险记录：账号删除后仍保留 ──
+export const registrationRiskMarks = pgTable(
+  "registration_risk_marks",
+  {
+    /** HMAC-SHA256(normalized IP)，不保存新增明文 IP */
+    ipHash: text("ip_hash").primaryKey(),
+    cleanupCount: integer("cleanup_count").notNull().default(1),
+    lastCleanedAt: timestamp("last_cleaned_at").notNull().defaultNow(),
+    restrictedUntil: timestamp("restricted_until").notNull(),
+    lastUsername: text("last_username").notNull().default(""),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    restrictedUntilIdx: index(
+      "registration_risk_marks_restricted_until_idx",
+    ).on(table.restrictedUntil),
+  }),
+);
 
 // ── 用户邀请关系：账号删除后保留用户名快照和奖励历史 ──
 export const userInvitations = pgTable(

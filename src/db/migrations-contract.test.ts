@@ -115,3 +115,48 @@ test("model channel key migration clears plaintext only after encryption", () =>
   assert.match(source, /apiKeyCiphertext:\s*encrypted\.ciphertext/);
   assert.match(source, /db\.transaction/);
 });
+
+test("repeat registration migration is additive and preserves existing balances", () => {
+  assert.equal(
+    existsSync("drizzle/0029_repeat_registration_credits.sql"),
+    true,
+  );
+  const sql = readFileSync(
+    "drizzle/0029_repeat_registration_credits.sql",
+    "utf8",
+  );
+
+  assert.match(
+    sql,
+    /CREATE TABLE IF NOT EXISTS "registration_risk_marks"/,
+  );
+  assert.match(sql, /"ip_hash" text PRIMARY KEY NOT NULL/);
+  assert.match(sql, /"restricted_until" timestamp NOT NULL/);
+  assert.match(sql, /"cleanup_count" integer DEFAULT 1 NOT NULL/);
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "restricted_until" timestamp/,
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "repeat_registration_limit_enabled" integer DEFAULT 1 NOT NULL/,
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "repeat_registration_window_days" integer DEFAULT 30 NOT NULL/,
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "repeat_registration_signup_bonus" integer DEFAULT 0 NOT NULL/,
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "repeat_registration_checkin_reward" integer DEFAULT 10 NOT NULL/,
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN IF NOT EXISTS "repeat_registration_invitation_reward" integer DEFAULT 0 NOT NULL/,
+  );
+  assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
+  assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
+});

@@ -104,11 +104,19 @@ test("PostgreSQL bootstrap acceptance (explicit local disposable database only)"
       assert.deepEqual(await readSentinel(), sentinel);
     });
 
-    await t.test("legacy at preceding timestamp applies only actual pending 0027 via Drizzle", async () => {
+    await t.test("legacy at preceding timestamp applies pending 0029 via Drizzle", async () => {
       await createSyntheticLegacy(artifacts.journal.entries.slice(-21, -1));
       // This isolated fixture represents the immediately preceding schema. Never
       // issue this DROP against a real project; its only purpose is this test.
-      await client.query('DROP TABLE "public"."image_model_credit_costs"');
+      await client.query('DROP TABLE "public"."registration_risk_marks"');
+      await client.query(`ALTER TABLE public.users DROP COLUMN restricted_until, DROP COLUMN registration_ip_hash`);
+      await client.query(`ALTER TABLE public.site_settings
+        DROP COLUMN repeat_registration_limit_enabled,
+        DROP COLUMN repeat_registration_window_days,
+        DROP COLUMN repeat_registration_signup_bonus,
+        DROP COLUMN repeat_registration_checkin_reward,
+        DROP COLUMN repeat_registration_invitation_reward`);
+      await client.query('INSERT INTO public.site_settings (id, signup_bonus_credits, checkin_reward) VALUES (1,20,20)');
       const ledger = await readLedger();
       const sentinel = await readSentinel();
       assert.equal((await api.migrateDatabase({ client })).mode, "incremental");
@@ -117,7 +125,22 @@ test("PostgreSQL bootstrap acceptance (explicit local disposable database only)"
       assert.equal(after.length, ledger.length + 1);
       assert.equal(after.at(-1)!.created_at, String(last.when));
       assert.equal(after.at(-1)!.hash, createHash("sha256").update(readFileSync(path.join(artifacts.migrationsFolder, `${last.tag}.sql`))).digest("hex"));
-      assert.ok((await tableNames()).includes("image_model_credit_costs"));
+      assert.ok((await tableNames()).includes("registration_risk_marks"));
+      const columns = await client.query<{ column_name: string }>(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name IN ('restricted_until','registration_ip_hash')",
+      );
+      assert.equal(columns.rows.length, 2);
+      const defaults = await client.query(`SELECT repeat_registration_limit_enabled, repeat_registration_window_days,
+        repeat_registration_signup_bonus, repeat_registration_checkin_reward, repeat_registration_invitation_reward
+        FROM public.site_settings LIMIT 1`);
+      assert.deepEqual(defaults.rows[0], {
+        repeat_registration_limit_enabled: 1,
+        repeat_registration_window_days: 30,
+        repeat_registration_signup_bonus: 0,
+        repeat_registration_checkin_reward: 10,
+        repeat_registration_invitation_reward: 0,
+      });
+      assert.deepEqual((await client.query('SELECT signup_bonus_credits, checkin_reward FROM public.site_settings WHERE id=1')).rows[0], { signup_bonus_credits: 20, checkin_reward: 20 });
       assert.deepEqual(await readSentinel(), sentinel);
     });
 

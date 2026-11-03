@@ -11,12 +11,14 @@ import {
   setRegistrationEnabled,
   setCheckinReward,
   setSignupBonusCredits,
+  updateRepeatRegistrationSettings,
   updateAdminContactText,
   updateDonationText,
 } from "@/server/services/site-settings";
 import { parseInvitationSettingsPatch } from "@/server/services/invitation-settings-input";
 import { parseCheckinSettingsPatch } from "@/server/services/checkin-settings-input";
 import { parseSignupBonusSettingsPatch } from "@/server/services/signup-bonus-settings-input";
+import { parseRepeatRegistrationSettingsPatch } from "@/server/services/repeat-registration-settings-input";
 
 export const GET = handleRoute(async (req) => {
   await requireActiveAdmin(req);
@@ -39,11 +41,17 @@ export const PUT = handleRoute(async (req) => {
     invitationInviteeReward?: number | string;
     checkinReward?: number | string;
     signupBonusCredits?: number | string;
+    repeatRegistrationLimitEnabled?: boolean;
+    repeatRegistrationWindowDays?: number | string;
+    repeatRegistrationSignupBonus?: number | string;
+    repeatRegistrationCheckinReward?: number | string;
+    repeatRegistrationInvitationReward?: number | string;
   }>(req);
 
   const invitationPatch = parseInvitationSettingsPatch(body);
   const checkinPatch = parseCheckinSettingsPatch(body);
   const signupBonusPatch = parseSignupBonusSettingsPatch(body);
+  const repeatRegistrationPatch = parseRepeatRegistrationSettingsPatch(body);
 
   if (body.clearImage === true) {
     await clearAdminContactImage();
@@ -71,6 +79,9 @@ export const PUT = handleRoute(async (req) => {
   }
   if (signupBonusPatch.signupBonusCredits !== undefined) {
     await setSignupBonusCredits(signupBonusPatch.signupBonusCredits);
+  }
+  if (Object.keys(repeatRegistrationPatch).length > 0) {
+    await updateRepeatRegistrationSettings(repeatRegistrationPatch);
   }
   if (typeof body.donationText === "string") {
     await updateDonationText(body.donationText);

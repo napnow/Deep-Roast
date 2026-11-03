@@ -2,6 +2,7 @@ import { db } from "@/db";
 import {
   creditTransactions,
   registrationRecords,
+  registrationRiskMarks,
   siteSettings,
   userInvitations,
   users,
@@ -13,11 +14,21 @@ import { ApiError, readJson } from "@/server/http";
 import { enforceRateLimit, getClientIp } from "@/server/rate-limit";
 import { assertPasswordStrength } from "@/server/services/auth-password";
 import { createInviteCode } from "@/server/services/invitation-code";
+import { lockRegistrationCleanup } from "@/server/services/registration-cleanup-lock";
 import { isRegistrationIpLimitEnabled } from "@/server/services/registration-policy";
 import {
   getInvitationReward,
   getInviteeInvitationReward,
 } from "@/server/services/invitation-policy";
+import {
+  resolveRegistrationBenefits,
+  resolveRestrictedInviterReward,
+} from "@/server/services/registration-benefits";
+import {
+  getRegistrationRiskHashSecret,
+  hashRegistrationIp,
+  normalizeClientIp,
+} from "@/server/services/registration-risk";
 
 const REGISTER_IP_LIMIT = 10;
 const REGISTER_WINDOW = 3600;
@@ -71,6 +82,7 @@ type RegistrationResult = {
   id: string;
   username: string;
   role: string;
+  benefitsRestricted: boolean;
 };
 
 async function registerInTransaction(args: {
@@ -82,6 +94,7 @@ async function registerInTransaction(args: {
   const { ip, username, hashedPassword, inviteCode } = args;
 
   return db.transaction(async (tx) => {
+    await lockRegistrationCleanup(tx);
     const [settings] = await tx
       .select({
         registrationEnabled: siteSettings.registrationEnabled,
@@ -90,6 +103,15 @@ async function registerInTransaction(args: {
         invitationInviteeReward: siteSettings.invitationInviteeReward,
         registrationIpLimitEnabled: siteSettings.registrationIpLimitEnabled,
         signupBonusCredits: siteSettings.signupBonusCredits,
+        checkinReward: siteSettings.checkinReward,
+        repeatRegistrationLimitEnabled:
+          siteSettings.repeatRegistrationLimitEnabled,
+        repeatRegistrationSignupBonus:
+          siteSettings.repeatRegistrationSignupBonus,
+        repeatRegistrationCheckinReward:
+          siteSettings.repeatRegistrationCheckinReward,
+        repeatRegistrationInvitationReward:
+          siteSettings.repeatRegistrationInvitationReward,
       })
       .from(siteSettings)
       .where(eq(siteSettings.id, 1))
@@ -107,21 +129,57 @@ async function registerInTransaction(args: {
       await tx.insert(registrationRecords).values({ ip, username });
     }
 
+    // 三天清理会为该 IP 留下风险标记；命中且未过期时降低新账号奖励
+    const normalizedIp = normalizeClientIp(ip);
+    const ipHash = normalizedIp
+      ? hashRegistrationIp(normalizedIp, getRegistrationRiskHashSecret())
+      : null;
+    let riskRestrictedUntil: Date | null = null;
+    if (ipHash) {
+      const [mark] = await tx
+        .select({ restrictedUntil: registrationRiskMarks.restrictedUntil })
+        .from(registrationRiskMarks)
+        .where(eq(registrationRiskMarks.ipHash, ipHash))
+        .limit(1);
+      riskRestrictedUntil = mark?.restrictedUntil ?? null;
+    }
+
+    const benefitSettings = {
+      repeatRegistrationLimitEnabled:
+        (settings?.repeatRegistrationLimitEnabled ?? 1) !== 0,
+      repeatRegistrationSignupBonus:
+        settings?.repeatRegistrationSignupBonus ?? 0,
+      repeatRegistrationCheckinReward:
+        settings?.repeatRegistrationCheckinReward ?? 10,
+      repeatRegistrationInvitationReward:
+        settings?.repeatRegistrationInvitationReward ?? 0,
+      signupBonusCredits: settings?.signupBonusCredits ?? 50,
+      checkinReward: settings?.checkinReward ?? 50,
+    };
+    const benefits = resolveRegistrationBenefits(
+      benefitSettings,
+      riskRestrictedUntil,
+    );
+    const signupBonusCredits = benefits.signupBonusCredits;
+
     const invitationEnabled = (settings?.invitationEnabled ?? 1) !== 0;
     let inviter: {
       id: string;
       username: string;
       role: string;
       status: string;
+      restrictedUntil: Date | null;
     } | null = null;
 
-    if (inviteCode && invitationEnabled) {
+    // 受限重注册不建立邀请关系，也不发放任何邀请奖励
+    if (!benefits.restricted && inviteCode && invitationEnabled) {
       const [row] = await tx
         .select({
           id: users.id,
           username: users.username,
           role: users.role,
           status: users.status,
+          restrictedUntil: users.restrictedUntil,
         })
         .from(users)
         .where(
@@ -142,8 +200,6 @@ async function registerInTransaction(args: {
       inviter = row;
     }
 
-    const signupBonusCredits = settings?.signupBonusCredits ?? 50;
-
     const [user] = await tx
       .insert(users)
       .values({
@@ -152,6 +208,8 @@ async function registerInTransaction(args: {
         credits: signupBonusCredits,
         inviteCode: createInviteCode(),
         lastLoginAt: new Date(),
+        restrictedUntil: benefits.restrictedUntil,
+        registrationIpHash: ipHash,
       })
       .returning({ id: users.id, username: users.username, role: users.role });
 
@@ -168,12 +226,22 @@ async function registerInTransaction(args: {
     if (inviter) {
       const inviterIsActiveUser =
         inviter.role === "user" && inviter.status === "active";
-      const reward = getInvitationReward(
-        invitationEnabled,
-        settings?.invitationReward ?? 200,
-        inviterIsActiveUser,
-        inviteCode,
-      );
+      // 受限账号作为邀请人时按受限邀请奖励发放（默认 0），
+      // 被邀请人仍是正常新用户，保留其常规奖励。
+      const restrictedInviterReward = inviterIsActiveUser
+        ? resolveRestrictedInviterReward(
+            benefitSettings,
+            inviter.restrictedUntil,
+          )
+        : null;
+      const reward =
+        restrictedInviterReward ??
+        getInvitationReward(
+          invitationEnabled,
+          settings?.invitationReward ?? 200,
+          inviterIsActiveUser,
+          inviteCode,
+        );
       const inviteeReward = getInviteeInvitationReward(
         invitationEnabled,
         settings?.invitationInviteeReward ?? 50,
@@ -257,7 +325,7 @@ async function registerInTransaction(args: {
       }
     }
 
-    return user;
+    return { ...user, benefitsRestricted: benefits.restricted };
   });
 }
 
@@ -345,7 +413,12 @@ export async function POST(req: Request) {
     await setAuthCookie(token);
 
     return Response.json(
-      { success: true, username: user.username, role: user.role },
+      {
+        success: true,
+        username: user.username,
+        role: user.role,
+        benefitsRestricted: user.benefitsRestricted,
+      },
       { status: 201 },
     );
   } catch (err) {
