@@ -38,10 +38,14 @@ import {
   type EditStylePreset,
 } from "./editStyles";
 import { hydrateImg2ImgDraft } from "./image-to-image-draft";
+import { getImageModelLabel } from "./image-model-presentation";
 
 interface Img2ImgPanelProps {
+  desktop?: boolean;
   size: string;
   imageModel?: string;
+  imageModels?: string[];
+  onImageModelChange?: (model: string) => void;
   imageModelCosts?: Record<string, number>;
   isAdmin?: boolean;
   /** 可选比例列表（与文生图一致：1:1 / 9:16 / 16:9 等） */
@@ -71,8 +75,11 @@ interface RefImage {
 const MAX_REFS = 5;
 
 export default function Img2ImgPanel({
+  desktop = false,
   size,
   imageModel,
+  imageModels = [],
+  onImageModelChange,
   imageModelCosts,
   isAdmin = false,
   sizeOptions,
@@ -187,6 +194,11 @@ export default function Img2ImgPanel({
   }, [draft, invalidateUploads, polishRequests]);
 
   useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      process.env.NODE_ENV === "development" &&
+      new URLSearchParams(window.location.search).get("preview") === "mobile"
+    ) return;
     let cancelled = false;
     fetch("/api/public/styles")
       .then((res) => res.json())
@@ -212,6 +224,8 @@ export default function Img2ImgPanel({
   const activeEditPrompt = getActiveEditPrompt(perImagePrompts, targetIndex);
   const currentPrompt =
     editMode === "per-image" && refs.length > 0 ? activeEditPrompt : edit;
+  const isContinuation = typeof draft?.sourcePrompt === "string" && !!draft.refs[0] && refs.some((ref) => ref.preview === draft.refs[0].preview);
+  const continuationNeedsInstruction = isContinuation && !(edit.trim() || (editMode === "per-image" && perImagePrompts.some((prompt) => prompt.trim())));
   const canAffordPolish = isAdmin || credits >= POLISH_PROMPT_CREDIT_COST;
   const hasPolishUndo =
     polishUndo?.ownerIndex === targetIndex &&
@@ -471,7 +485,7 @@ export default function Img2ImgPanel({
   }
 
   async function handleGenerate() {
-    if (disabled || refs.length === 0 || generating || polishing) return;
+    if (disabled || refs.length === 0 || generating || polishing || continuationNeedsInstruction) return;
     setError("");
     setElapsed(0);
     setProcessing(true);
@@ -873,6 +887,13 @@ export default function Img2ImgPanel({
             </div>
           </div>
 
+          {draft?.sourcePrompt && draft.refs[0] && refs.some((ref) => ref.preview === draft.refs[0].preview) ? (
+            <details className="img2img-source-prompt">
+              <summary>查看原作品提示词</summary>
+              <p>{draft.sourcePrompt}</p>
+            </details>
+          ) : null}
+
           {editMode === "per-image" ? (
             <details className="img2img-shared-prompt">
               <summary>所有图片的共同要求（可选）</summary>
@@ -910,7 +931,7 @@ export default function Img2ImgPanel({
         </label>
       )}
 
-      <details className="creation-settings creation-step-card">
+      <details className="creation-settings creation-step-card" open={desktop || undefined}>
         <summary>
           <span className="creation-step-card__summary">
             <span className="creation-step-card__number" aria-hidden="true">
@@ -919,7 +940,7 @@ export default function Img2ImgPanel({
             <span>
               <span className="creation-settings__title">更多设置</span>
               <span className="creation-step-card__description">
-                风格、比例与生成数量
+                {imageModel ? `模型：${getImageModelLabel(imageModel)}` : "风格、比例与生成数量"}
               </span>
             </span>
           </span>
@@ -930,6 +951,36 @@ export default function Img2ImgPanel({
           </span>
         </summary>
         <div className="creation-settings__body">
+          {onImageModelChange && imageModels.length > 0 ? (
+            <fieldset className="creation-setting-group creation-model-setting">
+              <legend className="creation-section-label">生图模型</legend>
+              <div className="creation-model-options" role="group" aria-label="选择生图模型">
+                {imageModels.map((id) => {
+                  const selected = id === imageModel;
+                  const label = getImageModelLabel(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className="creation-model-option"
+                      aria-label={label}
+                      aria-pressed={selected}
+                      disabled={processing || generating || disabled}
+                      onClick={() => onImageModelChange(id)}
+                    >
+                      <span className="creation-model-option__text">
+                        <strong>{label}</strong>
+                        <small>{id}</small>
+                      </span>
+                      <span className="creation-model-option__indicator" aria-hidden="true">
+                        {selected ? "✓" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
           <section className="creation-setting-group">
             <div className="creation-setting-group__header">
               <span className="creation-section-label">风格</span>
@@ -1094,7 +1145,8 @@ export default function Img2ImgPanel({
               refs.length === 0 ||
               generating ||
               processing ||
-              polishing
+              polishing ||
+              continuationNeedsInstruction
             }
             className="ui-button ui-button--primary"
           >

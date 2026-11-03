@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* 手机端输入控件防聚焦放大：iOS/Android 对 <16px 的输入框聚焦时自动缩放页面 */
@@ -1794,9 +1795,7 @@ html.dark .liquid-glass-strong {
 }
 
 @supports not (height: 100svh) {
-  .workspace-shell {
-    height: 100vh;
-  }
+  .workspace-shell { height: 100vh; }
 }
 
 .workspace-main,

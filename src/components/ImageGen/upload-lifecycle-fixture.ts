@@ -15,6 +15,7 @@ import * as customRatio from "@/lib/custom-image-ratio";
 import * as editStyles from "./editStyles";
 import * as imageEditPolish from "@/lib/image-edit-polish";
 import * as promptPolish from "@/lib/prompt-polish";
+import * as imageModelPresentation from "./image-model-presentation";
 import { formatTime } from "./imageUtils";
 
 // Adapted from the offline concurrency review. Execute the actual panel and pure
@@ -206,6 +207,7 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
     "@/lib/custom-image-ratio": customRatio,
     "./image-edit-ui": imageEditUi,
     "./image-to-image-draft": draftUi,
+    "./image-model-presentation": imageModelPresentation,
     "./creation-workbench-ui": workbenchUi,
     "./editStyles": editStyles,
     "@/lib/client-api": {

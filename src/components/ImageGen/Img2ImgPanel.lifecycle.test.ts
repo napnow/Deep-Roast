@@ -31,6 +31,42 @@ function item(name: string, prompt: string, targetIndex: number) {
   return { image: `data:image/png;base64,${name}`, prompt, targetIndex };
 }
 
+test("desktop image editing selects an enabled model and reflects the active choice", (t) => {
+  const chosen: string[] = [];
+  const panel = harness(t, {
+    desktop: true,
+    imageModel: "gpt-image-2",
+    imageModels: ["gpt-image-2", "gpt-image-2.5-flare"],
+    onImageModelChange: (id) => chosen.push(id),
+  });
+  assert.equal(panel.button("GPT Image 2").props["aria-pressed"], true);
+  assert.equal(panel.button("GPT Image 2.5 · Flare").props["aria-pressed"], false);
+  panel.click("GPT Image 2.5 · Flare");
+  assert.deepEqual(chosen, ["gpt-image-2.5-flare"]);
+  panel.render({ imageModel: "gpt-image-2.5-flare" });
+  assert.equal(panel.button("GPT Image 2.5 · Flare").props["aria-pressed"], true);
+});
+
+test("mobile image editing can select the image model inside its settings", (t) => {
+  const chosen: string[] = [];
+  const panel = harness(t, {
+    desktop: false,
+    imageModel: "gpt-image-2",
+    imageModels: ["gpt-image-2", "gpt-image-2.5-flare"],
+    onImageModelChange: (id) => chosen.push(id),
+  });
+  assert.equal(panel.button("GPT Image 2").props["aria-pressed"], true);
+  panel.click("GPT Image 2.5 · Flare");
+  assert.deepEqual(chosen, ["gpt-image-2.5-flare"]);
+});
+
+test("continuing a generated image requires a new modification instruction", (t) => {
+  const panel = harness(t, { draft: { ...draft(), prompt: "", sourcePrompt: "原作品的描述" } });
+  assert.equal(panel.button("生成图片").props.disabled, true);
+  panel.setPrompt("改为夜景");
+  assert.equal(panel.button("生成图片").props.disabled, false);
+});
+
 test("clearAll excludes late old-B compression from the new-C count=3 request", async (t) => {
   const panel = harness(t);
   panel.upload(["old-A", "old-B"]);

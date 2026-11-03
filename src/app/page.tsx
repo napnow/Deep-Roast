@@ -28,6 +28,7 @@ import {
   type WorkspaceMode,
 } from "@/lib/workspace-preferences";
 import { type ImageRecord } from "@/types";
+import { isLocalMobilePreview } from "@/lib/local-preview";
 
 const WORKSPACE_STORAGE_KEY = "deep-roast-workspace";
 const INSPECTOR_COLLAPSED_STORAGE_KEY =
@@ -46,6 +47,22 @@ export default function Home() {
   const [donationEnabled, setDonationEnabled] = useState(false);
   const [donationOpen, setDonationOpen] = useState(false);
   const mobileViewport = useMobileViewport();
+
+  // The existing development-only preview identity gets an isolated demo image.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development" || user?.id !== "local-mobile-preview") return;
+    const store = useDeepRoastStore.getState();
+    store.setImageHistory([{
+      id: "studio-preview-sample",
+      prompt: "手作陶杯与深焙咖啡，温暖的晨光，静物摄影",
+      model: "gpt-image-2",
+      imageUrl: "/studio-preview-sample.png",
+      size: "1536x1024",
+      createdAt: "2026-11-01T08:00:00.000Z",
+      sourceMode: "text",
+    }]);
+    store.setActiveImageId("studio-preview-sample");
+  }, [user?.id]);
 
   const {
     activeMode,
@@ -75,6 +92,7 @@ export default function Home() {
   } = useDeepRoastStore();
 
   useEffect(() => {
+    if (isLocalMobilePreview(window.location.search, process.env.NODE_ENV)) return;
     let cancelled = false;
     apiJson<{ enabled?: boolean }>("/api/public/donation")
       .then((data) => {
@@ -275,7 +293,9 @@ export default function Home() {
   return (
     <AppShell header={header}>
       <div className="workspace-content">
-        {!hasApiKey ? (
+        {process.env.NODE_ENV === "development" && user?.id === "local-mobile-preview" ? (
+          <div className="studio-preview-notice">本地界面预览 · 示例图片，不连接线上数据</div>
+        ) : !hasApiKey ? (
           <div
             className="border-b px-6 py-2 text-center text-xs font-medium"
             style={{
@@ -318,6 +338,8 @@ export default function Home() {
               onMobileGenerateTab={() => handleSelectImageTab("generate")}
               keyboardInset={mobileViewport.keyboardInset}
               keyboardOpen={mobileViewport.keyboardOpen}
+              keyboardOffset={mobileViewport.keyboardOffset}
+              visibleHeight={mobileViewport.visibleHeight}
             />
           </section>
 

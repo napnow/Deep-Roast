@@ -11,6 +11,8 @@ interface AdminUserListProps {
   overviewActive: boolean;
   siteActive: boolean;
   aiActive: boolean;
+  usersActive: boolean;
+  onShowUsers: () => void;
   loadingUsers: boolean;
   onShowOverview: () => void;
   onShowSite: () => void;
@@ -29,6 +31,8 @@ export default function AdminUserList({
   overviewActive,
   siteActive,
   aiActive,
+  usersActive,
+  onShowUsers,
   loadingUsers,
   onShowOverview,
   onShowSite,
@@ -53,7 +57,7 @@ export default function AdminUserList({
   );
 
   return (
-    <aside className="admin-rail">
+    <aside className="admin-rail admin-rail--navigation">
       <div
         className="px-4 pt-4 pb-3 border-b shrink-0"
         style={{ borderColor: "var(--border)" }}
@@ -99,6 +103,9 @@ export default function AdminUserList({
       <nav className="admin-module-nav" aria-label="管理模块">
         <button className={overviewActive ? "is-active" : ""} onClick={onShowOverview} aria-current={overviewActive ? "page" : undefined}>
           <AppIcon name="details" />运营总览
+        </button>
+        <button className={usersActive ? "is-active" : ""} onClick={onShowUsers} aria-current={usersActive ? "page" : undefined}>
+          <AppIcon name="user" />用户管理
         </button>
         <button className={siteActive ? "is-active" : ""} onClick={onShowSite} aria-current={siteActive ? "page" : undefined}>
           <AppIcon name="announcement" />站点与内容

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiJson, jsonBody } from "@/lib/client-api";
 import { useToast } from "@/components/Toast";
 import Dialog from "@/components/ui/Dialog";
@@ -18,6 +19,7 @@ export default function ChangePasswordModal({
   open,
   onClose,
 }: ChangePasswordModalProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -73,7 +75,7 @@ export default function ChangePasswordModal({
       });
       toast("密码已修改", "success");
       onClose();
-      window.location.assign("/login");
+      router.replace("/login");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "修改失败");
     }

@@ -131,7 +131,6 @@ export default function ReversePromptPanel({
       }
       const prompt = typeof data.prompt === "string" ? data.prompt : "";
       setResult(prompt);
-      onPrompt(prompt);
     } catch {
       if (request.isCurrent()) setError("网络错误");
     } finally {
@@ -199,6 +198,8 @@ export default function ReversePromptPanel({
         >
           {preview ? "更换图片" : "选择图片"}
         </button>
+
+        {!preview && <span className="reverse-upload-hint">上传图片后分析画面，生成的提示词可以继续编辑使用</span>}
 
         {preview && !prompting && (
           <button

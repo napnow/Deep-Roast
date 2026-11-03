@@ -7,6 +7,7 @@ import {
   markAnnouncementsSeen,
 } from "@/lib/announcement-read";
 import { getUnreadAnnouncementCount } from "@/lib/announcement-ui";
+import { isLocalMobilePreview } from "@/lib/local-preview";
 
 /**
  * 公告数据 + 已读状态（供抽屉侧栏 / 用户菜单共用）
@@ -25,6 +26,10 @@ export function useAnnouncements() {
   }, []);
 
   const load = useCallback(async () => {
+    if (isLocalMobilePreview(window.location.search, process.env.NODE_ENV)) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/announcements");
       if (!res.ok) {

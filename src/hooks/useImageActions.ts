@@ -161,7 +161,12 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (!generation.isCurrent() || published || results.length === 0) return false;
         published = true;
         const ordered = [...results].sort((a, b) => a.batchIndex - b.batchIndex);
-        setImageHistory((previous) => [...ordered.map(({ batchIndex: _index, ...item }) => item), ...previous]);
+        setImageHistory((previous) => [
+          // The key is intentionally omitted from the persisted history item.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ...ordered.map(({ batchIndex: _index, ...item }) => item),
+          ...previous,
+        ]);
         setActiveImageId(ordered[0].id);
         toast(`生成成功 ${results.length} 张`, "success");
         return true;

@@ -4,7 +4,7 @@ import test from "node:test";
 import type { ImageRecord } from "@/types";
 import { createImageContinuationDraft } from "./image-continuation";
 
-test("将图片记录转换为图生图续作草稿，并保留原提示词、尺寸和图片地址", () => {
+test("续作保留原提示词作为参考，但不把它当成修改指令", () => {
   const image: ImageRecord = {
     id: "image-1",
     prompt: "雨后的木质咖啡馆，暖色胶片风格",
@@ -15,7 +15,8 @@ test("将图片记录转换为图生图续作草稿，并保留原提示词、�
   };
 
   assert.deepEqual(createImageContinuationDraft(image), {
-    prompt: image.prompt,
+    prompt: "",
+    sourcePrompt: image.prompt,
     size: image.size,
     count: 1,
     styleId: "",

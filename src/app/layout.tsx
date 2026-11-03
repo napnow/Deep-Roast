@@ -3,6 +3,7 @@ import "./fonts.css";
 import { ToastProvider } from "@/components/Toast";
 import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";
+import "./studio-preview.css";
 
 export const metadata: Metadata = {
   title: "深焙",

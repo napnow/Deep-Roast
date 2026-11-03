@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import Button from "@/components/ui/Button";
 import { copyText } from "@/lib/browser-actions";
 import { useActionFeedback } from "@/hooks/useActionFeedback";
@@ -10,6 +10,7 @@ import type { ImageTaskState } from "@/lib/image-task";
 import { AppIcon } from "@/components/ui/icons";
 import SmartResultImage from "./SmartResultImage";
 import { downloadImage, formatTime } from "./imageUtils";
+import { resultAspectRatio } from "./result-aspect";
 
 interface ResultCanvasProps {
   task: ImageTaskState;
@@ -170,7 +171,7 @@ function ResultCard({
   };
 
   return (
-    <article className="result-card">
+    <article className="result-card" style={{ "--result-aspect": resultAspectRatio(image.size) ?? 1 } as CSSProperties}>
       <button
         type="button"
         className="result-image-button"

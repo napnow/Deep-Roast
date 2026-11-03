@@ -33,7 +33,7 @@ describe("mobile creation shell", () => {
   it("keeps the composer above the keyboard without locking the page on input focus", () => {
     assert.match(mobileBar, /keyboardInset/);
     assert.match(mobileBar, /keyboardOpen/);
-    assert.match(mobileBar, /keyboardOpen\s*\?\s*"0px"/);
+    assert.match(mobileBar, /keyboardOpen\s*\?\s*`\$\{keyboardOffset\}px`/);
     assert.doesNotMatch(mobileBar, /onFocus=\{\(\) =>[\s\S]*lockPageScroll/);
     assert.doesNotMatch(mobileBar, /onBlur=\{unlockPageScroll\}/);
   });

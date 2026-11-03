@@ -13,6 +13,9 @@ import type {
 } from "@/types";
 import AdminUserList from "@/components/Admin/AdminUserList";
 import AdminDashboard from "@/components/Admin/AdminDashboard";
+import AdminDirectory from "@/components/Admin/AdminDirectory";
+import { loadAdminUserDetails } from "@/components/Admin/admin-user-details";
+import { apiJson } from "@/lib/client-api";
 import AdminImagesTab from "@/components/Admin/AdminImagesTab";
 import AdminCreditsTab from "@/components/Admin/AdminCreditsTab";
 import AdminConversationsTab from "@/components/Admin/AdminConversationsTab";
@@ -36,6 +39,10 @@ export default function AdminPage() {
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [detailRefreshVersion, setDetailRefreshVersion] = useState(0);
+  const [statsError, setStatsError] = useState("");
+  const [usersError, setUsersError] = useState("");
   const [imageDetail, setImageDetail] = useState<ImageRecord | null>(null);
   const [creditTx, setCreditTx] = useState<CreditTransaction[]>([]);
   const [adjustAmount, setAdjustAmount] = useState(0);
@@ -58,7 +65,7 @@ export default function AdminPage() {
   } | null>(null);
   const [userActionLoading, setUserActionLoading] = useState(false);
   /** 右侧主面板：总览 或 用户详情（选用户时自动切到 detail） */
-  const [mainView, setMainView] = useState<"overview" | "detail" | "site" | "ai">("overview");
+  const [mainView, setMainView] = useState<"overview" | "users" | "detail" | "site" | "ai">("overview");
   /** 手动刷新状态与最近刷新时间 */
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null);
@@ -73,21 +80,21 @@ export default function AdminPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    fetch("/api/admin/users")
-      .then((res) => res.json())
+    apiJson<AdminUser[]>("/api/admin/users")
       .then((data) => {
-        if (Array.isArray(data)) setUsers(data);
+        if (!Array.isArray(data)) throw new Error("用户列表格式不正确");
+        setUsers(data);
       })
-      .catch(console.error)
+      .catch(() => setUsersError("用户列表加载失败，请刷新重试。"))
       .finally(() => setLoadingUsers(false));
   }, []);
 
   useEffect(() => {
-    if (users.length === 0) return;
-    fetch("/api/admin/credits")
-      .then((res) => res.json())
+    if (loadingUsers || usersError) return;
+    let cancelled = false;
+    apiJson<{ stats: { totalCheckinAmount: number; totalConsumeAmount: number } }>("/api/admin/credits")
       .then((data) => {
-        if (data?.stats) {
+        if (!cancelled && data?.stats) {
           setGlobalStats({
             totalCheckinAmount: data.stats.totalCheckinAmount || 0,
             totalConsumeAmount: data.stats.totalConsumeAmount || 0,
@@ -98,15 +105,20 @@ export default function AdminPage() {
             ),
             bannedUsers: users.filter((u) => u.status === "banned").length,
           });
+          setStatsError("");
+        } else if (!cancelled) {
+          setStatsError("运营数据格式异常，请刷新重试。");
         }
       })
-      .catch(console.error);
-  }, [users]);
+      .catch(() => { if (!cancelled) setStatsError("运营数据加载失败，请刷新重试。"); });
+    return () => { cancelled = true; };
+  }, [users, loadingUsers, usersError]);
 
   async function refreshUsers() {
-    const d = await fetch("/api/admin/users").then((r) => r.json());
-    if (Array.isArray(d)) setUsers(d);
-    return d as AdminUser[];
+    const d = await apiJson<AdminUser[]>("/api/admin/users");
+    if (!Array.isArray(d)) throw new Error("用户列表格式不正确");
+    setUsers(d);
+    return d;
   }
 
   async function handleCleanupCompleted(result: CleanupResult) {
@@ -168,23 +180,13 @@ export default function AdminPage() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      const [userData, statsData, detailData] = await Promise.all([
-        fetch("/api/admin/users").then((r) => r.json()),
-        fetch("/api/admin/credits").then((r) => r.json()),
-        selectedUser
-          ? Promise.all([
-              fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
-                r.json(),
-              ),
-              fetch(`/api/admin/credits?userId=${selectedUser.id}`).then((r) =>
-                r.json(),
-              ),
-              fetch(
-                `/api/admin/users/${selectedUser.id}/conversations`,
-              ).then((r) => r.json()),
-            ])
-          : Promise.resolve(null),
+      const [userData, statsData] = await Promise.all([
+        apiJson<AdminUser[]>("/api/admin/users"),
+        apiJson<{ stats: { totalCheckinAmount: number; totalConsumeAmount: number } }>("/api/admin/credits"),
       ]);
+      if (!Array.isArray(userData) || !statsData?.stats) throw new Error("运营数据格式不正确");
+      setUsersError("");
+      setStatsError("");
       if (Array.isArray(userData)) {
         setUsers(userData);
         if (statsData?.stats) {
@@ -200,17 +202,16 @@ export default function AdminPage() {
           });
         }
       }
-      if (detailData) {
-        const [imgs, credData, convData] = detailData;
-        if (Array.isArray(imgs)) setImages(imgs);
-        if (credData?.transactions) setCreditTx(credData.transactions);
-        if (Array.isArray(convData)) setConvList(convData);
+      if (selectedUser) {
+        setLoadingDetail(true);
+        setDetailError("");
+        setDetailRefreshVersion((version) => version + 1);
       }
       setLastRefreshed(
         new Date().toLocaleTimeString("zh-CN", { hour12: false }),
       );
     } catch {
-      // 静默失败，数据保持原样
+      setStatsError("刷新失败，请检查网络后重试；已显示的数据可能不是最新的。");
     } finally {
       setRefreshing(false);
     }
@@ -278,29 +279,24 @@ export default function AdminPage() {
       return;
     }
 
-    Promise.all([
-      fetch(`/api/admin/users/${selectedUser.id}/images`).then((r) =>
-        r.json(),
-      ),
-      fetch(`/api/admin/credits?userId=${selectedUser.id}`).then((r) =>
-        r.json(),
-      ),
-      fetch(`/api/admin/users/${selectedUser.id}/conversations`).then((r) =>
-        r.json(),
-      ),
-    ])
-      .then(([imgs, credData, convData]) => {
-        if (Array.isArray(imgs)) setImages(imgs);
-        if (credData?.transactions) setCreditTx(credData.transactions);
-        if (Array.isArray(convData)) setConvList(convData);
+    const controller = new AbortController();
+    loadAdminUserDetails(selectedUser.id, controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setImages(data.images);
+        setCreditTx(data.transactions);
+        setConvList(data.conversations);
+        setDetailError("");
       })
-      .catch(console.error)
-      .finally(() => setLoadingDetail(false));
-  }, [selectedUser]);
+      .catch(() => { if (!controller.signal.aborted) setDetailError("用户详情加载失败，请刷新重试。"); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingDetail(false); });
+    return () => controller.abort();
+  }, [selectedUser, detailRefreshVersion]);
 
   /** 展开对话：加载消息 */
   async function handleToggleConv(conversationId: string) {
     if (expandedConv === conversationId) {
+      convSeqRef.current++;
       setExpandedConv(null);
       setConvMessages([]);
       return;
@@ -380,11 +376,16 @@ export default function AdminPage() {
         overviewActive={mainView === "overview"}
         siteActive={mainView === "site"}
         aiActive={mainView === "ai"}
+        usersActive={mainView === "users" || mainView === "detail"}
+        onShowUsers={() => setMainView("users")}
         loadingUsers={loadingUsers}
         onShowOverview={() => setMainView("overview")}
         onShowSite={() => setMainView("site")}
         onShowAi={() => setMainView("ai")}
         onSelect={(u) => {
+          convSeqRef.current++;
+          setDetailError("");
+          setDetailRefreshVersion((version) => version + 1);
           setLoadingDetail(true);
           setActiveTab("images");
           setExpandedConv(null);
@@ -416,6 +417,9 @@ export default function AdminPage() {
         }}
         onToggleCleanupProtected={handleToggleCleanupProtected}
         onSelect={(u) => {
+          convSeqRef.current++;
+          setDetailError("");
+          setDetailRefreshVersion((version) => version + 1);
           setLoadingDetail(true);
           setActiveTab("images");
           setExpandedConv(null);
@@ -432,12 +436,18 @@ export default function AdminPage() {
           <AdminSiteContentPage />
         ) : mainView === "ai" ? (
           <AdminAiCapabilitiesPage />
+        ) : mainView === "users" ? (
+          <AdminDirectory users={users} loading={loadingUsers} error={usersError} onSelect={(u) => { convSeqRef.current++; setDetailError(""); setDetailRefreshVersion((version) => version + 1); setLoadingDetail(true); setActiveTab("images"); setExpandedConv(null); setConvMessages([]); setSelectedUser(u); setImageDetail(null); setMainView("detail"); }} onOpenCleanup={() => setCleanupOpen(true)} onOpenImageCleanup={() => setCleanupImagesOpen(true)} onToggleCleanupProtected={handleToggleCleanupProtected} />
         ) : mainView === "overview" || !selectedUser ? (
           <AdminDashboard
             globalStats={globalStats}
+            error={usersError || statsError}
             refreshing={refreshing}
             lastRefreshed={lastRefreshed}
             onRefresh={handleRefresh}
+            onUsers={() => setMainView("users")}
+            onAi={() => setMainView("ai")}
+            onSite={() => setMainView("site")}
           />
         ) : (
           <div className="max-w-5xl mx-auto space-y-5 animate-fade-up">
@@ -480,10 +490,10 @@ export default function AdminPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setMainView("overview")}
+                          onClick={() => setMainView("users")}
                           className="admin-btn admin-btn--ghost !px-2 !py-0.5 text-[11px]"
                         >
-                          ← 运营总览
+                          ← 用户管理
                         </button>
                         {selectedUser.status === "banned" && (
                           <span
@@ -669,6 +679,8 @@ export default function AdminPage() {
               <p className="text-sm py-8" style={{ color: "var(--text-muted)" }}>
                 加载用户档案…
               </p>
+            ) : detailError ? (
+              <p role="alert" className="admin-overview-loading">{detailError}</p>
             ) : (
               <>
                 {activeTab === "images" && (

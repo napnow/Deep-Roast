@@ -105,7 +105,7 @@ export default function CreationPanel({
 
   function submitText() {
     const prompt = textToImageDraft.prompt.trim();
-    if (!prompt || generating || !canAfford || !imageGenerationAvailable)
+    if (!prompt || generating || polishing || !canAfford || !imageGenerationAvailable)
       return;
     const finalPrompt = textToImageDraft.stylePrompt
       ? `${textToImageDraft.stylePrompt}\n\n${prompt}`
@@ -240,8 +240,11 @@ export default function CreationPanel({
         </div>
         <div hidden={imageCreationMode !== "edit"}>
           <Img2ImgPanel
+            desktop
             size={normalizedSize}
             imageModel={selectedModel}
+            imageModels={imageModelIds}
+            onImageModelChange={setSelectedImageModel}
             imageModelCosts={config.imageModelCosts}
             isAdmin={isAdmin}
             draft={imageToImageDraft}
@@ -262,6 +265,13 @@ export default function CreationPanel({
           />
         </div>
       </div>
+
+      {imageCreationMode === "reverse" ? (
+        <aside className="studio-reverse-help">
+          <h2>图片反推</h2>
+          <p>上传图片，提取画面描述后可以直接带入文生图继续创作。</p>
+        </aside>
+      ) : null}
 
       <div className="creation-panel__footer">
         {imageCreationMode === "text" ? (
@@ -293,8 +303,7 @@ export default function CreationPanel({
               className={`ui-button w-full ${generating ? "ui-button--danger" : "ui-button--primary"}`}
               disabled={
                 !generating &&
-                !polishing &&
-                (!textToImageDraft.prompt.trim() ||
+                (polishing || !textToImageDraft.prompt.trim() ||
                   !canAfford ||
                   !imageGenerationAvailable)
               }

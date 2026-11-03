@@ -62,6 +62,8 @@ interface ImageGenViewProps {
   keyboardInset: number;
   /** 手机端键盘是否已打开 */
   keyboardOpen: boolean;
+  keyboardOffset: number;
+  visibleHeight: number;
 }
 
 export default function ImageGenView({
@@ -83,6 +85,8 @@ export default function ImageGenView({
   onMobileGenerateTab,
   keyboardInset,
   keyboardOpen,
+  keyboardOffset,
+  visibleHeight,
 }: ImageGenViewProps) {
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const imageGenerationEnabled = useDeepRoastStore(
@@ -372,6 +376,8 @@ export default function ImageGenView({
           onHeightChange={setBarHeight}
           keyboardInset={keyboardInset}
           keyboardOpen={keyboardOpen}
+          keyboardOffset={keyboardOffset}
+          visibleHeight={visibleHeight}
           openImageToImage={openImageToImage}
           onImageToImageOpened={() => setOpenImageToImage(false)}
           onWalletClick={onWalletClick}

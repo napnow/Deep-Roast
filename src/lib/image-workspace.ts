@@ -18,6 +18,7 @@ export interface TextToImagePolishUndo {
 
 export interface ImageToImageDraft {
   prompt: string;
+  sourcePrompt?: string;
   size: string;
   count: number;
   styleId: string;

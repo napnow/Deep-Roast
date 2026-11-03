@@ -145,7 +145,7 @@ export default function TextToImageForm({
         ) : null}
       </section>
 
-      <details className="creation-settings creation-step-card">
+      <details className="creation-settings creation-step-card" open>
         <summary>
           <span className="creation-step-card__summary">
             <span className="creation-step-card__number" aria-hidden="true">

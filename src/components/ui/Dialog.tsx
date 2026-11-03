@@ -13,6 +13,7 @@ interface DialogProps {
   onClose: () => void;
   label: string;
   className?: string;
+  keepMounted?: boolean;
   children: ReactNode;
 }
 
@@ -22,6 +23,7 @@ export default function Dialog({
   onClose,
   label,
   className = "",
+  keepMounted = false,
   children,
 }: DialogProps) {
   const mounted = useSyncExternalStore(
@@ -50,7 +52,7 @@ export default function Dialog({
     };
   }, [mounted, open]);
 
-  if (!mounted || !open) return null;
+  if (!mounted || (!open && !keepMounted)) return null;
   return createPortal(
     <dialog
       ref={dialogRef}

@@ -6,6 +6,7 @@ import { apiJson } from "@/lib/client-api";
 import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
 import type { Config, Conversation, ImageRecord } from "@/types";
 import { DEFAULT_IMAGE_MODELS } from "@/types";
+import { isLocalMobilePreview } from "@/lib/local-preview";
 import {
   IMAGE_MODEL_PREFERENCE_STORAGE_KEY,
   resolveImageModelAfterConfigLoad,
@@ -152,6 +153,7 @@ export function useInitialData() {
   }, [requests, userSessionId, userSessionVersion, setCredits, setCheckinStatus]);
 
   useEffect(() => {
+    if (isLocalMobilePreview(window.location.search, process.env.NODE_ENV)) return;
     loadConfig();
     loadImageHistory();
     loadCredits();

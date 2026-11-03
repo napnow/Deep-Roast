@@ -53,6 +53,8 @@ interface ImageMobileBarProps {
   onHeightChange?: (height: number) => void;
   keyboardInset: number;
   keyboardOpen: boolean;
+  keyboardOffset: number;
+  visibleHeight: number;
   /** 外部请求直接打开图生图面板（用于对已有生成图继续修改） */
   openImageToImage: boolean;
   onImageToImageOpened?: () => void;
@@ -83,6 +85,8 @@ export default function ImageMobileBar({
   onHeightChange,
   keyboardInset,
   keyboardOpen,
+  keyboardOffset,
+  visibleHeight,
   openImageToImage,
   onImageToImageOpened,
   onWalletClick,
@@ -279,11 +283,12 @@ export default function ImageMobileBar({
       ref={barRef}
       className={`mobile-composer-shell md:hidden fixed z-40 ${expanded ? "is-expanded" : "is-collapsed"}`}
       style={{
-        bottom: keyboardOpen ? "0px" : "var(--mobile-bottom-nav-height, 0px)",
+        bottom: keyboardOpen ? `${keyboardOffset}px` : "var(--mobile-bottom-nav-height, 0px)",
       }}
     >
       <Dialog
         open={Boolean(toolbarOpen)}
+        keepMounted
         onClose={() => setToolbarOpen(null)}
         label={sheetLabel}
       >
@@ -295,6 +300,7 @@ export default function ImageMobileBar({
         <section
           id="mobile-creation-sheet"
           className={`mobile-creation-sheet mobile-creation-sheet--${toolbarOpen}`}
+          style={keyboardOpen && visibleHeight ? { bottom: `${keyboardOffset}px`, maxHeight: `${Math.max(0, visibleHeight - 16)}px` } : undefined}
         >
           <div className="mobile-creation-sheet__header">
             <span
@@ -307,7 +313,7 @@ export default function ImageMobileBar({
                 {toolbarOpen === "model"
                   ? "先选清楚，再开始生成"
                   : toolbarOpen === "img2img"
-                    ? "选择素材，描述你想修改的地方"
+                    ? `当前模型：${selectedModelLabel} · 在更多设置中切换`
                     : "调整后继续使用当前草稿"}
               </p>
             </div>
@@ -321,16 +327,12 @@ export default function ImageMobileBar({
             </button>
           </div>
           <div className="mobile-creation-sheet__body">
-            {toolbarOpen === "reverse" ? (
-              <ReversePromptPanel
-                disabled={generating}
-                onPrompt={setPrompt}
-                onCloseToolbar={() => setToolbarOpen(null)}
-              />
-            ) : toolbarOpen === "img2img" ? (
+            <div hidden={toolbarOpen !== "img2img"}>
               <Img2ImgPanel
                 size={size}
                 imageModel={selectedImageModel}
+                imageModels={imageModels}
+                onImageModelChange={onModelChange}
                 imageModelCosts={imageModelCosts}
                 isAdmin={isAdmin}
                 draft={imageToImageDraft}
@@ -341,6 +343,13 @@ export default function ImageMobileBar({
                 onEditImage={onEditImage}
                 onEditImageBatch={onEditImageBatch}
                 onStopGenerate={onStopGenerate}
+              />
+            </div>
+            {toolbarOpen === "reverse" ? (
+              <ReversePromptPanel
+                disabled={generating}
+                onPrompt={setPrompt}
+                onCloseToolbar={() => setToolbarOpen(null)}
               />
             ) : toolbarOpen === "model" ? (
               <div
@@ -374,7 +383,7 @@ export default function ImageMobileBar({
                   </button>
                 ))}
               </div>
-            ) : (
+            ) : toolbarOpen === "size" ? (
               <div className="mobile-generation-settings">
                 <p className="creation-section-label">画幅比例</p>
                 <ImageRatioPicker presentation="chips" size={size} model={selectedImageModel} options={sizeOptions}
@@ -408,7 +417,7 @@ export default function ImageMobileBar({
                   使用这些设置
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         </section>
       </Dialog>
@@ -466,6 +475,7 @@ export default function ImageMobileBar({
       <div
         id="mobile-composer-expanded"
         className="mobile-composer-expanded"
+        style={keyboardOpen && visibleHeight ? { maxHeight: `${Math.max(60, visibleHeight - 110)}px` } : undefined}
         hidden={!expanded}
       >
         <div className="mobile-composer-heading">
@@ -480,6 +490,11 @@ export default function ImageMobileBar({
               value={prompt}
               maxLength={12000}
               onChange={(event) => setPrompt(event.target.value)}
+              onInput={(event) => {
+                const textarea = event.currentTarget;
+                textarea.style.height = "auto";
+                textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 68), 120)}px`;
+              }}
               placeholder="描述主体、场景和你想要的光线…"
               rows={2}
               disabled={generating || !imageGenerationAvailable}
