@@ -5105,3 +5105,127 @@ html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-activ
 
 .ui-toast-stack { max-height: min(45dvh, 420px); overflow-y: auto; overscroll-behavior: contain; padding: 3px; }
 .ui-toast { flex-shrink: 0; }
+
+/* ── 聊天消息的 markdown 渲染 ──
+   气泡内排版。所有颜色走 token，深浅色自动跟随；
+   间距用 em，随气泡字号缩放。 */
+
+.chat-md > :first-child { margin-top: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+
+.chat-md-p { margin: 0 0 0.7em; }
+
+.chat-md-h1,
+.chat-md-h2,
+.chat-md-h3 {
+  margin: 1.1em 0 0.5em;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+.chat-md-h1 { font-size: 1.18em; }
+.chat-md-h2 { font-size: 1.08em; }
+.chat-md-h3 { font-size: 1em; }
+
+.chat-md-ul,
+.chat-md-ol { margin: 0 0 0.75em; padding-left: 1.25em; }
+.chat-md-ul { list-style: disc; }
+.chat-md-ol { list-style: decimal; }
+.chat-md-ul li,
+.chat-md-ol li { margin: 0.28em 0; }
+.chat-md-ul li::marker,
+.chat-md-ol li::marker { color: var(--text-muted); }
+.chat-md li > .chat-md-p { margin: 0; }
+
+.chat-md-quote {
+  margin: 0 0 0.75em;
+  padding: 0.35em 0 0.35em 0.85em;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.chat-md-code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  background: var(--bg-root);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.chat-md-pre {
+  margin: 0 0 0.8em;
+  padding: 0.7em 0.85em;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--bg-root);
+  border: 1px solid var(--border);
+  font-size: 0.88em;
+  line-height: var(--leading-normal);
+}
+.chat-md-pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+}
+
+.chat-md-hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.chat-md-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.chat-md-link:hover { color: var(--accent-soft); }
+
+/* 引用角标：上标数字，弱化处理 */
+.chat-md-cite {
+  margin-left: 1px;
+  font-size: 0.72em;
+  color: var(--accent);
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* <Link> 的来源标题：像一个小标签 */
+.chat-md-reflink {
+  display: inline-block;
+  margin: 0 0.15em;
+  padding: 0 0.4em;
+  border-radius: var(--radius-sm);
+  background: var(--accent-surface);
+  color: var(--accent);
+  font-size: 0.9em;
+}
+
+/* 表格：窄屏可横向滚动，不撑破气泡 */
+.chat-md-table-wrap {
+  margin: 0 0 0.8em;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.chat-md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+.chat-md-table th,
+.chat-md-table td {
+  padding: 0.42em 0.7em;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.chat-md-table th {
+  background: var(--bg-root);
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.chat-md-table tr:last-child td { border-bottom: none; }
+
+/* 表格列宽按内容分配，避免数字列抢走宽度 */
+.chat-md-table th,
+.chat-md-table td { word-break: break-word; }
+.chat-md-table th:first-child,
+.chat-md-table td:first-child { width: 1%; }

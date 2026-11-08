@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { copyText } from "@/lib/browser-actions";
 import { useActionFeedback } from "@/hooks/useActionFeedback";
 import ChatInput from "./ChatInput";
+import ChatMarkdown from "./ChatMarkdown";
 import type { Message } from "@/types";
 
 interface ChatViewProps {
@@ -282,9 +283,13 @@ export default function ChatView({
                             }
                       }
                     >
-                      <div className="whitespace-pre-wrap break-words">
-                        {m.content}
-                      </div>
+                      {isUser ? (
+                        <div className="whitespace-pre-wrap break-words">
+                          {m.content}
+                        </div>
+                      ) : (
+                        <ChatMarkdown content={m.content} />
+                      )}
                     </div>
                   )}
 
@@ -342,9 +347,7 @@ export default function ChatView({
                     boxShadow: "0 0 0 1px var(--accent-glow)",
                   }}
                 >
-                  <span className="whitespace-pre-wrap break-words">
-                    {streamingText}
-                  </span>
+                  <ChatMarkdown content={streamingText} />
                   <span
                     className="inline-block w-1.5 h-4 ml-0.5 align-middle rounded-sm animate-pulse-soft"
                     style={{ background: "var(--accent)" }}
