@@ -18,10 +18,10 @@ export default function ApiQuickStart({
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+          <p className="text-xs font-semibold text-[var(--text-primary)]">
             快速调用
           </p>
-          <p className="mt-0.5 text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
             把示例中的 Key 和模型名替换为你的配置
           </p>
         </div>
@@ -40,7 +40,7 @@ export default function ApiQuickStart({
       >
         {command}
       </pre>
-      <p className="mt-2 text-[10px]" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-2 text-[10px] text-[var(--text-muted)]">
         可用模型：<code>GET /api/v1/models</code> · {imageCostHint}
       </p>
     </section>

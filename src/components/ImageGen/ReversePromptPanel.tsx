@@ -158,8 +158,7 @@ export default function ReversePromptPanel({
     <div className="reverse-prompt-panel max-w-2xl space-y-3">
       <div className="flex items-center gap-2">
         <span
-          className="text-[11px] font-semibold tracking-widest uppercase"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[11px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
         >
           图片反推提示词
         </span>
@@ -239,8 +238,7 @@ export default function ReversePromptPanel({
 
         {preview && !prompting && !error && (
           <p
-            className="text-[11px] truncate"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[11px] truncate text-[var(--text-muted)]"
           >
             点击「分析图片」提取提示词
           </p>
@@ -261,7 +259,7 @@ export default function ReversePromptPanel({
               />
             ))}
           </span>
-          <span className="text-[11px]" style={{ color: "var(--accent)" }}>
+          <span className="text-[11px] text-[var(--accent)]">
             正在分析图片… {formatTime(elapsed)}
           </span>
           <button
@@ -280,8 +278,7 @@ export default function ReversePromptPanel({
 
       {error && (
         <p
-          className="text-[11px] animate-fade-in"
-          style={{ color: "var(--danger)" }}
+          className="text-[11px] animate-fade-in text-[var(--danger)]"
         >
           ✗ {error}
         </p>
@@ -299,16 +296,14 @@ export default function ReversePromptPanel({
         >
           <div className="flex items-center justify-between">
             <span
-              className="text-[10px] font-semibold tracking-widest uppercase"
-              style={{ color: "var(--accent)" }}
+              className="text-[10px] font-semibold tracking-widest uppercase text-[var(--accent)]"
             >
               反推结果
             </span>
             <button
               type="button"
               onClick={() => setResult("")}
-              className="text-[10px] transition-colors hover:opacity-80"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] transition-colors hover:opacity-80 text-[var(--text-muted)]"
             >
               清除 ✕
             </button>

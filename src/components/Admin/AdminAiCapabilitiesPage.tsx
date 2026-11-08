@@ -10,7 +10,7 @@ export default function AdminAiCapabilitiesPage() {
       <header>
         <p className="admin-kicker">AI Capabilities</p>
         <h1 className="admin-title text-[1.85rem] mt-1.5">AI 能力</h1>
-        <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-sm mt-2 text-[var(--text-secondary)]">
           管理图生图风格，并在发布前完成效果验证。
         </p>
       </header>

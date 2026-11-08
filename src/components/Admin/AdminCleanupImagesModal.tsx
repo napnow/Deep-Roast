@@ -111,8 +111,7 @@ export default function AdminCleanupImagesModal({
               清理所有用户图片
             </h2>
             <p
-              className="mt-1.5 text-[11.5px] leading-relaxed"
-              style={{ color: "var(--text-muted)" }}
+              className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-muted)]"
             >
               只删除普通用户的原图、缩略图和图片记录，不删除用户账号、对话或积分；永久保号会员的图片也会清理。
             </p>
@@ -130,11 +129,11 @@ export default function AdminCleanupImagesModal({
 
         <div className="p-5">
           {loading ? (
-            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">
               正在统计图片占用空间…
             </p>
           ) : error && !preview ? (
-            <p className="py-8 text-center text-sm" style={{ color: "var(--danger)" }}>
+            <p className="py-8 text-center text-sm text-[var(--danger)]">
               {error}
             </p>
           ) : result ? (
@@ -146,24 +145,24 @@ export default function AdminCleanupImagesModal({
                   borderColor: "color-mix(in srgb, var(--accent) 30%, var(--border))",
                 }}
               >
-                <p className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                <p className="text-sm font-semibold text-[var(--accent)]">
                   图片清理完成
                 </p>
-                <p className="mt-1 text-sm" style={{ color: "var(--text-primary)" }}>
+                <p className="mt-1 text-sm text-[var(--text-primary)]">
                   已删除 {result.deletedRecords} 条图片记录，清理 {result.deletedArtifacts} 个文件。
                 </p>
                 {result.fileCleanupFailures > 0 && (
-                  <p className="mt-1 text-xs" style={{ color: "var(--danger)" }}>
+                  <p className="mt-1 text-xs text-[var(--danger)]">
                     有 {result.fileCleanupFailures} 个文件未能删除，数据库记录已清理。
                   </p>
                 )}
               </div>
-              {error && <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
+              {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
             </div>
           ) : preview?.imageCount === 0 ? (
             <div className="py-8 text-center">
-              <AppIcon name="check" size={24} className="mx-auto" style={{ color: "var(--accent)" }} />
-              <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <AppIcon name="check" size={24} className="mx-auto text-[var(--accent)]" />
+              <p className="mt-3 text-sm font-semibold text-[var(--text-primary)]">
                 当前没有可清理的用户图片
               </p>
             </div>
@@ -176,10 +175,10 @@ export default function AdminCleanupImagesModal({
                   borderColor: "color-mix(in srgb, var(--danger) 35%, var(--border))",
                 }}
               >
-                <p className="text-sm font-semibold" style={{ color: "var(--danger)" }}>
+                <p className="text-sm font-semibold text-[var(--danger)]">
                   即将清理全站用户图片
                 </p>
-                <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
                   此操作不可恢复；用户账号仍会保留，但图片历史记录将被删除。
                 </p>
               </div>
@@ -196,13 +195,13 @@ export default function AdminCleanupImagesModal({
                     style={{ borderColor: "var(--border)", background: "var(--bg-root)" }}
                   >
                     <p className="admin-kicker">{label}</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                    <p className="mt-1 text-lg font-semibold tabular-nums text-[var(--text-primary)]">
                       {value}
                     </p>
                   </div>
                 ))}
               </div>
-              {error && <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
+              {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
             </div>
           ) : null}
         </div>

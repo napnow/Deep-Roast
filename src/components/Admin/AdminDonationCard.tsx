@@ -117,14 +117,14 @@ export default function AdminDonationCard() {
         <div>
           <p className="admin-kicker">Donation</p>
           <h2 className="admin-title text-lg mt-1">打赏设置</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             上传收款码并开启后，用户端钱包弹窗内会出现「打赏支持」入口。
           </p>
         </div>
       </div>
       <div className="admin-card-body space-y-4">
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             加载中…
           </p>
         ) : (
@@ -139,12 +139,11 @@ export default function AdminDonationCard() {
             >
               <div className="min-w-0">
                 <p
-                  className="text-[13px] font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[13px] font-semibold text-[var(--text-primary)]"
                 >
                   打赏功能
                 </p>
-                <p className="text-[10.5px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                <p className="text-[10.5px] mt-0.5 text-[var(--text-muted)]">
                   关闭后用户端打赏入口隐藏
                 </p>
               </div>
@@ -170,8 +169,7 @@ export default function AdminDonationCard() {
             {/* 收款码 */}
             <div>
               <p
-                className="text-[11px] font-semibold mb-2"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-[11px] font-semibold mb-2 text-[var(--text-secondary)]"
               >
                 收款码
               </p>
@@ -223,8 +221,7 @@ export default function AdminDonationCard() {
             {/* 文案 */}
             <div>
               <p
-                className="text-[11px] font-semibold mb-2"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-[11px] font-semibold mb-2 text-[var(--text-secondary)]"
               >
                 打赏文案（不填显示默认文案）
               </p>
@@ -247,8 +244,7 @@ export default function AdminDonationCard() {
                 </button>
                 {msg && (
                   <span
-                    className="text-xs animate-fade-in"
-                    style={{ color: "var(--accent)" }}
+                    className="text-xs animate-fade-in text-[var(--accent)]"
                   >
                     {msg}
                   </span>

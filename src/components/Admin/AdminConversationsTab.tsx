@@ -24,8 +24,7 @@ export default function AdminConversationsTab({
           <h2 className="admin-title text-base mt-1">对话记录</h2>
         </div>
         <span
-          className="text-[11px] tabular-nums"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[11px] tabular-nums text-[var(--text-muted)]"
         >
           {conversations.length}
         </span>
@@ -69,14 +68,12 @@ export default function AdminConversationsTab({
                 >
                   <div className="min-w-0">
                     <p
-                      className="text-[13px] font-semibold truncate"
-                      style={{ color: "var(--text-primary)" }}
+                      className="text-[13px] font-semibold truncate text-[var(--text-primary)]"
                     >
                       {conv.title}
                     </p>
                     <p
-                      className="text-[10.5px] mt-1 tabular-nums"
-                      style={{ color: "var(--text-muted)" }}
+                      className="text-[10.5px] mt-1 tabular-nums text-[var(--text-muted)]"
                     >
                       {conv.model} · {conv.messageCount ?? 0} 条 ·{" "}
                       {relativeTime(conv.updatedAt || conv.createdAt)}
@@ -92,7 +89,6 @@ export default function AdminConversationsTab({
                     className={`transition-transform duration-200 shrink-0 ${
                       open ? "rotate-180" : ""
                     }`}
-                    style={{ color: "var(--text-muted)" }}
                     aria-hidden
                   >
                     <path d="M6 9l6 6 6-6" />
@@ -123,8 +119,7 @@ export default function AdminConversationsTab({
                         }}
                       >
                         <span
-                          className="text-[9.5px] font-bold uppercase tracking-[0.12em] mr-2"
-                          style={{ color: "var(--text-muted)" }}
+                          className="text-[9.5px] font-bold uppercase tracking-[0.12em] mr-2 text-[var(--text-muted)]"
                         >
                           {msg.role === "user"
                             ? "用户"

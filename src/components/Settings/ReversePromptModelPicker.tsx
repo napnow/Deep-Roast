@@ -119,12 +119,11 @@ export default function ReversePromptModelPicker({
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div
-            className="text-[11px] font-semibold"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[11px] font-semibold text-[var(--text-muted)]"
           >
             图推模型
           </div>
-          <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[10px] text-[var(--text-muted)]">
             反推提示词 / 图生图分析 · 需支持图文输入 · 与上方同一套 Base URL + Key
           </div>
         </div>
@@ -153,8 +152,7 @@ export default function ReversePromptModelPicker({
         }}
       >
         <span
-          className="text-[9px] font-sans font-bold tracking-wide shrink-0"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[9px] font-sans font-bold tracking-wide shrink-0 text-[var(--text-muted)]"
         >
           当前
         </span>
@@ -181,7 +179,7 @@ export default function ReversePromptModelPicker({
       </div>
 
       {sourceHint && (
-        <p className="text-[10px]" style={{ color: "var(--accent)" }}>
+        <p className="text-[10px] text-[var(--accent)]">
           {sourceHint}
         </p>
       )}
@@ -220,8 +218,7 @@ export default function ReversePromptModelPicker({
       {catalog.length > 0 && (
         <div className="space-y-1.5">
           <div
-            className="text-[10px] font-semibold uppercase tracking-wide"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
           >
             从上游选择（{filteredCatalog.length}）
           </div>
@@ -239,8 +236,7 @@ export default function ReversePromptModelPicker({
           >
             {filteredCatalog.length === 0 ? (
               <div
-                className="px-2 py-3 text-[11px] text-center"
-                style={{ color: "var(--text-muted)" }}
+                className="px-2 py-3 text-[11px] text-center text-[var(--text-muted)]"
               >
                 没有匹配的模型
               </div>
@@ -281,8 +277,7 @@ export default function ReversePromptModelPicker({
                     </span>
                     {selected && (
                       <span
-                        className="ml-auto text-[9px] shrink-0 font-sans"
-                        style={{ color: "var(--accent)" }}
+                        className="ml-auto text-[9px] shrink-0 font-sans text-[var(--accent)]"
                       >
                         已选
                       </span>
@@ -296,18 +291,18 @@ export default function ReversePromptModelPicker({
       )}
 
       {catalog.length === 0 && !loading && !error && (
-        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[10px] text-[var(--text-muted)]">
           点击「获取模型」从 API 拉取可选目录，或手动输入模型 id。
         </p>
       )}
 
       {warning && (
-        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[10px] text-[var(--text-muted)]">
           {warning}
         </p>
       )}
       {error && (
-        <p className="text-[10px]" style={{ color: "var(--danger)" }}>
+        <p className="text-[10px] text-[var(--danger)]">
           {error}
         </p>
       )}

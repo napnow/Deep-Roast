@@ -522,8 +522,7 @@ export default function AdminPage() {
                         {selectedUser.username}
                       </h1>
                       <p
-                        className="text-[11.5px] mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 tabular-nums"
-                        style={{ color: "var(--text-muted)" }}
+                        className="text-[11.5px] mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 tabular-nums text-[var(--text-muted)]"
                       >
                         <span>
                           注册{" "}
@@ -540,7 +539,7 @@ export default function AdminPage() {
                             : "普通用户"}
                         </span>
                         <span>·</span>
-                        <span className="font-semibold" style={{ color: "var(--accent)" }}>
+                        <span className="font-semibold text-[var(--accent)]">
                           {selectedUser.credits ?? 0} 积分
                         </span>
                         <span>·</span>
@@ -676,7 +675,7 @@ export default function AdminPage() {
             </div>
 
             {loadingDetail ? (
-              <p className="text-sm py-8" style={{ color: "var(--text-muted)" }}>
+              <p className="text-sm py-8 text-[var(--text-muted)]">
                 加载用户档案…
               </p>
             ) : detailError ? (

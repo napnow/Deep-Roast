@@ -85,7 +85,7 @@ export default function AdminApiKeysTab({ userId }: { userId: string }) {
         <div>
           <p className="admin-kicker">API Access</p>
           <h2 className="admin-title text-xl mt-1">用户 API Key</h2>
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-1 text-[var(--text-muted)]">
             可创建、停用或删除该用户的中转密钥；完整 Key 仅用户本人可查看和复制。
           </p>
         </div>
@@ -95,13 +95,13 @@ export default function AdminApiKeysTab({ userId }: { userId: string }) {
             <AppIcon name="key" />{busy === "create" ? "创建中…" : "创建 Key"}
           </button>
         </div>
-        {error ? <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p> : null}
+        {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
         <div className="admin-key-list">
           {keys.length === 0 ? <p className="asset-empty">该用户暂无 API Key</p> : keys.map((key) => (
             <article key={key.id} className="admin-key-row">
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{key.name || "未命名 Key"}</p>
-                <p className="font-mono text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>{key.keyPrefix}…</p>
+                <p className="font-mono text-[11px] mt-1 text-[var(--text-muted)]">{key.keyPrefix}…</p>
               </div>
               <div className="admin-key-metrics">
                 <span>{apiKeyStatusLabel(key.status)}</span>

@@ -18,12 +18,11 @@ export default function AnnouncementTab() {
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="px-4 pt-4 pb-3">
         <h2
-          className="text-[15px] font-bold"
-          style={{ color: "var(--text-primary)" }}
+          className="text-[15px] font-bold text-[var(--text-primary)]"
         >
           站点公告
         </h2>
-        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[11px] mt-0.5 text-[var(--text-muted)]">
           {ann.loading
             ? "加载中…"
             : `共 ${ann.items.length} 条公告`}

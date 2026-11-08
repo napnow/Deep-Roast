@@ -25,12 +25,11 @@ export default function GalleryTab({
       {history.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full gap-2 py-20">
           <p
-            className="font-display text-3xl opacity-40"
-            style={{ color: "var(--accent)" }}
+            className="font-display text-3xl opacity-40 text-[var(--accent)]"
           >
             焙
           </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             还没有生图记录，去「生成」页试试
           </p>
         </div>

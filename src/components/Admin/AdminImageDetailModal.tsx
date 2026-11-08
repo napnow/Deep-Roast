@@ -38,11 +38,10 @@ export default function AdminImageDetailModal({
         >
           <div
             data-testid="admin-image-detail-media"
-            className="flex min-h-[30vh] shrink-0 items-center justify-center p-2 sm:min-h-[40vh] sm:p-4"
-            style={{ background: "var(--bg-root)" }}
+            className="flex min-h-[30vh] shrink-0 items-center justify-center p-2 sm:min-h-[40vh] sm:p-4 bg-[var(--bg-root)]"
           >
             {imageFailed ? (
-              <p className="px-4 py-12 text-sm" style={{ color: "var(--text-muted)" }} role="status">
+              <p className="px-4 py-12 text-sm text-[var(--text-muted)]" role="status">
                 图片暂时无法预览
               </p>
             ) : (
@@ -78,15 +77,13 @@ export default function AdminImageDetailModal({
                 </button>
               </div>
               <p
-                className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed"
-                style={{ color: "var(--text-primary)" }}
+                className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--text-primary)]"
               >
                 {image.prompt}
               </p>
             </div>
             <div
-              className="grid grid-cols-2 gap-3 text-xs"
-              style={{ color: "var(--text-secondary)" }}
+              className="grid grid-cols-2 gap-3 text-xs text-[var(--text-secondary)]"
             >
               <div>
                 <span className="admin-kicker">模型</span>

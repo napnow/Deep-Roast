@@ -206,14 +206,12 @@ export default function SettingsModal({
             >
               <div>
                 <h2
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-sm font-semibold text-[var(--text-primary)]"
                 >
                   ⚙️ 管理员配置
                 </h2>
                 <p
-                  className="text-[10.5px] mt-0.5"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                 >
                   仅管理员可见 · 生图模型与上游设置
                 </p>
@@ -223,8 +221,7 @@ export default function SettingsModal({
                 aria-label="关闭设置"
                 disabled={saving}
                 onClick={requestClose}
-                className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110"
-                style={{ color: "var(--text-muted)" }}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 text-[var(--text-muted)]"
               >
                 ✕
               </Button>

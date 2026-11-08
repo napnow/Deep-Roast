@@ -131,13 +131,13 @@ export default function ResetPasswordModal({
           </button>
         </div>
 
-        <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[11.5px] leading-relaxed text-[var(--text-muted)]">
           请妥善告知用户新密码；生成的临时密码仅显示一次。
         </p>
 
         {tempShown ? (
           <div className="space-y-2.5">
-            <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">
               临时密码（仅此一次）
             </p>
             <code
@@ -206,7 +206,7 @@ export default function ResetPasswordModal({
         )}
 
         {error && (
-          <p className="text-xs font-medium" style={{ color: "var(--danger)" }}>
+          <p className="text-xs font-medium text-[var(--danger)]">
             {error}
           </p>
         )}

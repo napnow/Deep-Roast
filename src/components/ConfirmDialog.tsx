@@ -41,14 +41,12 @@ export default function ConfirmDialog({
           }}
         >
           <h3
-            className="font-display text-base font-semibold mb-2"
-            style={{ color: "var(--text-primary)" }}
+            className="font-display text-base font-semibold mb-2 text-[var(--text-primary)]"
           >
             {title}
           </h3>
           <p
-            className="text-sm leading-relaxed mb-5"
-            style={{ color: "var(--text-secondary)" }}
+            className="text-sm leading-relaxed mb-5 text-[var(--text-secondary)]"
           >
             {message}
           </p>

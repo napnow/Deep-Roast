@@ -32,8 +32,7 @@ export default function AdminImagesTab({
           <h2 className="admin-title text-base mt-1">图片生成记录</h2>
         </div>
         <span
-          className="text-[11px] tabular-nums"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[11px] tabular-nums text-[var(--text-muted)]"
         >
           {images.length}
         </span>
@@ -61,11 +60,10 @@ export default function AdminImagesTab({
               style={{ borderColor: "var(--border)" }}
             >
               <div
-                className="aspect-square overflow-hidden"
-                style={{ background: "var(--bg-root)" }}
+                className="aspect-square overflow-hidden bg-[var(--bg-root)]"
               >
                 {failedImages.has(img.id) ? (
-                  <div className="flex h-full items-center justify-center px-3 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                  <div className="flex h-full items-center justify-center px-3 text-center text-xs text-[var(--text-muted)]">
                     图片暂时无法预览
                   </div>
                 ) : (
@@ -81,8 +79,7 @@ export default function AdminImagesTab({
               </div>
               <div className="px-2.5 py-2">
                 <p
-                  className="text-[10px] tabular-nums"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10px] tabular-nums text-[var(--text-muted)]"
                 >
                   {img.createdAt
                     ? new Date(img.createdAt).toLocaleString("zh-CN", {
@@ -95,8 +92,7 @@ export default function AdminImagesTab({
                 </p>
                 {img.prompt && (
                   <p
-                    className="text-[10.5px] mt-0.5 line-clamp-2 leading-snug"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="text-[10.5px] mt-0.5 line-clamp-2 leading-snug text-[var(--text-secondary)]"
                   >
                     {img.prompt}
                   </p>

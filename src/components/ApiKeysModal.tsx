@@ -342,21 +342,18 @@ export default function ApiKeysModal({
                 </div>
                 <div>
                   <p
-                    className="text-[10px] font-semibold tracking-[0.18em]"
-                    style={{ color: "var(--accent)" }}
+                    className="text-[10px] font-semibold tracking-[0.18em] text-[var(--accent)]"
                   >
                     DEVELOPER ACCESS
                   </p>
                   <h2
                     id="api-access-title"
-                    className="mt-0.5 text-lg font-semibold"
-                    style={{ color: "var(--text-primary)" }}
+                    className="mt-0.5 text-lg font-semibold text-[var(--text-primary)]"
                   >
                     API 接入
                   </h2>
                   <p
-                    className="mt-1 text-[11px] leading-5"
-                    style={{ color: "var(--text-muted)" }}
+                    className="mt-1 text-[11px] leading-5 text-[var(--text-muted)]"
                   >
                     在第三方工具调用本站生图模型，费用按所选模型计费 ·{" "}
                     {imageCostHint}
@@ -368,8 +365,7 @@ export default function ApiKeysModal({
                 type="button"
                 onClick={closeModal}
                 aria-label="关闭 API 接入"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg transition-transform hover:scale-105"
-                style={{ color: "var(--text-muted)" }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg transition-transform hover:scale-105 text-[var(--text-muted)]"
               >
                 ×
               </Button>
@@ -386,14 +382,12 @@ export default function ApiKeysModal({
               >
                 <div className="mb-3">
                   <h3
-                    className="text-sm font-semibold"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-sm font-semibold text-[var(--text-primary)]"
                   >
                     创建新 Key
                   </h3>
                   <p
-                    className="mt-0.5 text-[10px]"
-                    style={{ color: "var(--text-muted)" }}
+                    className="mt-0.5 text-[10px] text-[var(--text-muted)]"
                   >
                     创建后会加密保存，可随时回来复制
                   </p>
@@ -401,8 +395,7 @@ export default function ApiKeysModal({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <label className="min-w-0 flex-1">
                     <span
-                      className="mb-1.5 block text-[11px] font-medium"
-                      style={{ color: "var(--text-secondary)" }}
+                      className="mb-1.5 block text-[11px] font-medium text-[var(--text-secondary)]"
                     >
                       Key 备注
                     </span>
@@ -423,8 +416,7 @@ export default function ApiKeysModal({
                     variant="primary"
                     type="submit"
                     loading={creating}
-                    className="h-11 shrink-0 rounded-xl px-5 text-xs font-semibold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
-                    style={{ background: "var(--accent)" }}
+                    className="h-11 shrink-0 rounded-xl px-5 text-xs font-semibold text-white transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 bg-[var(--accent)]"
                   >
                     {creating ? "正在创建…" : "创建 Key"}
                   </Button>
@@ -458,14 +450,12 @@ export default function ApiKeysModal({
                 <div className="mb-2.5 flex items-end justify-between gap-3">
                   <div>
                     <h3
-                      className="text-sm font-semibold"
-                      style={{ color: "var(--text-primary)" }}
+                      className="text-sm font-semibold text-[var(--text-primary)]"
                     >
                       我的 Keys
                     </h3>
                     <p
-                      className="mt-0.5 text-[10px]"
-                      style={{ color: "var(--text-muted)" }}
+                      className="mt-0.5 text-[10px] text-[var(--text-muted)]"
                     >
                       {keys.length} / 10 个 · 完整 Key 默认隐藏
                     </p>
@@ -488,14 +478,12 @@ export default function ApiKeysModal({
                     style={{ borderColor: "var(--border-strong)" }}
                   >
                     <p
-                      className="text-xs font-medium"
-                      style={{ color: "var(--text-secondary)" }}
+                      className="text-xs font-medium text-[var(--text-secondary)]"
                     >
                       还没有 API Key
                     </p>
                     <p
-                      className="mt-1 text-[10px]"
-                      style={{ color: "var(--text-muted)" }}
+                      className="mt-1 text-[10px] text-[var(--text-muted)]"
                     >
                       在上方填写备注并创建第一个 Key
                     </p>

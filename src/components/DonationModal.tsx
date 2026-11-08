@@ -83,8 +83,7 @@ export default function DonationModal({ open, onClose }: DonationModalProps) {
             >
               <div className="flex items-center justify-between">
                 <h2
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-sm font-semibold text-[var(--text-primary)]"
                 >
                   💝 打赏支持
                 </h2>
@@ -92,32 +91,30 @@ export default function DonationModal({ open, onClose }: DonationModalProps) {
                   size="icon"
                   onClick={onClose}
                   aria-label="关闭"
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110"
-                  style={{ color: "var(--text-muted)" }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 text-[var(--text-muted)]"
                 >
                   ✕
                 </Button>
               </div>
 
               {loading && (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <p className="text-xs text-[var(--text-muted)]">
                   加载中…
                 </p>
               )}
               {error && (
-                <p className="text-xs" style={{ color: "var(--danger)" }}>
+                <p className="text-xs text-[var(--danger)]">
                   {error}
                 </p>
               )}
               {!loading && !error && !imageUrl && (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <p className="text-xs text-[var(--text-muted)]">
                   管理员暂未配置收款码，感谢你的心意 💛
                 </p>
               )}
               {!loading && !error && (
                 <p
-                  className="text-sm whitespace-pre-wrap break-words"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-sm whitespace-pre-wrap break-words text-[var(--text-secondary)]"
                 >
                   {text.trim() || DEFAULT_TEXT}
                 </p>

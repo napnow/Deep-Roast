@@ -26,8 +26,7 @@ export default function AnnouncementList({
   if (loading) {
     return (
       <p
-        className="text-xs text-center py-8"
-        style={{ color: "var(--text-muted)" }}
+        className="text-xs text-center py-8 text-[var(--text-muted)]"
       >
         加载中…
       </p>
@@ -36,8 +35,7 @@ export default function AnnouncementList({
   if (items.length === 0) {
     return (
       <p
-        className="text-xs text-center py-8"
-        style={{ color: "var(--text-muted)" }}
+        className="text-xs text-center py-8 text-[var(--text-muted)]"
       >
         暂无公告
       </p>
@@ -57,8 +55,7 @@ export default function AnnouncementList({
             }}
           >
             <p
-              className="text-[12.5px] leading-relaxed whitespace-pre-wrap"
-              style={{ color: "var(--text-secondary)" }}
+              className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-[var(--text-secondary)]"
             >
               {a.body}
             </p>
@@ -98,8 +95,7 @@ export default function AnnouncementList({
               </div>
             )}
             <p
-              className="text-[10px] mt-1.5 tabular-nums"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] mt-1.5 tabular-nums text-[var(--text-muted)]"
             >
               {a.createdAt ? new Date(a.createdAt).toLocaleString("zh-CN") : ""}
             </p>

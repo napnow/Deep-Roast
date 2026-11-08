@@ -139,7 +139,7 @@ export default function AdminStylesCard() {
         <div>
           <p className="admin-kicker">Style Library</p>
           <h2 className="admin-title text-lg mt-1">图生图风格库</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             新增/编辑风格规则，上架后对普通用户可见；未发布风格仅管理端测试可见
           </p>
         </div>
@@ -165,15 +165,14 @@ export default function AdminStylesCard() {
           }}
         >
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-muted)]">
               {editingId ? "编辑风格" : "新增风格"}
             </span>
             {editingId && (
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="text-[10px]"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] text-[var(--text-muted)]"
               >
                 取消编辑
               </button>
@@ -233,7 +232,7 @@ export default function AdminStylesCard() {
 
         {/* 风格列表 */}
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             加载中…
           </p>
         ) : list.length === 0 ? (
@@ -261,23 +260,23 @@ export default function AdminStylesCard() {
                 <div className="flex justify-between gap-3 items-start">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-[12.5px] font-medium" style={{ color: "var(--text-primary)" }}>
+                      <p className="text-[12.5px] font-medium text-[var(--text-primary)]">
                         {s.label}
                       </p>
                       <span
                         className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
                         style={{
                           background: s.published
-                            ? "rgba(16,185,129,0.12)"
-                            : "rgba(249,115,22,0.12)",
-                          color: s.published ? "#10b981" : "#f97316",
-                          border: `1px solid ${s.published ? "#10b981" : "#f97316"}`,
+                            ? "var(--success-surface)"
+                            : "var(--warning-surface)",
+                          color: s.published ? "var(--success)" : "var(--warning)",
+                          border: `1px solid ${s.published ? "var(--success)" : "var(--warning)"}`,
                         }}
                       >
                         {s.published ? "已上架" : "未发布"}
                       </span>
                     </div>
-                    <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    <p className="text-[10px] mt-0.5 tabular-nums text-[var(--text-muted)]">
                       {s.styleKey} · {s.colors.length} 色 · {s.textures.length} 纹理
                     </p>
                   </div>
@@ -288,7 +287,7 @@ export default function AdminStylesCard() {
                       onClick={() => togglePublished(s)}
                       className="text-[10px] font-semibold px-2 py-1 rounded-md"
                       style={{
-                        color: s.published ? "var(--text-muted)" : "#10b981",
+                        color: s.published ? "var(--text-muted)" : "var(--success)",
                         border: "1px solid var(--border)",
                       }}
                     >

@@ -390,14 +390,14 @@ export default function AdminSiteSettingsCard() {
         <div>
           <p className="admin-kicker">Site</p>
           <h2 className="admin-title text-lg mt-1">站点设置</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             注册、生图与登录页联系方式
           </p>
         </div>
       </div>
       <div className="admin-card-body space-y-4">
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             加载中…
           </p>
         ) : (
@@ -411,14 +411,12 @@ export default function AdminSiteSettingsCard() {
             >
               <div className="min-w-0">
                 <p
-                  className="text-[13px] font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[13px] font-semibold text-[var(--text-primary)]"
                 >
                   新用户注册
                 </p>
                 <p
-                  className="text-[10.5px] mt-0.5"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                 >
                   关闭后隐藏注册入口，API 拒绝注册
                 </p>
@@ -455,8 +453,7 @@ export default function AdminSiteSettingsCard() {
             >
               <label className="flex-1 min-w-[12rem]">
                 <span
-                  className="mb-1.5 block text-[11px] font-semibold"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                 >
                   注册赠送积分
                 </span>
@@ -490,14 +487,12 @@ export default function AdminSiteSettingsCard() {
             >
               <div className="min-w-0">
                 <p
-                  className="text-[13px] font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[13px] font-semibold text-[var(--text-primary)]"
                 >
                   用户生图
                 </p>
                 <p
-                  className="text-[10.5px] mt-0.5"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                 >
                   关闭后普通用户与其 API Key 无法生图，管理员不受影响
                 </p>
@@ -536,14 +531,12 @@ export default function AdminSiteSettingsCard() {
             >
               <div className="min-w-0">
                 <p
-                  className="text-[13px] font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[13px] font-semibold text-[var(--text-primary)]"
                 >
                   同 IP 注册限制
                 </p>
                 <p
-                  className="text-[10.5px] mt-0.5"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                 >
                   开启后同一公网 IP 只能注册一个账号
                 </p>
@@ -583,14 +576,12 @@ export default function AdminSiteSettingsCard() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p
-                    className="text-[13px] font-semibold"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold text-[var(--text-primary)]"
                   >
                     清理后重注册限制
                   </p>
                   <p
-                    className="text-[10.5px] mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
+                    className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                   >
                     被三天清理的账号，其 IP 在限定天数内重新注册时降低注册与签到奖励；受限期内作为邀请人只发受限邀请奖励，使用邀请码注册也不发邀请奖励
                   </p>
@@ -624,8 +615,7 @@ export default function AdminSiteSettingsCard() {
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex-1 min-w-[9rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     限制天数
                   </span>
@@ -645,8 +635,7 @@ export default function AdminSiteSettingsCard() {
                 </label>
                 <label className="flex-1 min-w-[9rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     受限注册赠送积分
                   </span>
@@ -665,8 +654,7 @@ export default function AdminSiteSettingsCard() {
                 </label>
                 <label className="flex-1 min-w-[9rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     受限签到奖励积分
                   </span>
@@ -685,8 +673,7 @@ export default function AdminSiteSettingsCard() {
                 </label>
                 <label className="flex-1 min-w-[9rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     受限账号邀请奖励
                   </span>
@@ -724,14 +711,12 @@ export default function AdminSiteSettingsCard() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p
-                    className="text-[13px] font-semibold"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold text-[var(--text-primary)]"
                   >
                     用户邀请
                   </p>
                   <p
-                    className="text-[10.5px] mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
+                    className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                   >
                     关闭后普通注册仍可用，但邀请码不建立关系也不发奖励
                   </p>
@@ -759,8 +744,7 @@ export default function AdminSiteSettingsCard() {
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex-1 min-w-[12rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     邀请人奖励积分
                   </span>
@@ -776,8 +760,7 @@ export default function AdminSiteSettingsCard() {
                 </label>
                 <label className="flex-1 min-w-[12rem]">
                   <span
-                    className="mb-1.5 block text-[11px] font-semibold"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="mb-1.5 block text-[11px] font-semibold text-[var(--text-secondary)]"
                   >
                     被邀请人额外奖励积分
                   </span>
@@ -812,14 +795,12 @@ export default function AdminSiteSettingsCard() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p
-                    className="text-[13px] font-semibold"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold text-[var(--text-primary)]"
                   >
                     每日签到奖励
                   </p>
                   <p
-                    className="text-[10.5px] mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
+                    className="text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                   >
                     修改后仅影响后续签到，历史流水不会变化
                   </p>
@@ -827,8 +808,7 @@ export default function AdminSiteSettingsCard() {
                 <div className="flex items-end gap-2">
                   <label>
                     <span
-                      className="sr-only"
-                      style={{ color: "var(--text-secondary)" }}
+                      className="sr-only text-[var(--text-secondary)]"
                     >
                       签到奖励积分
                     </span>
@@ -857,8 +837,7 @@ export default function AdminSiteSettingsCard() {
 
             <div>
               <p
-                className="text-[11px] font-semibold mb-2"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-[11px] font-semibold mb-2 text-[var(--text-secondary)]"
               >
                 联系管理员
               </p>

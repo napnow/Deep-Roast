@@ -110,12 +110,11 @@ export default function Sidebar({
         {conversations.length === 0 && (
           <div className="text-center mt-12 px-4">
             <p
-              className="font-display text-2xl mb-2 opacity-40"
-              style={{ color: "var(--accent)" }}
+              className="font-display text-2xl mb-2 opacity-40 text-[var(--accent)]"
             >
               焙
             </p>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs leading-relaxed text-[var(--text-muted)]">
               还没有对话。点上方开始一炉新的思考。
             </p>
           </div>
@@ -141,8 +140,7 @@ export default function Sidebar({
             >
               {isActive && (
                 <span
-                  className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
-                  style={{ background: "var(--accent)" }}
+                  className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[var(--accent)]"
                 />
               )}
               <div className="flex items-center justify-between gap-2">
@@ -176,8 +174,7 @@ export default function Sidebar({
                 ) : null}
               </div>
               <div
-                className="text-[10px] mt-1 flex items-center gap-1.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] mt-1 flex items-center gap-1.5 text-[var(--text-muted)]"
               >
                 <span className="truncate max-w-[7rem]">{conv.model}</span>
                 <span>·</span>

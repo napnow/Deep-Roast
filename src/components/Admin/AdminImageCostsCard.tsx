@@ -78,7 +78,7 @@ export default function AdminImageCostsCard() {
         <div>
           <p className="admin-kicker">Credit Policy</p>
           <h2 className="admin-title text-lg mt-1">生图计费配置</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             设置每个生图模型生成一张图片所消耗的积分。未配置或读取异常时默认 5 积分。
           </p>
         </div>
@@ -119,7 +119,7 @@ export default function AdminImageCostsCard() {
         ) : null}
 
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             正在读取模型费用…
           </p>
         ) : Object.keys(costs).length === 0 ? (
@@ -158,7 +158,7 @@ export default function AdminImageCostsCard() {
                     aria-label={`${modelId} 每张图片积分`}
                     className="admin-input w-28 text-right tabular-nums"
                   />
-                  <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-[11px] text-[var(--text-muted)]">
                     积分/张
                   </span>
                 </span>
