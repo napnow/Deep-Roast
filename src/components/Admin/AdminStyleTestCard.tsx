@@ -119,7 +119,7 @@ export default function AdminStyleTestCard() {
       <div className="admin-card-body">
         <p className="admin-kicker">Style Lab</p>
         <h2 className="admin-title text-base mt-1">风格测试</h2>
-        <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs mt-1.5 text-[var(--text-muted)]">
           上传参考图并选择风格，验证效果后到「风格库」卡片上架即可开放给普通用户。
         </p>
 
@@ -127,8 +127,7 @@ export default function AdminStyleTestCard() {
           {/* 风格选择 */}
           <div>
             <span
-              className="text-[10px] font-semibold tracking-widest uppercase"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
             >
               风格
             </span>
@@ -155,7 +154,7 @@ export default function AdminStyleTestCard() {
                 >
                   {s.label}
                   {unpublishedKeys.has(s.id) && (
-                    <span className="ml-1 text-[9px]" style={{ color: "#f97316" }}>
+                    <span className="ml-1 text-[9px] text-[var(--warning)]">
                       未发布
                     </span>
                   )}
@@ -168,8 +167,7 @@ export default function AdminStyleTestCard() {
           {activeStyle?.colors && (
             <div>
               <span
-                className="text-[10px] font-semibold tracking-widest uppercase"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
               >
                 主色
               </span>
@@ -203,8 +201,7 @@ export default function AdminStyleTestCard() {
           {/* 参考图 */}
           <div>
             <span
-              className="text-[10px] font-semibold tracking-widest uppercase"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
             >
               参考图
             </span>
@@ -239,8 +236,7 @@ export default function AdminStyleTestCard() {
           {/* 描述 */}
           <div>
             <span
-              className="text-[10px] font-semibold tracking-widest uppercase"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
             >
               修改描述（可选）
             </span>
@@ -278,8 +274,7 @@ export default function AdminStyleTestCard() {
                 style={{ borderColor: "var(--border)" }}
               />
               <p
-                className="text-[10px] leading-relaxed max-h-24 overflow-y-auto"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] leading-relaxed max-h-24 overflow-y-auto text-[var(--text-muted)]"
               >
                 实际 Prompt：{result.prompt}
               </p>

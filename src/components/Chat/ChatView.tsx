@@ -114,14 +114,12 @@ export default function ChatView({
                 焙
               </p>
               <p
-                className="font-display text-xl mb-2"
-                style={{ color: "var(--text-primary)" }}
+                className="font-display text-xl mb-2 text-[var(--text-primary)]"
               >
                 慢火，把想法焙透
               </p>
               <p
-                className="text-sm max-w-sm mx-auto leading-relaxed"
-                style={{ color: "var(--text-muted)" }}
+                className="text-sm max-w-sm mx-auto leading-relaxed text-[var(--text-muted)]"
               >
                 在下方输入，Enter 发送。深度思考会慢一点——值得等。
               </p>
@@ -152,8 +150,7 @@ export default function ChatView({
                     <div className="mb-1.5 w-full max-w-full">
                       <button
                         onClick={() => toggleReasoning(i)}
-                        className="flex items-center gap-1.5 text-[11px] font-medium transition-colors duration-150 mb-1"
-                        style={{ color: "var(--text-muted)" }}
+                        className="flex items-center gap-1.5 text-[11px] font-medium transition-colors duration-150 mb-1 text-[var(--text-muted)]"
                       >
                         <svg
                           width="12"
@@ -210,8 +207,7 @@ export default function ChatView({
                           <img
                             src={image.thumbUrl || image.imageUrl}
                             alt={image.prompt}
-                            className="block max-h-[28rem] w-full object-contain"
-                            style={{ background: "var(--bg-root)" }}
+                            className="block max-h-[28rem] w-full object-contain bg-[var(--bg-root)]"
                           />
                         </button>
                       ) : image.status === "pending" ? (
@@ -224,8 +220,7 @@ export default function ChatView({
                             }}
                           />
                           <span
-                            className="text-xs"
-                            style={{ color: "var(--text-muted)" }}
+                            className="text-xs text-[var(--text-muted)]"
                           >
                             正在生成你的形象…
                           </span>
@@ -234,8 +229,7 @@ export default function ChatView({
                         <div className="flex min-h-36 min-w-64 flex-col items-center justify-center gap-2 px-6 py-6 text-center">
                           <p className="text-sm font-medium">生成失败</p>
                           <p
-                            className="max-w-xs text-xs leading-relaxed"
-                            style={{ color: "var(--text-muted)" }}
+                            className="max-w-xs text-xs leading-relaxed text-[var(--text-muted)]"
                           >
                             {image.error || "请检查 API 设置后重试"}
                           </p>
@@ -255,8 +249,7 @@ export default function ChatView({
                       )}
                       {m.content && image.status === "success" && (
                         <p
-                          className="px-3.5 py-2 text-sm"
-                          style={{ color: "var(--text-primary)" }}
+                          className="px-3.5 py-2 text-sm text-[var(--text-primary)]"
                         >
                           {m.content}
                         </p>
@@ -346,8 +339,7 @@ export default function ChatView({
                     {streamingText}
                   </span>
                   <span
-                    className="inline-block w-1.5 h-4 ml-0.5 align-middle rounded-sm animate-pulse-soft"
-                    style={{ background: "var(--accent)" }}
+                    className="inline-block w-1.5 h-4 ml-0.5 align-middle rounded-sm animate-pulse-soft bg-[var(--accent)]"
                   />
                 </div>
               </div>

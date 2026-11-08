@@ -81,8 +81,7 @@ export default function AdminUserList({
               <div className="min-w-0">
                 <p className="admin-title text-[1.05rem] leading-none">管理台</p>
                 <p
-                  className="text-[10px] mt-1 tracking-[0.14em] uppercase"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10px] mt-1 tracking-[0.14em] uppercase text-[var(--text-muted)]"
                 >
                   Atelier Console
                 </p>
@@ -128,7 +127,7 @@ export default function AdminUserList({
       <div className="px-4 pt-3 pb-1.5 shrink-0 flex items-baseline justify-between admin-user-list-header">
         <p className="admin-kicker">用户</p>
         <div className="flex items-center gap-2">
-          <p className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px] tabular-nums text-[var(--text-muted)]">
             {normalizedQuery ? `${filteredUsers.length}/${users.length}` : users.length}
           </p>
           <button
@@ -179,13 +178,13 @@ export default function AdminUserList({
       <div className="admin-user-list flex-1 min-h-0 overflow-y-auto pb-4">
         {loadingUsers ? (
           <div className="px-4 py-8 text-center">
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs text-[var(--text-muted)]">
               加载用户…
             </p>
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs text-[var(--text-muted)]">
               {normalizedQuery ? "未找到匹配用户" : "暂无用户"}
             </p>
           </div>
@@ -206,8 +205,7 @@ export default function AdminUserList({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className="text-[13px] font-semibold truncate"
-                      style={{ color: "var(--text-primary)" }}
+                      className="text-[13px] font-semibold truncate text-[var(--text-primary)]"
                     >
                       {item.username}
                     </span>
@@ -248,8 +246,7 @@ export default function AdminUserList({
                     </div>
                   </div>
                   <div
-                    className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10.5px] tabular-nums"
-                    style={{ color: "var(--text-muted)" }}
+                    className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10.5px] tabular-nums text-[var(--text-muted)]"
                   >
                     <span>{item.credits ?? 0} 积分</span>
                     <span>{item.conversationCount} 对话</span>

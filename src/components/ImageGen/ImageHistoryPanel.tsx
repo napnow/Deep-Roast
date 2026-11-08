@@ -30,15 +30,14 @@ export default function ImageHistoryPanel({
       }}
     >
       <h3
-        className="text-[11px] font-semibold tracking-widest uppercase mb-3"
-        style={{ color: "var(--text-muted)" }}
+        className="text-[11px] font-semibold tracking-widest uppercase mb-3 text-[var(--text-muted)]"
       >
         历史记录
       </h3>
 
       {history.length === 0 && (
         <div className="text-center mt-12">
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             暂无记录
           </p>
         </div>
@@ -64,18 +63,15 @@ export default function ImageHistoryPanel({
                 loading="lazy"
               />
               <div
-                className="p-2.5"
-                style={{ background: "var(--bg-surface)" }}
+                className="p-2.5 bg-[var(--bg-surface)]"
               >
                 <p
-                  className="text-[11px] leading-snug truncate"
-                  style={{ color: "var(--text-secondary)" }}
+                  className="text-[11px] leading-snug truncate text-[var(--text-secondary)]"
                 >
                   {item.prompt}
                 </p>
                 <p
-                  className="text-[10px] mt-1"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10px] mt-1 text-[var(--text-muted)]"
                 >
                   {new Date(item.createdAt).toLocaleDateString("zh-CN")}
                 </p>

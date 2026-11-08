@@ -30,8 +30,7 @@ export default function AdminCreditsTab({
             <p className="admin-kicker">Ledger</p>
             <h3 className="admin-title text-base mt-1">手动调配积分</h3>
             <p
-              className="text-[11px] mt-1"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[11px] mt-1 text-[var(--text-muted)]"
             >
               正数增加 · 负数扣除 · 写入流水
             </p>
@@ -72,8 +71,7 @@ export default function AdminCreditsTab({
             <h3 className="admin-title text-base mt-1">积分流水</h3>
           </div>
           <span
-            className="text-[11px] tabular-nums"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[11px] tabular-nums text-[var(--text-muted)]"
           >
             {creditTx.length}
           </span>
@@ -98,7 +96,7 @@ export default function AdminCreditsTab({
             {creditTx.map((tx) => {
               const typeInfo = CREDIT_TYPE_LABELS[tx.type] || {
                 label: tx.type,
-                color: "#6b7280",
+                color: "var(--text-muted)",
               };
               const positive = tx.amount >= 0;
               return (
@@ -119,8 +117,7 @@ export default function AdminCreditsTab({
                     </span>
                     {tx.planId && (
                       <span
-                        className="text-[10px] shrink-0"
-                        style={{ color: "var(--text-muted)" }}
+                        className="text-[10px] shrink-0 text-[var(--text-muted)]"
                       >
                         {RECHARGE_PLANS.find((p) => p.planId === tx.planId)
                           ?.label || tx.planId}
@@ -128,8 +125,7 @@ export default function AdminCreditsTab({
                     )}
                     {tx.note && (
                       <span
-                        className="text-[10.5px] truncate max-w-[220px]"
-                        style={{ color: "var(--text-secondary)" }}
+                        className="text-[10.5px] truncate max-w-[220px] text-[var(--text-secondary)]"
                       >
                         {tx.note}
                       </span>
@@ -146,14 +142,12 @@ export default function AdminCreditsTab({
                       {tx.amount}
                     </span>
                     <span
-                      className="text-[10.5px] min-w-[4.5rem] text-right"
-                      style={{ color: "var(--text-muted)" }}
+                      className="text-[10.5px] min-w-[4.5rem] text-right text-[var(--text-muted)]"
                     >
                       余 {tx.balanceAfter}
                     </span>
                     <span
-                      className="text-[10px] min-w-[4.5rem] text-right"
-                      style={{ color: "var(--text-muted)" }}
+                      className="text-[10px] min-w-[4.5rem] text-right text-[var(--text-muted)]"
                     >
                       {tx.createdAt
                         ? new Date(tx.createdAt).toLocaleString("zh-CN", {

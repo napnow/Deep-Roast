@@ -244,10 +244,10 @@ export default function ChannelManager({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[11px] font-semibold text-[var(--text-muted)]">
             模型渠道
           </div>
-          <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[10px] text-[var(--text-muted)]">
             同一个模型可以配置多个渠道，但只有管理员指定的默认渠道会被调用
           </div>
         </div>
@@ -284,7 +284,7 @@ export default function ChannelManager({
                   style={inputStyle}
                   aria-label={`渠道 ${channelIndex + 1} 名称`}
                 />
-                <label className="flex shrink-0 items-center gap-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                <label className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
                   <input
                     type="checkbox"
                     checked={channel.enabled}
@@ -297,8 +297,7 @@ export default function ChannelManager({
                 type="button"
                 onClick={() => removeChannel(channel.id)}
                 disabled={value.length <= 1}
-                className="shrink-0 text-[10px] disabled:opacity-30"
-                style={{ color: "var(--danger)" }}
+                className="shrink-0 text-[10px] disabled:opacity-30 text-[var(--danger)]"
               >
                 删除
               </button>
@@ -374,7 +373,7 @@ export default function ChannelManager({
             </div>
 
             {errors[channelId] ? (
-              <p className="text-[10px]" style={{ color: "var(--danger)" }}>
+              <p className="text-[10px] text-[var(--danger)]">
                 {errors[channelId]}
               </p>
             ) : null}
@@ -387,13 +386,13 @@ export default function ChannelManager({
                     className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px]"
                     style={{ background: "var(--bg-root)", border: "1px solid var(--border)" }}
                   >
-                    <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[9px]" style={{ color: "var(--text-muted)" }}>
+                    <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[9px] text-[var(--text-muted)]">
                       {model.kind === "image" ? "生图" : "对话"}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-mono" title={model.modelId} style={{ color: "var(--text-secondary)" }}>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[var(--text-secondary)]" title={model.modelId}>
                       {model.modelId}
                     </span>
-                    <label className="flex shrink-0 items-center gap-1 text-[9px]" style={{ color: "var(--text-muted)" }}>
+                    <label className="flex shrink-0 items-center gap-1 text-[9px] text-[var(--text-muted)]">
                       <input
                         type="checkbox"
                         checked={model.enabled}
@@ -402,15 +401,14 @@ export default function ChannelManager({
                       启用
                     </label>
                     {model.isDefault ? (
-                      <span className="shrink-0 text-[9px] font-semibold" style={{ color: "var(--accent)" }}>
+                      <span className="shrink-0 text-[9px] font-semibold text-[var(--accent)]">
                         默认
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => onChange(setDefaultChannelModel(value, channel.id || "", model.kind, model.modelId))}
-                        className="shrink-0 text-[9px]"
-                        style={{ color: "var(--accent)" }}
+                        className="shrink-0 text-[9px] text-[var(--accent)]"
                       >
                         设为默认
                       </button>
@@ -418,8 +416,7 @@ export default function ChannelManager({
                     <button
                       type="button"
                       onClick={() => removeModel(channel.id, model.modelId, model.kind)}
-                      className="shrink-0 text-[9px]"
-                      style={{ color: "var(--danger)" }}
+                      className="shrink-0 text-[9px] text-[var(--danger)]"
                     >
                       删除
                     </button>

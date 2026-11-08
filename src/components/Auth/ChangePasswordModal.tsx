@@ -101,17 +101,15 @@ export default function ChangePasswordModal({
             >
               <div className="flex items-center justify-between mb-4">
                 <h2
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-sm font-semibold text-[var(--text-primary)]"
                 >
                   修改密码
                 </h2>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-11 h-11 rounded-full"
+                  className="w-11 h-11 rounded-full text-[var(--text-muted)]"
                   aria-label="关闭修改密码"
-                  style={{ color: "var(--text-muted)" }}
                 >
                   ✕
                 </button>
@@ -128,8 +126,7 @@ export default function ChangePasswordModal({
                   <div key={label} className="space-y-1">
                     <label
                       htmlFor={`${fieldId}-${index}`}
-                      className="text-xs font-semibold"
-                      style={{ color: "var(--text-muted)" }}
+                      className="text-xs font-semibold text-[var(--text-muted)]"
                     >
                       {label}
                     </label>
@@ -146,7 +143,7 @@ export default function ChangePasswordModal({
                 ))}
 
                 {error && (
-                  <p className="text-xs" style={{ color: "var(--danger)" }}>
+                  <p className="text-xs text-[var(--danger)]">
                     {error}
                   </p>
                 )}
@@ -155,8 +152,7 @@ export default function ChangePasswordModal({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3 py-2 text-sm"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-3 py-2 text-sm text-[var(--text-muted)]"
                   >
                     取消
                   </button>

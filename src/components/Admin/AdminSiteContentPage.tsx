@@ -11,7 +11,7 @@ export default function AdminSiteContentPage() {
       <header>
         <p className="admin-kicker">Site & Content</p>
         <h1 className="admin-title text-[1.85rem] mt-1.5">站点与内容</h1>
-        <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-sm mt-2 text-[var(--text-secondary)]">
           集中管理注册、联系方式、公告和赞赏入口。
         </p>
       </header>

@@ -55,7 +55,7 @@ export default function ApiKeyRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <h4 className="truncate text-sm font-semibold text-[var(--text-primary)]">
               {item.name || "未命名 Key"}
             </h4>
             <span
@@ -69,7 +69,7 @@ export default function ApiKeyRow({
               {item.status === "active" ? "使用中" : "已停用"}
             </span>
           </div>
-          <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <p className="mt-1 text-[11px] text-[var(--text-muted)]">
             {formatLastUsed(item.lastUsedAt)} · {apiKeyRecoveryLabel(item.recoverable)}
           </p>
         </div>
@@ -80,8 +80,7 @@ export default function ApiKeyRow({
         style={{ background: "var(--bg-surface)", borderColor: "var(--border)" }}
       >
         <code
-          className="min-w-0 flex-1 truncate text-[11px] sm:text-xs"
-          style={{ color: "var(--text-secondary)" }}
+          className="min-w-0 flex-1 truncate text-[11px] sm:text-xs text-[var(--text-secondary)]"
         >
           {displayedKey}
         </code>
@@ -91,8 +90,7 @@ export default function ApiKeyRow({
               type="button"
               disabled={busy}
               onClick={visible ? onHide : onReveal}
-              className="shrink-0 text-[11px] font-medium disabled:opacity-40"
-              style={{ color: "var(--text-muted)" }}
+              className="shrink-0 text-[11px] font-medium disabled:opacity-40 text-[var(--text-muted)]"
             >
               {visible ? "隐藏" : "显示"}
             </button>
@@ -124,8 +122,7 @@ export default function ApiKeyRow({
           type="button"
           disabled={busy}
           onClick={onDelete}
-          className="text-[10px] disabled:opacity-40"
-          style={{ color: "var(--danger)" }}
+          className="text-[10px] disabled:opacity-40 text-[var(--danger)]"
         >
           删除 Key
         </button>

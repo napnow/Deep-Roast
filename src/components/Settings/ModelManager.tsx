@@ -154,12 +154,11 @@ export default function ModelManager({
       <div className="flex items-center justify-between gap-2">
         <div>
           <div
-            className="text-[11px] font-semibold"
-            style={{ color: "var(--text-muted)" }}
+            className="text-[11px] font-semibold text-[var(--text-muted)]"
           >
             {title}管理
           </div>
-          <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[10px] text-[var(--text-muted)]">
             使用上方当前填写的 Base URL + API Key 拉取（无需先保存）
           </div>
         </div>
@@ -179,7 +178,7 @@ export default function ModelManager({
       </div>
 
       {sourceHint && (
-        <p className="text-[10px]" style={{ color: "var(--accent)" }}>
+        <p className="text-[10px] text-[var(--accent)]">
           {sourceHint}
         </p>
       )}
@@ -187,8 +186,7 @@ export default function ModelManager({
       {/* 已启用 */}
       <div className="space-y-1.5">
         <div
-          className="text-[10px] font-semibold uppercase tracking-wide"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
         >
           已启用（{enabled.length}）
         </div>
@@ -228,8 +226,7 @@ export default function ModelManager({
               </span>
               {id === defaultModel && (
                 <span
-                  className="text-[9px] shrink-0"
-                  style={{ color: "var(--accent)" }}
+                  className="text-[9px] shrink-0 text-[var(--accent)]"
                 >
                   默认
                 </span>
@@ -241,8 +238,7 @@ export default function ModelManager({
                 title={
                   enabled.length <= 1 ? "至少保留一个" : "从启用列表移除"
                 }
-                className="text-[11px] px-1.5 py-0.5 rounded disabled:opacity-30 hover:opacity-80"
-                style={{ color: "var(--danger)" }}
+                className="text-[11px] px-1.5 py-0.5 rounded disabled:opacity-30 hover:opacity-80 text-[var(--danger)]"
               >
                 删除
               </button>
@@ -286,8 +282,7 @@ export default function ModelManager({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div
-              className="text-[10px] font-semibold uppercase tracking-wide"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
             >
               可选目录（未启用 {filteredCatalog.length}）
             </div>
@@ -319,8 +314,7 @@ export default function ModelManager({
           >
             {filteredCatalog.length === 0 ? (
               <div
-                className="px-2 py-3 text-[11px] text-center"
-                style={{ color: "var(--text-muted)" }}
+                className="px-2 py-3 text-[11px] text-center text-[var(--text-muted)]"
               >
                 没有可添加的模型（或已全部启用）
               </div>
@@ -328,8 +322,7 @@ export default function ModelManager({
               filteredCatalog.map((id) => (
                 <label
                   key={id}
-                  className="flex items-center gap-2 px-2 py-1.5 text-[11px] cursor-pointer hover:opacity-90"
-                  style={{ background: "var(--bg-surface)" }}
+                  className="flex items-center gap-2 px-2 py-1.5 text-[11px] cursor-pointer hover:opacity-90 bg-[var(--bg-surface)]"
                 >
                   <input
                     type="checkbox"
@@ -337,8 +330,7 @@ export default function ModelManager({
                     onChange={() => togglePick(id)}
                   />
                   <span
-                    className="font-mono truncate"
-                    style={{ color: "var(--text-secondary)" }}
+                    className="font-mono truncate text-[var(--text-secondary)]"
                     title={id}
                   >
                     {id}
@@ -351,12 +343,12 @@ export default function ModelManager({
       )}
 
       {warning && (
-        <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+        <p className="text-[10px] text-[var(--text-muted)]">
           {warning}
         </p>
       )}
       {error && (
-        <p className="text-[10px]" style={{ color: "var(--danger)" }}>
+        <p className="text-[10px] text-[var(--danger)]">
           {error}
         </p>
       )}

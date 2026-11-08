@@ -73,15 +73,13 @@ export default function ImageResultPanel({
             </button>
             <div className="p-4 space-y-2">
               <p
-                className="text-xs leading-relaxed"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-xs leading-relaxed text-[var(--text-secondary)]"
               >
                 {activeImage.prompt}
               </p>
               <div className="flex items-center justify-between gap-2">
                 <p
-                  className="text-[10px]"
-                  style={{ color: "var(--text-muted)" }}
+                  className="text-[10px] text-[var(--text-muted)]"
                 >
                   {activeImage.model} · {activeImage.size}
                   {lastGenTime != null && (
@@ -170,12 +168,11 @@ export default function ImageResultPanel({
               <ThinkingOrb state="working" size={64} />
             </div>
             <p
-              className="text-sm font-semibold tabular-nums"
-              style={{ color: "var(--accent)" }}
+              className="text-sm font-semibold tabular-nums text-[var(--accent)]"
             >
               焙制中 · {formatTime(elapsedSeconds)}
             </p>
-            <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <p className="text-[11px] text-[var(--text-muted)]">
               好图需要一点火候
             </p>
           </div>
@@ -190,12 +187,11 @@ export default function ImageResultPanel({
           }}
         >
           <p
-            className="font-display text-3xl opacity-40"
-            style={{ color: "var(--accent)" }}
+            className="font-display text-3xl opacity-40 text-[var(--accent)]"
           >
             焙
           </p>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-[var(--text-muted)]">
             <span className="md:hidden">底部输入提示词，舞台在此出图</span>
             <span className="hidden md:inline">
               左侧写下提示词，舞台在此出图

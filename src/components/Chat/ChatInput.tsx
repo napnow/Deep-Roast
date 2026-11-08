@@ -134,8 +134,7 @@ export default function ChatInput({
       </div>
       <p
         id={hintId}
-        className="max-w-3xl mx-auto mt-1.5 px-1 text-[10px]"
-        style={{ color: "var(--text-muted)" }}
+        className="max-w-3xl mx-auto mt-1.5 px-1 text-[10px] text-[var(--text-muted)]"
       >
         {user?.role === "admin"
           ? "管理员免费 · 每条消耗 0 积分"

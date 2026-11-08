@@ -78,18 +78,18 @@ export default function AdminInvitationsCard() {
         <div>
           <p className="admin-kicker">Invitations</p>
           <h2 className="admin-title text-lg mt-1">邀请记录</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             展示成功注册的邀请关系；修改奖励只影响后续注册。
           </p>
         </div>
       </div>
       <div className="admin-card-body">
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             加载邀请记录…
           </p>
         ) : error ? (
-          <p className="text-xs" style={{ color: "var(--danger)" }}>
+          <p className="text-xs text-[var(--danger)]">
             {error}
           </p>
         ) : !data ? null : (
@@ -122,7 +122,7 @@ export default function AdminInvitationsCard() {
             </div>
 
             {data.invitations.length === 0 ? (
-              <p className="py-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+              <p className="py-6 text-center text-xs text-[var(--text-muted)]">
                 暂无成功邀请记录
               </p>
             ) : (
@@ -143,13 +143,13 @@ export default function AdminInvitationsCard() {
                   <tbody>
                     {data.invitations.map((row) => (
                       <tr key={row.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                        <td className="px-3 py-2.5 font-medium" style={{ color: "var(--text-primary)" }}>
+                        <td className="px-3 py-2.5 font-medium text-[var(--text-primary)]">
                           {row.inviterUsername}
                         </td>
-                        <td className="px-3 py-2.5" style={{ color: "var(--text-secondary)" }}>
+                        <td className="px-3 py-2.5 text-[var(--text-secondary)]">
                           {row.inviteeUsername}
                         </td>
-                        <td className="px-3 py-2.5 tabular-nums" style={{ color: "var(--accent)" }}>
+                        <td className="px-3 py-2.5 tabular-nums text-[var(--accent)]">
                           <div>邀请人 +{row.rewardAmount}</div>
                           <div style={{ color: "var(--text-secondary)" }}>
                             被邀请人 +{row.inviteeRewardAmount}
@@ -164,7 +164,7 @@ export default function AdminInvitationsCard() {
                             被邀请人：{statusLabel(row.inviteeStatus)}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap tabular-nums" style={{ color: "var(--text-muted)" }}>
+                        <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-[var(--text-muted)]">
                           {row.createdAt ? new Date(row.createdAt).toLocaleString("zh-CN") : "-"}
                         </td>
                       </tr>
@@ -174,7 +174,7 @@ export default function AdminInvitationsCard() {
               </div>
             )}
             {data.invitations.length > 0 && (
-              <div className="mt-3 flex items-center justify-between gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
                 <span>
                   已显示 {data.pagination.offset + 1}–{data.pagination.offset + data.invitations.length} 条，共 {data.stats.totalInvitations} 条
                 </span>

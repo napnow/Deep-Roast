@@ -80,20 +80,17 @@ export default function TextModePanel({
             </div>
             <div>
               <p
-                className="font-display text-2xl font-semibold"
-                style={{ color: "var(--text-primary)" }}
+                className="font-display text-2xl font-semibold text-[var(--text-primary)]"
               >
                 深焙
               </p>
               <p
-                className="text-sm mt-1.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-sm mt-1.5 text-[var(--text-muted)]"
               >
                 深度思考，慢焙出好答案
               </p>
               <p
-                className="text-xs mt-2"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs mt-2 text-[var(--text-muted)]"
               >
                 {modelAvailable
                   ? "在左侧点「新对话」开始"

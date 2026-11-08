@@ -247,14 +247,12 @@ export default function MobileDrawer({
             </span>
             <div className="min-w-0">
               <p
-                className="text-[13px] font-semibold truncate"
-                style={{ color: "var(--text-primary)" }}
+                className="text-[13px] font-semibold truncate text-[var(--text-primary)]"
               >
                 {username}
               </p>
               <p
-                className="text-[10px] mt-0.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] mt-0.5 text-[var(--text-muted)]"
               >
                 {role === "admin" ? "管理员" : "用户"} · 深焙
               </p>
@@ -262,8 +260,7 @@ export default function MobileDrawer({
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 hover:scale-110 active:scale-95"
-            style={{ color: "var(--text-muted)" }}
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 hover:scale-110 active:scale-95 text-[var(--text-muted)]"
             aria-label="关闭菜单"
           >
             <svg
@@ -311,10 +308,7 @@ export default function MobileDrawer({
                 }}
               >
                 <span
-                  className="flex h-5 w-5 items-center justify-center shrink-0 relative"
-                  style={{
-                    color: "var(--text-muted)",
-                  }}
+                  className="flex h-5 w-5 items-center justify-center shrink-0 relative text-[var(--text-muted)]"
                 >
                   <AppIcon name={item.icon} size={18} strokeWidth={1.8} />
                   {item.unread && (
@@ -329,16 +323,12 @@ export default function MobileDrawer({
                 </span>
                 <span className="flex-1 text-left min-w-0">
                   <span
-                    className="block text-[13px] font-semibold"
-                    style={{
-                      color: "var(--text-primary)",
-                    }}
+                    className="block text-[13px] font-semibold text-[var(--text-primary)]"
                   >
                     {item.label}
                   </span>
                   <span
-                    className="block text-[10.5px] mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
+                    className="block text-[10.5px] mt-0.5 text-[var(--text-muted)]"
                   >
                     {item.desc}
                   </span>
@@ -364,14 +354,12 @@ export default function MobileDrawer({
           >
             <span className="flex items-center gap-2.5 min-w-0">
               <span
-                className="text-[15px] leading-none shrink-0"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[15px] leading-none shrink-0 text-[var(--text-muted)]"
               >
                 {isDark ? "🌙" : "☀️"}
               </span>
               <span
-                className="text-[13px] font-medium"
-                style={{ color: "var(--text-primary)" }}
+                className="text-[13px] font-medium text-[var(--text-primary)]"
               >
                 深色模式
               </span>
@@ -409,7 +397,7 @@ export default function MobileDrawer({
             <AppIcon name="arrow-left" size={16} strokeWidth={1.8} />
             <span className="text-[13px] font-semibold">退出登录</span>
           </button>
-          <p className="text-[10px] px-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px] px-1 text-[var(--text-muted)]">
             深焙 Deep Roast · 慢工出好图
           </p>
         </div>

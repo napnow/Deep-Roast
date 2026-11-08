@@ -53,8 +53,7 @@ export default function AdminContactModal({
       >
         <div className="flex items-center justify-between">
           <h2
-            className="text-sm font-semibold"
-            style={{ color: "var(--text-primary)" }}
+            className="text-sm font-semibold text-[var(--text-primary)]"
           >
             联系管理员
           </h2>
@@ -67,24 +66,23 @@ export default function AdminContactModal({
           </button>
         </div>
         {loading && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             加载中…
           </p>
         )}
         {error && (
-          <p className="text-xs" style={{ color: "var(--danger)" }}>
+          <p className="text-xs text-[var(--danger)]">
             {error}
           </p>
         )}
         {empty && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             管理员暂未填写联系方式，请稍后再试或通过其他渠道联系。
           </p>
         )}
         {!loading && !error && text.trim() && (
           <p
-            className="text-sm whitespace-pre-wrap break-words"
-            style={{ color: "var(--text-secondary)" }}
+            className="text-sm whitespace-pre-wrap break-words text-[var(--text-secondary)]"
           >
             {text}
           </p>

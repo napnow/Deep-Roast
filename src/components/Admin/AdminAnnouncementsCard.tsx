@@ -86,7 +86,7 @@ export default function AdminAnnouncementsCard() {
         <div>
           <p className="admin-kicker">Broadcast</p>
           <h2 className="admin-title text-lg mt-1">站点公告</h2>
-          <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             登录页与站内横幅 · 按时间倒序
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function AdminAnnouncementsCard() {
             onChange={(event) => setImage(event.target.files?.[0] ?? null)}
             className="block w-full text-[11px]"
           />
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px] text-[var(--text-muted)]">
             支持 PNG / JPG / WebP，最大 2MB；用户端点击箭头后查看。
           </p>
           {image && (
@@ -130,10 +130,10 @@ export default function AdminAnnouncementsCard() {
               <span className="inline-flex h-16 w-16 items-center justify-center rounded border text-center text-[10px]" style={{ color: "var(--accent, #ff8c00)" }}>
                 二维码
               </span>
-              <span className="min-w-0 truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              <span className="min-w-0 truncate text-[11px] text-[var(--text-secondary)]">
                 {image.name}
               </span>
-              <button type="button" onClick={() => { setImage(null); if (imageInputRef.current) imageInputRef.current.value = ""; }} className="text-[11px]" style={{ color: "var(--danger)" }}>
+              <button type="button" onClick={() => { setImage(null); if (imageInputRef.current) imageInputRef.current.value = ""; }} className="text-[11px] text-[var(--danger)]">
                 清除
               </button>
             </div>
@@ -148,13 +148,13 @@ export default function AdminAnnouncementsCard() {
           >
             {saving ? "处理中…" : "发布公告"}
           </button>
-          <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
             {body.length}/2000
           </span>
         </div>
 
         {loading ? (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>加载中…</p>
+          <p className="text-xs text-[var(--text-muted)]">加载中…</p>
         ) : list.length === 0 ? (
           <div
             className="rounded-[var(--radius)] px-3 py-6 text-center text-xs"
@@ -178,7 +178,7 @@ export default function AdminAnnouncementsCard() {
                 }}
               >
                 <div className="flex justify-between gap-3 items-start">
-                  <p className="text-[12.5px] whitespace-pre-wrap flex-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-[12.5px] whitespace-pre-wrap flex-1 leading-relaxed text-[var(--text-secondary)]">
                     {announcement.pinned && <span style={{ color: "var(--accent, #ff8c00)" }}>📌 </span>}
                     {announcement.body}
                     {announcement.imageUrl && <span className="ml-1 text-[10px]" style={{ color: "var(--accent, #ff8c00)" }}>（含二维码）</span>}
@@ -187,12 +187,12 @@ export default function AdminAnnouncementsCard() {
                     <button type="button" disabled={saving} onClick={() => togglePin(announcement.id)} className="text-[10px] font-semibold" style={{ color: announcement.pinned ? "var(--accent, #ff8c00)" : "var(--text-muted)" }}>
                       {announcement.pinned ? "取消置顶" : "置顶"}
                     </button>
-                    <button type="button" disabled={saving} onClick={() => remove(announcement.id)} className="text-[10px] font-semibold" style={{ color: "var(--danger)" }}>
+                    <button type="button" disabled={saving} onClick={() => remove(announcement.id)} className="text-[10px] font-semibold text-[var(--danger)]">
                       删除
                     </button>
                   </div>
                 </div>
-                <p className="text-[10px] mt-1.5 tabular-nums" style={{ color: "var(--text-muted)" }}>
+                <p className="text-[10px] mt-1.5 tabular-nums text-[var(--text-muted)]">
                   {announcement.createdAt ? new Date(announcement.createdAt).toLocaleString("zh-CN") : "-"}
                 </p>
               </li>

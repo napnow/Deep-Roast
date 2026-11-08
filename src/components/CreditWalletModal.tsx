@@ -163,14 +163,12 @@ export default function CreditWalletModal({
           >
             <div>
               <h2
-                className="text-base font-bold"
-                style={{ color: "var(--text-primary)" }}
+                className="text-base font-bold text-[var(--text-primary)]"
               >
                 我的钱包
               </h2>
               <p
-                className="text-[11px] mt-0.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[11px] mt-0.5 text-[var(--text-muted)]"
               >
                 积分明细与消费记录
               </p>
@@ -228,32 +226,27 @@ export default function CreditWalletModal({
 
           <div className="flex gap-3 mx-5 mt-3 shrink-0">
             <div
-              className="flex-1 rounded-xl p-3 text-center"
-              style={{ background: "var(--bg-root)" }}
+              className="flex-1 rounded-xl p-3 text-center bg-[var(--bg-root)]"
             >
-              <p className="text-lg font-bold" style={{ color: "#10b981" }}>
+              <p className="text-lg font-bold text-[var(--success)]">
                 +{totalCheckin}
               </p>
               <p
-                className="text-[10px] mt-0.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] mt-0.5 text-[var(--text-muted)]"
               >
                 累计签到积分
               </p>
             </div>
             <div
-              className="flex-1 rounded-xl p-3 text-center"
-              style={{ background: "var(--bg-root)" }}
+              className="flex-1 rounded-xl p-3 text-center bg-[var(--bg-root)]"
             >
               <p
-                className="text-lg font-bold"
-                style={{ color: "var(--text-primary)" }}
+                className="text-lg font-bold text-[var(--text-primary)]"
               >
                 −{totalConsumed}
               </p>
               <p
-                className="text-[10px] mt-0.5"
-                style={{ color: "var(--text-muted)" }}
+                className="text-[10px] mt-0.5 text-[var(--text-muted)]"
               >
                 累计消耗积分
               </p>
@@ -275,31 +268,27 @@ export default function CreditWalletModal({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p
-                      className="text-xs font-semibold"
-                      style={{ color: "var(--text-primary)" }}
+                      className="text-xs font-semibold text-[var(--text-primary)]"
                     >
                       邀请好友
                     </p>
                     {invitationLoading ? (
                       <p
-                        className="mt-1 text-[10px]"
-                        style={{ color: "var(--text-muted)" }}
+                        className="mt-1 text-[10px] text-[var(--text-muted)]"
                       >
                         正在加载邀请信息…
                       </p>
                     ) : invitation?.enabled ? (
                       <>
                         <p
-                          className="mt-1 text-[10px]"
-                          style={{ color: "var(--text-muted)" }}
+                          className="mt-1 text-[10px] text-[var(--text-muted)]"
                         >
                           成功邀请 {invitation.invitedCount} 人 · 累计获得{" "}
                           {invitation.totalReward} 积分
                         </p>
                         {invitation.inviteLink && (
                           <p
-                            className="mt-2 break-all text-[10px] leading-relaxed"
-                            style={{ color: "var(--text-secondary)" }}
+                            className="mt-2 break-all text-[10px] leading-relaxed text-[var(--text-secondary)]"
                           >
                             {invitation.inviteLink}
                           </p>
@@ -307,8 +296,7 @@ export default function CreditWalletModal({
                       </>
                     ) : (
                       <p
-                        className="mt-1 text-[10px]"
-                        style={{ color: "var(--text-muted)" }}
+                        className="mt-1 text-[10px] text-[var(--text-muted)]"
                       >
                         邀请功能暂未开启
                       </p>
@@ -340,8 +328,7 @@ export default function CreditWalletModal({
                       {invitation.invitations.map((row, index) => (
                         <div
                           key={`${row.inviteeUsername}-${row.createdAt}-${index}`}
-                          className="flex items-center justify-between gap-2 text-[10px]"
-                          style={{ color: "var(--text-muted)" }}
+                          className="flex items-center justify-between gap-2 text-[10px] text-[var(--text-muted)]"
                         >
                           <span className="truncate">
                             {row.inviteeUsername}
@@ -386,16 +373,14 @@ export default function CreditWalletModal({
             )}
 
             <h3
-              className="text-[11px] font-semibold tracking-widest uppercase mb-2"
-              style={{ color: "var(--text-muted)" }}
+              className="text-[11px] font-semibold tracking-widest uppercase mb-2 text-[var(--text-muted)]"
             >
               积分流水
             </h3>
 
             {loading ? (
               <p
-                className="text-xs text-center py-8"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs text-center py-8 text-[var(--text-muted)]"
               >
                 加载中...
               </p>
@@ -405,8 +390,7 @@ export default function CreditWalletModal({
               </p>
             ) : transactions.length === 0 ? (
               <p
-                className="text-xs text-center py-8"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs text-center py-8 text-[var(--text-muted)]"
               >
                 暂无记录
               </p>
@@ -415,13 +399,12 @@ export default function CreditWalletModal({
                 {transactions.map((tx) => {
                   const typeInfo = CREDIT_TYPE_LABELS[tx.type] || {
                     label: tx.type,
-                    color: "#6b7280",
+                    color: "var(--text-muted)",
                   };
                   return (
                     <div
                       key={tx.id}
-                      className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
-                      style={{ background: "var(--bg-root)" }}
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-xs bg-[var(--bg-root)]"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span
@@ -435,8 +418,7 @@ export default function CreditWalletModal({
                         </span>
                         {tx.planId && (
                           <span
-                            className="text-[10px] shrink-0"
-                            style={{ color: "var(--text-muted)" }}
+                            className="text-[10px] shrink-0 text-[var(--text-muted)]"
                           >
                             {RECHARGE_PLANS.find((p) => p.planId === tx.planId)
                               ?.label || tx.planId}
@@ -444,8 +426,7 @@ export default function CreditWalletModal({
                         )}
                         {tx.note && (
                           <span
-                            className="text-[10px] truncate"
-                            style={{ color: "var(--text-muted)" }}
+                            className="text-[10px] truncate text-[var(--text-muted)]"
                           >
                             {tx.note}
                           </span>
@@ -454,7 +435,7 @@ export default function CreditWalletModal({
                       <div className="flex items-center gap-3 shrink-0 ml-2">
                         <span
                           style={{
-                            color: tx.amount >= 0 ? "#10b981" : "#ef4444",
+                            color: tx.amount >= 0 ? "var(--success)" : "var(--danger)",
                             fontWeight: 600,
                           }}
                         >
@@ -462,8 +443,7 @@ export default function CreditWalletModal({
                           {tx.amount}
                         </span>
                         <span
-                          className="text-[10px]"
-                          style={{ color: "var(--text-muted)" }}
+                          className="text-[10px] text-[var(--text-muted)]"
                         >
                           {tx.createdAt
                             ? new Date(tx.createdAt).toLocaleString("zh-CN", {

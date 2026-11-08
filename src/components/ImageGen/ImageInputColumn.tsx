@@ -156,8 +156,7 @@ export default function ImageInputColumn({
       {!toolbarOpen && (
       <div className="px-5 pt-4 pb-6 space-y-5">
         <label
-          className="text-[11px] font-semibold tracking-widest uppercase"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[11px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
         >
           描述你想要生成的图片
         </label>
@@ -235,7 +234,7 @@ export default function ImageInputColumn({
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          <p className="text-[10px] text-[var(--text-muted)]">
             {isAdmin
               ? "管理员生图免费"
               : `每张图消耗 ${imageCostPerImage} 积分 · 余额 ${credits} · 可生成 ${Math.floor(credits / imageCostPerImage)} 张`}

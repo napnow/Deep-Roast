@@ -30,7 +30,7 @@ function CandidateRow({ candidate }: { candidate: CleanupCandidate }) {
       }}
     >
       <div className="flex items-center justify-between gap-3">
-        <strong className="min-w-0 truncate text-sm" style={{ color: "var(--text-primary)" }}>
+        <strong className="min-w-0 truncate text-sm text-[var(--text-primary)]">
           {candidate.username}
         </strong>
         <span
@@ -45,8 +45,7 @@ function CandidateRow({ candidate }: { candidate: CleanupCandidate }) {
         </span>
       </div>
       <div
-        className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10.5px] tabular-nums"
-        style={{ color: "var(--text-muted)" }}
+        className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10.5px] tabular-nums text-[var(--text-muted)]"
       >
         <span>最后使用 {formatDate(candidate.lastActivityAt)}</span>
         <span>{candidate.conversationCount} 对话</span>
@@ -143,7 +142,7 @@ export default function AdminCleanupUsersModal({
             <h2 id="cleanup-users-title" className="admin-title mt-1 text-lg">
               批量清理未使用用户
             </h2>
-            <p className="mt-1.5 text-[11.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--text-muted)]">
               清理超过 3 天没有登录、对话或生图活动的普通用户。正常和已封禁账号都会纳入，管理员账号始终保留。
             </p>
           </div>
@@ -160,7 +159,7 @@ export default function AdminCleanupUsersModal({
 
         <div className="min-h-0 overflow-y-auto p-5">
           {loading ? (
-            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="py-8 text-center text-sm text-[var(--text-muted)]">
               正在计算清理名单…
             </p>
           ) : result ? (
@@ -172,27 +171,27 @@ export default function AdminCleanupUsersModal({
                   borderColor: "color-mix(in srgb, var(--accent) 30%, var(--border))",
                 }}
               >
-                <p className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                <p className="text-sm font-semibold text-[var(--accent)]">
                   清理完成
                 </p>
-                <p className="mt-1 text-sm" style={{ color: "var(--text-primary)" }}>
+                <p className="mt-1 text-sm text-[var(--text-primary)]">
                   已删除 {result.deleted} 个用户。
                 </p>
                 {result.imageCleanupFailures > 0 && (
-                  <p className="mt-1 text-xs" style={{ color: "var(--danger)" }}>
+                  <p className="mt-1 text-xs text-[var(--danger)]">
                     有 {result.imageCleanupFailures} 个图片文件未能删除，数据库记录已清理。
                   </p>
                 )}
               </div>
               {result.users.length > 0 && (
-                <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <p className="text-xs leading-relaxed text-[var(--text-muted)]">
                   已处理：{result.users.join("、")}
                 </p>
               )}
             </div>
           ) : error && !preview ? (
             <div className="space-y-3 py-6 text-center">
-              <p className="text-sm" style={{ color: "var(--danger)" }}>{error}</p>
+              <p className="text-sm text-[var(--danger)]">{error}</p>
               <button
                 type="button"
                 className="admin-btn admin-btn--ghost"
@@ -208,21 +207,21 @@ export default function AdminCleanupUsersModal({
             </div>
           ) : preview?.total === 0 ? (
             <div className="py-8 text-center">
-              <AppIcon name="check" size={24} className="mx-auto" style={{ color: "var(--accent)" }} />
-              <p className="mt-3 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <AppIcon name="check" size={24} className="mx-auto text-[var(--accent)]" />
+              <p className="mt-3 text-sm font-semibold text-[var(--text-primary)]">
                 暂无符合条件的用户
               </p>
-              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 截止 {formatDate(preview?.cutoff ?? "")}
               </p>
             </div>
           ) : preview ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
                   将删除 {preview.total} 个用户
                 </p>
-                <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <p className="text-[11px] text-[var(--text-muted)]">
                   活动截止：{formatDate(preview.cutoff)}
                 </p>
               </div>
@@ -231,7 +230,7 @@ export default function AdminCleanupUsersModal({
                   <CandidateRow key={candidate.id} candidate={candidate} />
                 ))}
               </ul>
-              {error && <p className="text-xs" style={{ color: "var(--danger)" }}>{error}</p>}
+              {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
             </div>
           ) : null}
         </div>
