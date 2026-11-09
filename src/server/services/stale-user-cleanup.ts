@@ -153,7 +153,7 @@ export async function loadUserActivityRows(
       latestCheckinAt: sql<Date | null>`(
         SELECT ${creditTransactions.createdAt}
         FROM ${creditTransactions}
-        WHERE ${creditTransactions.userId} = ${users.id}
+        WHERE ${creditTransactions.userId} = ${sql.raw('"users"."id"')}
           AND ${creditTransactions.type} = 'checkin'
         ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
         LIMIT 1
@@ -161,7 +161,7 @@ export async function loadUserActivityRows(
       latestConsumeAt: sql<Date | null>`(
         SELECT ${creditTransactions.createdAt}
         FROM ${creditTransactions}
-        WHERE ${creditTransactions.userId} = ${users.id}
+        WHERE ${creditTransactions.userId} = ${sql.raw('"users"."id"')}
           AND ${creditTransactions.type} = 'consume'
         ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
         LIMIT 1
@@ -169,33 +169,33 @@ export async function loadUserActivityRows(
       latestApiUseAt: sql<Date | null>`(
         SELECT ${apiKeys.lastUsedAt}
         FROM ${apiKeys}
-        WHERE ${apiKeys.userId} = ${users.id}
+        WHERE ${apiKeys.userId} = ${sql.raw('"users"."id"')}
         ORDER BY ${apiKeys.lastUsedAt} DESC NULLS LAST
         LIMIT 1
       )`,
       latestConversationAt: sql<Date | null>`(
         SELECT ${conversations.updatedAt}
         FROM ${conversations}
-        WHERE ${conversations.userId} = ${users.id}
+        WHERE ${conversations.userId} = ${sql.raw('"users"."id"')}
         ORDER BY ${conversations.updatedAt} DESC NULLS LAST
         LIMIT 1
       )`,
       latestImageAt: sql<Date | null>`(
         SELECT ${imageGenerations.createdAt}
         FROM ${imageGenerations}
-        WHERE ${imageGenerations.userId} = ${users.id}
+        WHERE ${imageGenerations.userId} = ${sql.raw('"users"."id"')}
         ORDER BY ${imageGenerations.createdAt} DESC NULLS LAST
         LIMIT 1
       )`,
       conversationCount: sql<number>`(
         SELECT count(*)::int
         FROM ${conversations}
-        WHERE ${conversations.userId} = ${users.id}
+        WHERE ${conversations.userId} = ${sql.raw('"users"."id"')}
       )`,
       imageCount: sql<number>`(
         SELECT count(*)::int
         FROM ${imageGenerations}
-        WHERE ${imageGenerations.userId} = ${users.id}
+        WHERE ${imageGenerations.userId} = ${sql.raw('"users"."id"')}
       )`,
     })
     .from(users)

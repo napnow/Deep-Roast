@@ -54,6 +54,16 @@ describe("stale user activity", () => {
     assert.equal(activity.toISOString(), "2026-09-12T15:59:59.999Z");
   });
 
+  it("never reports activity after the current time", () => {
+    const now = new Date("2026-09-12T01:00:00.000Z");
+    const activity = getLastActivityAt(
+      { ...baseline, lastCheckinOn: "2026-09-12" },
+      now,
+    );
+
+    assert.equal(activity.toISOString(), now.toISOString());
+  });
+
   it("ignores malformed legacy check-in dates", () => {
     assert.equal(
       getLastActivityAt({ ...baseline, lastCheckinOn: "not-a-day" }).toISOString(),

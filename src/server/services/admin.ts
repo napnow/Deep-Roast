@@ -37,7 +37,7 @@ export async function listUsersWithStats() {
       latestCheckinAt: sql<Date | null>`(
         SELECT ${creditTransactions.createdAt}
         FROM ${creditTransactions}
-        WHERE ${creditTransactions.userId} = ${users.id}
+        WHERE ${creditTransactions.userId} = ${sql.raw('"users"."id"')}
           AND ${creditTransactions.type} = 'checkin'
         ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
         LIMIT 1
@@ -45,7 +45,7 @@ export async function listUsersWithStats() {
       latestConsumeAt: sql<Date | null>`(
         SELECT ${creditTransactions.createdAt}
         FROM ${creditTransactions}
-        WHERE ${creditTransactions.userId} = ${users.id}
+        WHERE ${creditTransactions.userId} = ${sql.raw('"users"."id"')}
           AND ${creditTransactions.type} = 'consume'
         ORDER BY ${creditTransactions.createdAt} DESC NULLS LAST
         LIMIT 1
@@ -53,7 +53,7 @@ export async function listUsersWithStats() {
       latestApiUseAt: sql<Date | null>`(
         SELECT ${apiKeys.lastUsedAt}
         FROM ${apiKeys}
-        WHERE ${apiKeys.userId} = ${users.id}
+        WHERE ${apiKeys.userId} = ${sql.raw('"users"."id"')}
         ORDER BY ${apiKeys.lastUsedAt} DESC NULLS LAST
         LIMIT 1
       )`,

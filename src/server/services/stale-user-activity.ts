@@ -46,7 +46,10 @@ function shanghaiCalendarDayAtTimestamp(value: number): string {
   return `${year}-${month}-${day}`;
 }
 
-export function getLastActivityAt(input: ActivityTimestamps): Date {
+export function getLastActivityAt(
+  input: ActivityTimestamps,
+  now: Date = new Date(),
+): Date {
   const exactCheckinAt = timestamp(input.latestCheckinAt);
   const legacyCheckinDayEnd = shanghaiCalendarDayEndTimestamp(
     input.lastCheckinOn,
@@ -56,17 +59,18 @@ export function getLastActivityAt(input: ActivityTimestamps): Date {
     input.lastCheckinOn === shanghaiCalendarDayAtTimestamp(exactCheckinAt)
       ? exactCheckinAt
       : Math.max(exactCheckinAt, legacyCheckinDayEnd);
-  return new Date(
-    Math.max(
-      timestamp(input.createdAt),
-      timestamp(input.lastLoginAt),
-      timestamp(input.latestConversationAt),
-      timestamp(input.latestImageAt),
-      checkinAt,
-      timestamp(input.latestConsumeAt),
-      timestamp(input.latestApiUseAt),
-    ),
+  const latest = Math.max(
+    timestamp(input.createdAt),
+    timestamp(input.lastLoginAt),
+    timestamp(input.latestConversationAt),
+    timestamp(input.latestImageAt),
+    checkinAt,
+    timestamp(input.latestConsumeAt),
+    timestamp(input.latestApiUseAt),
   );
+  // Never report activity in the future: a legacy check-in day resolves to the
+  // end of that Shanghai day, which is still ahead of "now" during the day.
+  return new Date(Math.min(latest, now.getTime()));
 }
 
 export function getStaleUserCutoff(now = new Date()): Date {
