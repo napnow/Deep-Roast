@@ -20,16 +20,15 @@ export function createImageConcurrencyLimiter(limit: number, maxWaiting: number)
     if (!waiting.length && active + weight <= limit) { active += weight; return; }
     if (waiting.length >= maxWaiting) throw busy();
     await new Promise<void>((resolve, reject) => {
-      let timer: ReturnType<typeof setTimeout>;
       const remove = (error: Error) => {
         const index = waiting.indexOf(entry);
         if (index < 0) return;
         waiting.splice(index, 1); entry.cleanup(); reject(error); drain();
       };
       const abort = () => remove(cancelled());
+      const timer = setTimeout(() => remove(busy()), 300_000);
       const entry: Waiting = { resolve, weight, cleanup: () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); } };
       waiting.push(entry);
-      timer = setTimeout(() => remove(busy()), 300_000);
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) abort();
     });
