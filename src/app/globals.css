@@ -4135,6 +4135,65 @@ html.dark .liquid-glass-strong {
   font-size: 12px;
 }
 
+/* ── Generation stage indicator (shared waiting-state copy) ── */
+.image-stage {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.image-stage-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.image-stage-step {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  transition: background-color 0.3s ease;
+}
+
+.image-stage-step.is-done {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.image-stage-step.is-active {
+  background: var(--accent);
+  animation: stage-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes stage-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.image-stage-label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.image-stage-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-stage-step.is-active {
+    animation: none;
+  }
+}
+
 .result-error-mark {
   display: grid;
   width: 44px;

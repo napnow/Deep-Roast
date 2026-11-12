@@ -6,6 +6,7 @@ import { copyText } from "@/lib/browser-actions";
 import type { ImageRecord } from "@/types";
 import { downloadImage, formatTime } from "./imageUtils";
 import SmartResultImage from "./SmartResultImage";
+import ImageGenStageIndicator from "./ImageGenStageIndicator";
 import { ThinkingOrb } from "thinking-orbs";
 
 interface ImageResultPanelProps {
@@ -172,9 +173,7 @@ export default function ImageResultPanel({
             >
               焙制中 · {formatTime(elapsedSeconds)}
             </p>
-            <p className="text-[11px] text-[var(--text-muted)]">
-              好图需要一点火候
-            </p>
+            <ImageGenStageIndicator elapsedSeconds={elapsedSeconds} />
           </div>
         </div>
       ) : (

@@ -9,6 +9,7 @@ import type { ImageRecord } from "@/types";
 import type { ImageTaskState } from "@/lib/image-task";
 import { AppIcon } from "@/components/ui/icons";
 import SmartResultImage from "./SmartResultImage";
+import ImageGenStageIndicator from "./ImageGenStageIndicator";
 import { downloadImage, formatTime } from "./imageUtils";
 import { resultAspectRatio } from "./result-aspect";
 
@@ -50,6 +51,7 @@ export default function ResultCanvas({
               {task.request?.count || 1} 张 · {formatTime(elapsedSeconds)}
             </p>
           </div>
+          <ImageGenStageIndicator elapsedSeconds={elapsedSeconds} />
           <button
             className="workspace-button is-secondary result-canvas-stop"
             onClick={onStop}
