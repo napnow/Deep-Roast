@@ -7,6 +7,10 @@ const styles = readFileSync(
   new URL("../../app/globals.css", import.meta.url),
   "utf8",
 );
+const panelSource = readFileSync(
+  new URL("./ImageResultPanel.tsx", import.meta.url),
+  "utf8",
+);
 
 test("idle result state does not render the decorative center glyph", () => {
   assert.doesNotMatch(source, /result-idle-glyph/);
@@ -25,4 +29,9 @@ test("expanded prompt gets a full-width row before result actions", () => {
     styles,
     /\.result-card-footer\.is-expanded \.result-actions \{[^}]*margin-left: auto;/,
   );
+});
+
+test("both waiting cards share the staged progress indicator", () => {
+  assert.match(source, /<ImageGenStageIndicator elapsedSeconds=\{elapsedSeconds\} \/>/);
+  assert.match(panelSource, /<ImageGenStageIndicator elapsedSeconds=\{elapsedSeconds\} \/>/);
 });
