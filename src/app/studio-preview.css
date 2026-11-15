@@ -177,6 +177,12 @@ html.dark {
     color: var(--text-secondary);
     font-size: 12px;
   }
+  .image-workspace-desktop .workspace-library-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .image-workspace-desktop .workspace-focus-trigger,
   .image-workspace-desktop .workspace-library-trigger {
     display: inline-flex;
     min-height: 36px;
@@ -188,8 +194,17 @@ html.dark {
     background: var(--bg-elevated);
     color: var(--text-secondary);
   }
+  .image-workspace-desktop .workspace-focus-trigger {
+    border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+    background: color-mix(in srgb, var(--accent-surface) 72%, var(--bg-elevated));
+    color: var(--accent);
+  }
+  .image-workspace-desktop .workspace-focus-trigger:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-canvas {
-    padding: 8px;
+    padding: 6px;
     background: var(--bg-root);
     container-type: size;
   }
@@ -198,15 +213,49 @@ html.dark {
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single {
     width: 100%;
+    height: 100%;
     justify-items: center;
     margin: auto;
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card {
-    width: min(100%, max(160px, calc((100cqh - 56px) * var(--result-aspect, 1))));
+    position: relative;
+    width: min(100%, max(160px, calc(100cqh * var(--result-aspect, 1))));
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: var(--result-aspect, 1);
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image-button {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image {
+    width: 100%;
+    height: 100%;
     max-width: 100%;
   }
-  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image { width: 100%; max-width: 100%; }
-  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image img { width: 100%; max-width: 100%; }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card-footer {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    left: 6px;
+    z-index: 2;
+    border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+    box-shadow: 0 6px 20px rgb(37 24 16 / 16%);
+    backdrop-filter: blur(14px);
+  }
   .image-workspace-desktop .result-card-copy { overflow: hidden; }
   .image-workspace-desktop .result-prompt { display: block; max-width: 100%; }
   .image-workspace-desktop .result-card-footer { padding: 6px 8px; }
@@ -218,7 +267,7 @@ html.dark {
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image,
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image img {
-    max-height: max(100px, calc(100cqh - 56px)) !important;
+    max-height: 100% !important;
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .creation-panel__header {
     grid-column: 1 / 3; grid-row: 2;

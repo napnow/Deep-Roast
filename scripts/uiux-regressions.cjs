@@ -36,6 +36,7 @@ window.__setUser = (id) => {
   useDeepRoastStore.getState().setConfig({imageModel:'gpt-image-2',imageGenerationEnabled:true,imageModelCosts:{'gpt-image-2':12},reversePromptModel:'synthetic-vision'});
   useDeepRoastStore.getState().setImageModels([{id:'gpt-image-2',name:'GPT Image 2'}]);
   useDeepRoastStore.getState().setSelectedImageModel('gpt-image-2');
+  useDeepRoastStore.getState().setImageCreationMode('text');
 };
 window.__setUser('A');
 function App() {
@@ -87,12 +88,27 @@ async function build() {
     format: "iife",
     jsx: "automatic",
     outfile: path.join(__dirname, "in-memory-only.js"),
-    define: { "process.env.NODE_ENV": '"development"' },
+    define: {
+      process: '{"env":{"NODE_ENV":"development"}}',
+      "process.env.NODE_ENV": '"development"',
+    },
     logLevel: "silent",
     plugins: [
       {
         name: "read-pinned-git-source",
         setup(build) {
+          build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+            path: "next-navigation",
+            namespace: "test-stub",
+          }));
+          build.onLoad(
+            { filter: /^next-navigation$/, namespace: "test-stub" },
+            () => ({
+              contents:
+                "export const useRouter = () => ({ push(){}, replace(){}, refresh(){} }); export const usePathname = () => '/'; export const useSearchParams = () => new URLSearchParams();",
+              loader: "js",
+            }),
+          );
           build.onResolve({ filter: /^@\// }, (args) => {
             const file = resolvePinned("src/" + args.path.slice(2));
             if (!file) throw new Error("Missing pinned source " + args.path);
@@ -124,10 +140,10 @@ async function build() {
       },
     ],
   });
-  const rawCss = fs.readFileSync(
-    path.join(REPO, "src/app/globals.css"),
-    "utf8",
-  );
+  const rawCss = [
+    fs.readFileSync(path.join(REPO, "src/app/globals.css"), "utf8"),
+    fs.readFileSync(path.join(REPO, "src/app/studio-preview.css"), "utf8"),
+  ].join("\n");
   const compiled = await tailwind.compile(rawCss, {
     base: REPO,
     onDependency: () => {},
@@ -188,7 +204,7 @@ async function run() {
     const page = await context.newPage();
     page.setDefaultTimeout(5000);
     const errors = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("pageerror", (e) => errors.push(e.stack || e.message));
     try {
       await page.setContent(
         '<!doctype html><html><head></head><body><div id="root"></div></body></html>',
@@ -274,7 +290,7 @@ async function run() {
           .getByRole("button", { name: /^\u53cd\u63a8/ })
           .click();
         await page
-          .locator(".mobile-creation-sheet input[type=file]")
+          .locator(".mobile-creation-sheet input[type=file]:not([multiple])")
           .setInputFiles({
             name: "synthetic.png",
             mimeType: "image/png",
@@ -422,7 +438,7 @@ async function run() {
   await check("password-html-labels-and-escape", "head", 1440, async (page) => {
     await page.locator("#password-opener").click();
     const labels = await page
-      .locator("dialog label")
+      .locator("dialog[open] label")
       .evaluateAll((labels) =>
         labels.map((label) => ({
           text: label.textContent,
@@ -430,9 +446,9 @@ async function run() {
           controlType: label.control?.type,
         })),
       );
-    await page.locator("dialog label").first().click();
+    await page.locator("dialog[open] label").first().click();
     const fieldFocused = await page
-      .locator("dialog input")
+      .locator("dialog[open] input")
       .first()
       .evaluate((e) => document.activeElement === e);
     await page.keyboard.press("Escape");
@@ -459,6 +475,77 @@ async function run() {
       return metrics;
     });
   }
+  await check(
+    "desktop-single-result-keeps-composer-and-uses-canvas-height",
+    "head",
+    1440,
+    async (page) => {
+      const focusButton = page.locator(".workspace-focus-trigger");
+      const focusDiagnostics = await page.evaluate(() => ({
+        buttonCount: document.querySelectorAll(".workspace-focus-trigger").length,
+        headerVisible: Boolean(
+          document.querySelector(".workspace-library-bar")?.getClientRects().length,
+        ),
+        cardCount: document.querySelectorAll(".result-card").length,
+        canvasText: document.querySelector(".result-canvas")?.textContent?.slice(0, 120),
+        workspaceDisplay: getComputedStyle(
+          document.querySelector(".image-workspace-desktop"),
+        ).display,
+        headerDisplay: getComputedStyle(
+          document.querySelector(".workspace-library-bar"),
+        ).display,
+        tabs: Array.from(
+          document.querySelectorAll(".creation-mode-tabs button"),
+          (button) => ({
+            text: button.textContent?.trim(),
+            selected: button.getAttribute("aria-selected"),
+          }),
+        ),
+      }));
+      assert.equal(
+        await focusButton.count(),
+        1,
+        JSON.stringify(focusDiagnostics),
+      );
+      assert.equal(
+        await focusButton.isVisible(),
+        true,
+        JSON.stringify(focusDiagnostics),
+      );
+
+      const metrics = await page.evaluate(() => {
+        const canvas = document.querySelector(".result-canvas");
+        const card = document.querySelector(".result-grid.is-single .result-card");
+        const footer = document.querySelector(
+          ".result-grid.is-single .result-card-footer",
+        );
+        const composer = document.querySelector(".creation-form > section");
+        if (!canvas || !card || !footer || !composer) return null;
+        const canvasBox = canvas.getBoundingClientRect();
+        const cardBox = card.getBoundingClientRect();
+        return {
+          canvasWidth: canvasBox.width,
+          canvasHeight: canvasBox.height,
+          cardWidth: cardBox.width,
+          cardHeight: cardBox.height,
+          footerOverlaysImage:
+            getComputedStyle(footer).position === "absolute",
+          composerVisible: Boolean(composer.getClientRects().length),
+        };
+      });
+
+      assert.ok(metrics);
+      assert.ok(metrics.cardWidth >= metrics.canvasHeight * 0.88);
+      assert.equal(metrics.footerOverlaysImage, true);
+      assert.equal(metrics.composerVisible, true);
+      fs.mkdirSync(OUTPUT, { recursive: true });
+      await page.screenshot({
+        path: path.join(OUTPUT, "desktop-single-result-focus.png"),
+        fullPage: true,
+      });
+      return metrics;
+    },
+  );
   await check("shared-draft-and-style", "head", 390, async (page) => {
     await expandMobileComposer(page);
     await page.locator(".mobile-composer-input textarea").fill("Shared draft");

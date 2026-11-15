@@ -1,4 +1,5 @@
-import { initiateImageDownload } from "@/lib/browser-actions";
+import { BrowserActionError, initiateImageBlobDownload, initiateImageDownload } from "@/lib/browser-actions";
+import { getSessionImage } from "@/lib/image-transfer";
 import { getImageSizeOptions } from "@/lib/image-model-capabilities";
 import type { ImageRecord } from "@/types";
 
@@ -71,7 +72,25 @@ export function compressImageFile(
   });
 }
 
+export function imageDownloadUrl(url: string): string | null {
+  if (!/^\/api\/images\/[a-zA-Z0-9._-]+(?:\?|$)/.test(url)) return null;
+  const parsed = new URL(url, "https://local.invalid");
+  parsed.searchParams.delete("thumb");
+  parsed.searchParams.set("download", "check");
+  return parsed.pathname + parsed.search;
+}
+
 export async function downloadImage(image: ImageRecord, signal?: AbortSignal) {
+  const attachmentUrl = imageDownloadUrl(image.imageUrl);
+  if (attachmentUrl) {
+    signal?.throwIfAborted();
+    const check = await fetch(attachmentUrl, { signal });
+    if (!check.ok) throw new BrowserActionError(check.status === 401 || check.status === 403 ? "下载未完成，请确认登录状态和图片权限。" : "图片暂时无法下载，请稍后重试。");
+    signal?.throwIfAborted();
+    const blob = await getSessionImage(image.imageUrl, signal);
+    await initiateImageBlobDownload(blob, `DeepRoast-${image.id.slice(0, 8)}.png`, signal);
+    return;
+  }
   await initiateImageDownload(
     image.imageUrl,
     `DeepRoast-${image.id.slice(0, 8)}.png`,

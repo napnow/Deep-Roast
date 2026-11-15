@@ -132,6 +132,7 @@ export default function ResultCanvas({
           <ResultCard
             key={image.id}
             image={image}
+            loadFull={visibleResults.length === 1}
             lastGenTime={lastGenTime}
             onPreview={onPreview}
             onContinueEditing={onContinueEditing}
@@ -145,12 +146,14 @@ export default function ResultCanvas({
 
 function ResultCard({
   image,
+  loadFull,
   lastGenTime,
   onPreview,
   onContinueEditing,
   onClose,
 }: {
   image: ImageRecord;
+  loadFull: boolean;
   lastGenTime: number | null;
   onPreview: (item: ImageRecord) => void;
   onContinueEditing: (item: ImageRecord) => void;
@@ -180,7 +183,7 @@ function ResultCard({
         onClick={() => onPreview(image)}
         aria-label="查看大图"
       >
-        <SmartResultImage record={image} className="result-image" />
+        <SmartResultImage record={image} className="result-image" loadFull={loadFull} />
       </button>
       <footer
         className={`result-card-footer ${expanded ? "is-expanded" : ""}`}

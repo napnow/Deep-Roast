@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { readFile } from "node:fs/promises";
+import { open, readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/db";
 import { imageGenerations } from "@/db/schema";
@@ -10,6 +10,7 @@ import {
   type RequestUser,
 } from "@/server/auth";
 import { ApiError, handleRoute } from "@/server/http";
+import { imageResponse } from "@/server/services/image-response";
 import {
   assertLegacyImageKey,
   assertStorageKey,
@@ -20,12 +21,6 @@ import {
 } from "@/server/services/private-images";
 
 type Ctx = { params: Promise<{ key: string }> };
-
-function imageContentType(key: string): string {
-  if (/\.jpe?g$/i.test(key)) return "image/jpeg";
-  if (/\.webp$/i.test(key)) return "image/webp";
-  return "image/png";
-}
 
 async function resolveUser(req: Request): Promise<RequestUser> {
   if (req.headers.get("authorization")) return requireApiUser(req);
@@ -115,23 +110,34 @@ export const GET = handleRoute(async (req, ctx: Ctx) => {
         useThumb ? key.replace(/\.(png|jpe?g)$/i, ".webp") : key,
       );
 
+  const download = url.searchParams.get("download");
+  if (download === "check" && !useThumb) {
+    let handle;
+    try {
+      handle = await open(filePath, "r");
+      const header = Buffer.alloc(12);
+      const { bytesRead } = await handle.read(header, 0, header.length, 0);
+      return imageResponse(header.subarray(0, bytesRead), key, false, true, true);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("Image not found", 404, "IMAGE_NOT_FOUND");
+    } finally {
+      await handle?.close();
+    }
+  }
+
   let body: Buffer;
+  let servedThumb = useThumb;
   try {
     body = await readFile(filePath);
   } catch {
     if (record && useThumb) {
       body = await readFile(privateImagePath(privateImageRoot(), key));
+      servedThumb = false;
     } else {
       throw new ApiError("Image not found", 404, "IMAGE_NOT_FOUND");
     }
   }
 
-  return new Response(new Uint8Array(body), {
-    status: 200,
-    headers: {
-      "Content-Type": useThumb ? "image/webp" : imageContentType(key),
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return imageResponse(body, key, servedThumb, false);
 });
