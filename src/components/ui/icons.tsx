@@ -20,6 +20,7 @@ export type AppIconName =
   | "user"
   | "refresh"
   | "close"
+  | "maximize"
   | "chevron-down"
   | "arrow-left"
   | "trash"
@@ -124,6 +125,11 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
       </>
     ),
     close: <path d="m6 6 12 12M18 6 6 18" />,
+    maximize: (
+      <>
+        <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+      </>
+    ),
     "chevron-down": <path d="m6 9 6 6 6-6" />,
     "arrow-left": <path d="m15 18-6-6 6-6M9 12h11" />,
     trash: (

@@ -237,6 +237,7 @@ export default function ImageGenView({
   const taskResults = imageTask.resultIds
     .map((id) => history.find((item) => item.id === id))
     .filter((item): item is ImageRecord => Boolean(item));
+  const focusImage = activeImage ?? taskResults[0] ?? null;
 
   return (
     <div className="flex-1 flex flex-col min-h-0 min-w-0">
@@ -277,14 +278,26 @@ export default function ImageGenView({
         <div className="image-result-workspace">
           <div className="workspace-library-bar">
             <span>当前画布</span>
-            <button
-              type="button"
-              className="workspace-library-trigger"
-              onClick={() => setLibraryOpen(true)}
-            >
-              <AppIcon name="history" size={15} />
-              作品库 <span>{history.length}</span>
-            </button>
+            <div className="workspace-library-actions">
+              {focusImage && (
+                <button
+                  type="button"
+                  className="workspace-focus-trigger"
+                  onClick={() => setPreviewImage(focusImage)}
+                >
+                  <AppIcon name="maximize" size={15} />
+                  专注画布
+                </button>
+              )}
+              <button
+                type="button"
+                className="workspace-library-trigger"
+                onClick={() => setLibraryOpen(true)}
+              >
+                <AppIcon name="history" size={15} />
+                作品库 <span>{history.length}</span>
+              </button>
+            </div>
           </div>
           <ResultCanvas
             task={imageTask}
