@@ -175,8 +175,9 @@ function ResultCard({
     );
   };
 
+  const aspect = resultAspectRatio(image.size) ?? 1;
   return (
-    <article className="result-card" style={{ "--result-aspect": resultAspectRatio(image.size) ?? 1 } as CSSProperties}>
+    <article className={`result-card ${aspect < 1 ? "is-portrait" : ""}`} style={{ "--result-aspect": aspect } as CSSProperties}>
       <button
         type="button"
         className="result-image-button"

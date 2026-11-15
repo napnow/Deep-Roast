@@ -27,6 +27,8 @@ export default function ImagePreviewModal({
   const copy = useActionFeedback(`${image?.id || ""}:copy`);
   const download = useActionFeedback(`${image?.id || ""}:download`);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [originalFailed, setOriginalFailed] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   if (!image) return null;
 
@@ -78,8 +80,11 @@ export default function ImagePreviewModal({
             className="preview-image-container"
           >
             <SmartResultImage
+              key={image.id}
               record={image}
               className="preview-progressive-image"
+              retryToken={retryToken}
+              onOriginalErrorChange={setOriginalFailed}
             />
           </div>
         </div>
@@ -90,6 +95,17 @@ export default function ImagePreviewModal({
           style={{ background: "rgba(0,0,0,0.35)" }}
           onClick={(e) => e.stopPropagation()}
         >
+          {originalFailed && (
+            <div className="image-preview-load-error">
+              <span role="status">原图加载失败，请检查网络后重试。</span>
+              <button type="button" onClick={(event) => {
+                event.currentTarget.closest("dialog")?.focus({ preventScroll: true });
+                setRetryToken((value) => value + 1);
+              }}>
+                重新加载原图
+              </button>
+            </div>
+          )}
           <p
             className="text-[12px] leading-relaxed max-h-16 overflow-y-auto"
             style={{ color: "rgba(245,230,211,0.85)" }}

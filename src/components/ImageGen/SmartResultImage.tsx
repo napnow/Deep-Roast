@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ImageRecord } from "@/types";
-import { getSessionImage } from "@/lib/image-transfer";
+import { discardSessionImage, getSessionImage } from "@/lib/image-transfer";
 import { useDeepRoastStore } from "@/lib/store";
 
 /**
@@ -16,11 +16,15 @@ export default function SmartResultImage({
   className,
   style,
   loadFull = true,
+  retryToken = 0,
+  onOriginalErrorChange,
 }: {
   record: ImageRecord;
   className?: string;
   style?: React.CSSProperties;
   loadFull?: boolean;
+  retryToken?: number;
+  onOriginalErrorChange?: (failed: boolean) => void;
 }) {
   const [showFull, setShowFull] = useState(false);
   const [fullUrl, setFullUrl] = useState<string | null>(null);
@@ -35,6 +39,7 @@ export default function SmartResultImage({
   useEffect(() => {
     setShowFull(false);
     setFullUrl(null);
+    onOriginalErrorChange?.(false);
     if (!loadFull || !hasThumb) return;
     if (!protectedImage) { setFullUrl(record.imageUrl); return; }
     let active = true;
@@ -47,14 +52,14 @@ export default function SmartResultImage({
         setFullUrl(objectUrl);
       })
       .catch(() => {
-        // Keep the thumbnail visible if the original fails.
+        if (active && !controller.signal.aborted) onOriginalErrorChange?.(true);
       });
     return () => {
       active = false;
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [record.imageUrl, loadFull, protectedImage, hasThumb, sessionVersion]);
+  }, [record.imageUrl, loadFull, protectedImage, hasThumb, sessionVersion, retryToken, onOriginalErrorChange]);
 
   useEffect(() => {
     // 原图加载完成后再替换
@@ -67,7 +72,7 @@ export default function SmartResultImage({
     const onLoad = () => setShowFull(true);
     img.addEventListener("load", onLoad);
     return () => img.removeEventListener("load", onLoad);
-  }, [record.imageUrl, loadFull, fullUrl]);
+  }, [record.imageUrl, loadFull, fullUrl, retryToken]);
 
   return (
     <div
@@ -78,8 +83,11 @@ export default function SmartResultImage({
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            key={hasThumb ? "thumbnail" : retryToken}
             src={thumb}
             alt={record.prompt}
+            onError={() => { if (loadFull && !hasThumb) onOriginalErrorChange?.(true); }}
+            onLoad={() => { if (loadFull && !hasThumb) onOriginalErrorChange?.(false); }}
             className="w-full max-h-[60vh] object-contain"
             style={{
               transition: "opacity 0.3s ease",
@@ -93,8 +101,14 @@ export default function SmartResultImage({
       {loadFull && fullUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          key={retryToken}
           ref={fullRef}
           src={fullUrl}
+          onError={() => {
+            if (protectedImage) discardSessionImage(record.imageUrl);
+            onOriginalErrorChange?.(true);
+          }}
+          onLoad={() => onOriginalErrorChange?.(false)}
           alt=""
           aria-hidden
           className="absolute inset-0 w-full h-full max-h-[60vh] object-contain"

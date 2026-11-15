@@ -42,10 +42,11 @@ window.__setUser('A');
 function App() {
   const state = useDeepRoastStore();
   const [active,setActive] = useState(fixture);
+  window.__setImageSize = (size) => setActive({...fixture, size});
   const [pw,setPw] = useState(false);
   return <div style={{height:'100dvh',display:'flex',flexDirection:'column'}}>
     <button type="button" id="password-opener" onClick={()=>setPw(true)}>Password test</button>
-    <ImageGenView model="gpt-image-2" generating={state.generating} history={[fixture]} activeImage={active}
+    <ImageGenView model="gpt-image-2" generating={state.generating} history={[active ?? fixture]} activeImage={active}
       onActiveImageChange={setActive} onGenerate={(...args)=>window.__calls.push(['generate',...args])}
       onEditImage={(...args)=>window.__calls.push(['edit',...args])} onEditImageBatch={(...args)=>window.__calls.push(['editBatch',...args])}
       onStopGenerate={()=>window.__calls.push(['stop'])} onRetryGenerate={()=>{}}
@@ -546,6 +547,48 @@ async function run() {
       return metrics;
     },
   );
+  await check("portrait-result-controls-do-not-cover-image", "head", 1440, async (page) => {
+    await page.evaluate(() => window.__setImageSize('576x1024'));
+    const card = page.locator('.image-workspace-desktop .result-grid.is-single .result-card');
+    const footer = card.locator('.result-card-footer');
+    const imageBox = await card.locator('.result-image-button').boundingBox();
+    const footerBox = await footer.boundingBox();
+    assert.ok(imageBox && footerBox);
+    assert.ok(footerBox.x >= imageBox.x + imageBox.width, 'portrait controls should be beside the image');
+    assert.equal(await page.locator('.creation-form > section').first().isVisible(), true);
+    await page.screenshot({ path: path.join(OUTPUT, 'desktop-portrait-result.png'), fullPage: true });
+    return { imageBox, footerBox };
+  });
+  for (const [width, height] of [[1024, 900], [1440, 900], [1920, 900], [1024, 1400], [1024, 500]]) {
+    await check(`desktop-aspect-ratios-${width}x${height}`, "head", width, async (page) => {
+      await page.setViewportSize({width, height});
+      const sizes = ['1024x1024', '576x1024', '1024x576', '768x1024', '1024x768', '256x1024', '1024x256'];
+      const measurements = [];
+      for (const size of sizes) {
+        await page.evaluate((value) => window.__setImageSize(value), size);
+        const card = page.locator('.image-workspace-desktop .result-grid.is-single .result-card');
+        await card.locator('.result-meta').waitFor();
+        await page.waitForTimeout(40);
+        const canvasBox = await page.locator('.image-workspace-desktop .result-canvas').boundingBox();
+        const imageBox = await card.locator('.result-image-button').boundingBox();
+        const cardBox = await card.boundingBox();
+        const footerBox = await card.locator('.result-card-footer').boundingBox();
+        assert.ok(canvasBox && imageBox && footerBox && cardBox);
+        const [w, h] = size.split('x').map(Number);
+        assert.ok(Math.abs(cardBox.width / cardBox.height - w / h) / (w / h) < 0.02, `${size}: wrong displayed proportion (${cardBox.width}x${cardBox.height})`);
+        if (height === 500 && size === '1024x1024') {
+          const centerTargetsImage = await page.evaluate(({x, y}) => Boolean(document.elementFromPoint(x, y)?.closest('.result-image-button')), {x: imageBox.x + imageBox.width / 2, y: imageBox.y + imageBox.height / 2});
+          assert.ok(centerTargetsImage, 'image center must open preview');
+        }
+        for (const [name, box] of [['image', imageBox], ['controls', footerBox]]) {
+          assert.ok(box.x >= canvasBox.x - 1 && box.x + box.width <= canvasBox.x + canvasBox.width + 1, `${size}: ${name} outside canvas horizontally`);
+          assert.ok(box.y >= canvasBox.y - 1 && box.y + box.height <= canvasBox.y + canvasBox.height + 1, `${size}: ${name} outside canvas vertically`);
+        }
+        measurements.push({ size, imageBox, footerBox });
+      }
+      return measurements;
+    });
+  }
   await check("shared-draft-and-style", "head", 390, async (page) => {
     await expandMobileComposer(page);
     await page.locator(".mobile-composer-input textarea").fill("Shared draft");

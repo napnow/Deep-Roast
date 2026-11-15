@@ -219,9 +219,11 @@ html.dark {
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card {
     position: relative;
-    width: min(100%, max(160px, calc(100cqh * var(--result-aspect, 1))));
+    align-self: center;
+    width: min(100%, calc(100cqh * var(--result-aspect, 1)));
     max-width: 100%;
     max-height: 100%;
+    min-height: 0;
     aspect-ratio: var(--result-aspect, 1);
   }
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image-button {
@@ -257,6 +259,58 @@ html.dark {
     backdrop-filter: blur(14px);
   }
   .image-workspace-desktop .result-card-copy { overflow: hidden; }
+  @container (min-width: 600px) {
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card.is-portrait {
+      overflow: visible;
+      width: min(calc(100cqh * var(--result-aspect, 1)), calc(100cqw - 202px));
+      transform: translateX(-100px);
+    }
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card.is-portrait .result-image-button {
+      overflow: hidden;
+      border-radius: inherit;
+    }
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card.is-portrait .result-card-footer {
+      left: calc(100% + 12px);
+      right: auto;
+      bottom: 0;
+      width: 190px;
+      max-height: 100cqh;
+      overflow-y: auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px;
+    }
+    .image-workspace-desktop .result-card.is-portrait .result-card-copy {
+      display: block;
+    }
+    .image-workspace-desktop .result-card.is-portrait .result-card-copy .result-meta {
+      margin-top: 6px;
+    }
+  }
+  @container (min-width: 600px) and (max-height: 160px) {
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card {
+      overflow: visible;
+      width: min(calc(100cqh * var(--result-aspect, 1)), calc(100cqw - 202px));
+      transform: translateX(-100px);
+    }
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-image-button {
+      overflow: hidden;
+      border-radius: inherit;
+    }
+    .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card-footer {
+      left: calc(100% + 12px);
+      right: auto;
+      bottom: 0;
+      width: 190px;
+      max-height: 100cqh;
+      overflow-y: auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px;
+    }
+  }
   .image-workspace-desktop .result-prompt { display: block; max-width: 100%; }
   .image-workspace-desktop .result-card-footer { padding: 6px 8px; }
   .image-workspace-desktop .result-card-copy { display: flex; align-items: center; gap: 8px; }

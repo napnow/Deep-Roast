@@ -57,6 +57,12 @@ export function createImageTransfer(request: typeof fetch = fetch) {
     inFlight.clear();
     currentEpoch = null;
   }
+  function discard(url: string) {
+    if (cached?.url !== url) return;
+    cached = null;
+    if (expiry) clearTimeout(expiry);
+    expiry = null;
+  }
   function consume(url: string, entry: Entry, signal?: AbortSignal): Promise<Blob> {
     if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
     entry.consumers++;
@@ -117,10 +123,13 @@ export function createImageTransfer(request: typeof fetch = fetch) {
     inFlight.set(url, current);
     return consume(url, current, signal);
   }
-  return { get, clear };
+  return { get, clear, discard };
 }
 
 const transfer = createImageTransfer();
+export function discardSessionImage(url: string) {
+  transfer.discard(url);
+}
 let subscribed = false;
 export function getSessionImage(url: string, signal?: AbortSignal): Promise<Blob> {
   if (!subscribed) {
