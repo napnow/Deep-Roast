@@ -17,7 +17,7 @@
     "build": "node scripts/check-build-memory.cjs && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test --test-concurrency=2 \"src/**/*.test.ts\"",
+    "test": "node --import tsx --test --test-concurrency=2 \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-database.cjs",
     "db:migrate-channel-keys": "tsx scripts/migrate-model-channel-keys.ts",

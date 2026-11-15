@@ -24,6 +24,10 @@ export async function initiateImageDownload(
         : "图片暂时无法下载，请稍后重试。",
     );
   const blob = await response.blob();
+  await initiateImageBlobDownload(blob, filename, signal);
+}
+
+export async function initiateImageBlobDownload(blob: Blob, filename: string, signal?: AbortSignal): Promise<void> {
   if (!blob.size || !blob.type.toLowerCase().startsWith("image/"))
     throw new BrowserActionError(
       "返回的内容不是有效图片，未保存文件，请稍后重试。",

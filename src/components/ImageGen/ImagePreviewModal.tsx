@@ -8,6 +8,7 @@ import type { ImageRecord } from "@/types";
 import { downloadImage } from "./imageUtils";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Dialog from "@/components/ui/Dialog";
+import SmartResultImage from "./SmartResultImage";
 
 interface ImagePreviewModalProps {
   image: ImageRecord | null;
@@ -72,13 +73,15 @@ export default function ImagePreviewModal({
 
         {/* 大图 */}
         <div className="image-preview-modal__stage flex-1 min-h-0 flex items-center justify-center p-3 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={image.imageUrl}
-            alt={image.prompt}
-            className="max-w-full max-h-full object-contain rounded-lg"
+          <div
             onClick={(e) => e.stopPropagation()}
-          />
+            className="preview-image-container"
+          >
+            <SmartResultImage
+              record={image}
+              className="preview-progressive-image"
+            />
+          </div>
         </div>
 
         {/* 底部操作区 */}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Standalone local browser regression CLI. */
 const fs = require("node:fs");
 const path = require("node:path");
 const assert = require("node:assert/strict");
@@ -106,9 +105,10 @@ async function build() {
 async function run() {
   fs.mkdirSync(OUTPUT, { recursive: true });
   const bundle = await build();
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || process.env.BROWSER_EXECUTABLE;
   const browser = await chromium.launch({
     headless: true,
-    executablePath: process.env.BROWSER_EXECUTABLE,
+    ...(executablePath ? { executablePath } : {}),
   });
   const results = [];
   async function check(name, fn, width = 1024) {
