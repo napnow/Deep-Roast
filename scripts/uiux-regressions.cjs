@@ -43,6 +43,7 @@ function App() {
   const state = useDeepRoastStore();
   const [active,setActive] = useState(fixture);
   window.__setImageSize = (size) => setActive({...fixture, size});
+  window.__setImagePrompt = (prompt) => setActive({...fixture, prompt});
   const [pw,setPw] = useState(false);
   return <div style={{height:'100dvh',display:'flex',flexDirection:'column'}}>
     <button type="button" id="password-opener" onClick={()=>setPw(true)}>Password test</button>
@@ -536,8 +537,7 @@ async function run() {
       });
 
       assert.ok(metrics);
-      assert.ok(metrics.cardWidth >= metrics.canvasHeight * 0.88);
-      assert.equal(metrics.footerOverlaysImage, true);
+      assert.equal(metrics.footerOverlaysImage, false);
       assert.equal(metrics.composerVisible, true);
       fs.mkdirSync(OUTPUT, { recursive: true });
       await page.screenshot({
@@ -554,10 +554,42 @@ async function run() {
     const imageBox = await card.locator('.result-image-button').boundingBox();
     const footerBox = await footer.boundingBox();
     assert.ok(imageBox && footerBox);
-    assert.ok(footerBox.x >= imageBox.x + imageBox.width, 'portrait controls should be beside the image');
+    assert.ok(footerBox.y >= imageBox.y + imageBox.height - 1, 'portrait controls should be below the image');
     assert.equal(await page.locator('.creation-form > section').first().isVisible(), true);
     await page.screenshot({ path: path.join(OUTPUT, 'desktop-portrait-result.png'), fullPage: true });
     return { imageBox, footerBox };
+  });
+  await check("desktop-expanded-prompt-keeps-art-in-canvas", "head", 1024, async (page) => {
+    await page.setViewportSize({width: 1024, height: 500});
+    await page.evaluate(() => window.__setImageSize('576x1024'));
+    const card = page.locator('.image-workspace-desktop .result-grid.is-single .result-card');
+    await card.locator('.result-prompt').click();
+    const image = await card.locator('.result-image-button').boundingBox();
+    const canvas = await page.locator('.image-workspace-desktop .result-canvas').boundingBox();
+    const footer = await card.locator('.result-card-footer').boundingBox();
+    assert.ok(image && canvas && footer);
+    assert.ok(image.y >= canvas.y - 1 && image.y + image.height <= canvas.y + canvas.height + 1);
+    assert.ok(footer.y >= image.y + image.height - 1 && footer.y + footer.height <= canvas.y + canvas.height + 1);
+    return { image, footer };
+  });
+  await check("desktop-expanded-long-prompt-and-dark-contrast", "head", 1440, async (page) => {
+    await page.evaluate(() => {
+      document.documentElement.classList.add('dark');
+      window.__setImagePrompt(Array.from({length: 30}, (_, i) => `Line ${i + 1}: detailed image prompt`).join('\n'));
+    });
+    const card = page.locator('.image-workspace-desktop .result-grid.is-single .result-card');
+    const prompt = card.locator('.result-prompt');
+    await prompt.click();
+    await page.waitForTimeout(400);
+    const details = await prompt.evaluate(el => ({height: el.clientHeight, scrollHeight: el.scrollHeight}));
+    const footer = await card.locator('.result-card-footer').boundingBox();
+    const action = card.locator('.result-actions button').first();
+    const button = await action.boundingBox();
+    const colors = await action.evaluate(el => ({color: getComputedStyle(el).color, expected: getComputedStyle(el).getPropertyValue('--accent-on').trim()}));
+    assert.ok(details.height >= 60 && details.scrollHeight > details.height, JSON.stringify(details));
+    assert.ok(button && footer && button.y >= footer.y - 1 && button.y + button.height <= footer.y + footer.height + 1);
+    assert.notEqual(colors.color, 'rgb(255, 255, 255)', JSON.stringify(colors));
+    return {details, colors};
   });
   for (const [width, height] of [[1024, 900], [1440, 900], [1920, 900], [1024, 1400], [1024, 500]]) {
     await check(`desktop-aspect-ratios-${width}x${height}`, "head", width, async (page) => {
@@ -575,7 +607,14 @@ async function run() {
         const footerBox = await card.locator('.result-card-footer').boundingBox();
         assert.ok(canvasBox && imageBox && footerBox && cardBox);
         const [w, h] = size.split('x').map(Number);
-        assert.ok(Math.abs(cardBox.width / cardBox.height - w / h) / (w / h) < 0.02, `${size}: wrong displayed proportion (${cardBox.width}x${cardBox.height})`);
+        assert.ok(Math.abs(imageBox.width / imageBox.height - w / h) / (w / h) < 0.02, `${size}: wrong displayed proportion (${imageBox.width}x${imageBox.height})`);
+        assert.ok(footerBox.y >= imageBox.y + imageBox.height - 1, `${size}: controls overlap the image`);
+        for (const button of await card.locator('.result-actions button').all()) {
+          const buttonBox = await button.boundingBox();
+          assert.ok(buttonBox && buttonBox.x >= footerBox.x - 1 && buttonBox.x + buttonBox.width <= footerBox.x + footerBox.width + 1, `${size}: action clipped horizontally`);
+          assert.ok(buttonBox.y >= footerBox.y - 1 && buttonBox.y + buttonBox.height <= footerBox.y + footerBox.height + 1, `${size}: action clipped vertically`);
+        }
+
         if (height === 500 && size === '1024x1024') {
           const centerTargetsImage = await page.evaluate(({x, y}) => Boolean(document.elementFromPoint(x, y)?.closest('.result-image-button')), {x: imageBox.x + imageBox.width / 2, y: imageBox.y + imageBox.height / 2});
           assert.ok(centerTargetsImage, 'image center must open preview');
