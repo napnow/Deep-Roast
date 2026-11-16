@@ -213,6 +213,7 @@ function ResultCard({
             title="继续修改"
           >
             <AppIcon name="edit" />
+            <span className="result-continue-label">继续修改</span>
           </button>
           <button
             type="button"

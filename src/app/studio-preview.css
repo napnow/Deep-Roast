@@ -1,3 +1,4 @@
+.result-continue-label { display: none; }
 /* This file is imported after Tailwind; the workspace rules are in a layer-free
    stylesheet and scoped to the image workspace so chat remains familiar. */
 :root {
@@ -311,6 +312,79 @@ html.dark {
       padding: 12px;
     }
   }
+  /* Single results use a separate toolbar, keeping the artwork unobstructed. */
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card:is(.is-portrait, :not(.is-portrait)) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: auto;
+    overflow: visible;
+    transform: none;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card:is(.is-portrait, :not(.is-portrait)) .result-image-button {
+    position: static;
+    flex: none;
+    width: min(100%, calc(max(1px, 100cqh - 58px) * var(--result-aspect, 1)));
+    height: auto;
+    aspect-ratio: var(--result-aspect, 1);
+    overflow: hidden;
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card:is(.is-portrait, :not(.is-portrait)) .result-card-footer {
+    position: static;
+    flex: none;
+    width: max-content;
+    max-width: 100%;
+    max-height: 50px;
+    overflow: hidden;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--bg-elevated);
+    backdrop-filter: none;
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card:is(.is-portrait, :not(.is-portrait)):has(.result-card-footer.is-expanded) .result-image-button {
+    width: min(100%, calc(max(1px, 100cqh - min(140px, 45cqh) - 8px) * var(--result-aspect, 1)));
+  }
+  .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(-n+3)[aria-selected="true"]) .result-grid.is-single .result-card:is(.is-portrait, :not(.is-portrait)) .result-card-footer.is-expanded {
+    width: min(100%, 620px);
+    height: min(140px, 45cqh);
+    max-height: min(140px, 45cqh);
+    overflow: hidden;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .image-workspace-desktop .result-grid.is-single .result-card-footer.is-expanded .result-card-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    height: 100%;
+    overflow: hidden;
+  }
+  .image-workspace-desktop .result-grid.is-single .result-card-footer.is-expanded .result-prompt {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+  .image-workspace-desktop .result-grid.is-single .result-card-copy { max-width: 180px; }
+  .image-workspace-desktop .result-grid.is-single .result-actions .icon-button:first-child {
+    width: auto;
+    padding: 0 10px;
+    gap: 6px;
+    background: var(--accent);
+    color: var(--accent-on);
+  }
+  .image-workspace-desktop .result-grid.is-single .result-continue-label { display: inline; white-space: nowrap; }
+
   .image-workspace-desktop .result-prompt { display: block; max-width: 100%; }
   .image-workspace-desktop .result-card-footer { padding: 6px 8px; }
   .image-workspace-desktop .result-card-copy { display: flex; align-items: center; gap: 8px; }
