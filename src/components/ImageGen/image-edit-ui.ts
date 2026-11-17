@@ -1,3 +1,4 @@
+import type { DraftReference } from "@/lib/image-workspace";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
 export type ImageEditUiState =
@@ -21,7 +22,13 @@ export function buildImageEditRequest(
   images: string[],
   state: ImageEditUiState,
   sharedPrompt: string,
+  refs: DraftReference[] = [],
 ): ImageEditRequest {
+  // Metadata follows the actual selected input, never a stale index alone.
+  const sourceFor = (index: number) => {
+    const ref = refs[index];
+    return ref && (ref.base64 || ref.preview) === images[index] ? ref.sourceImageId : undefined;
+  };
   const prompt = sharedPrompt.trim();
 
   if (state.mode === "per-image") {
@@ -31,6 +38,7 @@ export function buildImageEditRequest(
         image,
         prompt: state.prompts[index]?.trim() || prompt,
         targetIndex: index,
+        ...(sourceFor(index) ? { sourceImageId: sourceFor(index) } : {}),
       })),
     };
   }
@@ -51,6 +59,7 @@ export function buildImageEditRequest(
     mode: "reference",
     targetImage: images[targetIndex] || "",
     targetIndex,
+    ...(sourceFor(targetIndex) ? { sourceImageId: sourceFor(targetIndex) } : {}),
     referenceImages,
     prompt: visiblePrompt,
   };

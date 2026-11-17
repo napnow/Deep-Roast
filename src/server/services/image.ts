@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { imageGenerations } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { getConfig } from "@/lib/config";
 import { mkdir, unlink, access, readFile, open, rename, chmod, type FileHandle } from "fs/promises";
 import path from "path";
@@ -47,6 +47,7 @@ import { providerIdempotencyKey } from "./request-idempotency";
 import { createImagePerformance, type ImagePerformance } from "./image-performance";
 import { imageConcurrency } from "./image-concurrency";
 import { imagePolicyError } from "./image-policy";
+import { resolveImageEditSource, snapshotImageEditSources } from "./image-edit-source";
 
 const MAX_PROMPT_LENGTH = 12000;
 
@@ -752,9 +753,12 @@ async function generateImageImpl(opts: {
       const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
+      const imageId = crypto.randomUUID();
       const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
+          id: imageId,
+          versionGroupId: imageId,
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
@@ -833,6 +837,8 @@ export type EditImageResult = {
   model: string;
   size: string;
   storageKey?: string;
+  sourceImageId?: string | null;
+  versionGroupId?: string;
 };
 
 /** 执行一次上游图像编辑请求并落盘一个结果。 */
@@ -865,6 +871,7 @@ async function editImageOnceImpl(opts: {
   queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
+  source?: { sourceImageId: string; versionGroupId: string } | null;
 }, perf: ImagePerformance): Promise<EditImageResult> {
   const {
     userId,
@@ -1002,9 +1009,13 @@ async function editImageOnceImpl(opts: {
       const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
 
+      const imageId = crypto.randomUUID();
       const [row] = await perf.measure("database", () => db
         .insert(imageGenerations)
         .values({
+          id: imageId,
+          sourceImageId: opts.source?.sourceImageId ?? null,
+          versionGroupId: opts.source?.versionGroupId ?? imageId,
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
@@ -1020,6 +1031,8 @@ async function editImageOnceImpl(opts: {
       );
       return {
         id: row.id,
+        sourceImageId: opts.source?.sourceImageId ?? null,
+        versionGroupId: opts.source?.versionGroupId ?? imageId,
         imageUrl: artifacts.imageUrl,
         thumbUrl: artifacts.thumbUrl,
         storageKey: artifacts.storageKey,
@@ -1133,6 +1146,21 @@ export async function runImageEditTasks(opts: {
   }
 
   const tasks = normalizeImageEditRequest(request, model);
+  // Resolve before charging or dispatching: never trust a client-supplied parent.
+  const resolvedSources = await Promise.all(tasks.map(task => resolveImageEditSource(
+    userId, task.sourceImageId, task.targetImage,
+    async (owner, id) => {
+      const [record] = await db.select({
+        id: imageGenerations.id,
+        userId: imageGenerations.userId,
+        imageUrl: imageGenerations.imageUrl,
+        storageKey: imageGenerations.storageKey,
+        versionGroupId: imageGenerations.versionGroupId,
+      }).from(imageGenerations).where(and(eq(imageGenerations.id, id), eq(imageGenerations.userId, owner))).limit(1);
+      return record;
+    },
+  )));
+  const sources = await snapshotImageEditSources(resolvedSources, values => normalizeReferenceImages(values, userId));
   const normalizedCount = normalizeImageEditCount(count);
   const imageCreditCost = await getImageModelCreditCost(model);
   const chargeCredits = role !== "admin";
@@ -1152,8 +1180,9 @@ export async function runImageEditTasks(opts: {
         role,
         image:
           task.mode === "reference"
-            ? [task.targetImage, ...task.referenceImages]
-            : task.targetImage,
+            ? [sources[taskIndex]?.image ?? task.targetImage, ...task.referenceImages]
+            : sources[taskIndex]?.image ?? task.targetImage,
+        source: sources[taskIndex],
         prompt: task.prompt,
         modelOverride: model,
         size,
@@ -1189,6 +1218,11 @@ export async function listImageHistory(userId: string, limit = 50) {
     .orderBy(desc(imageGenerations.createdAt))
     .limit(limit);
 
+  return formatImageHistoryRows(rows);
+}
+
+/** Resolve stored paths to user-facing protected URLs, including legacy records. */
+async function formatImageHistoryRows(rows: (typeof imageGenerations.$inferSelect)[]) {
   return Promise.all(
     rows.map(async (row) => {
       if (row.storageKey) {
@@ -1234,13 +1268,22 @@ export async function listImageHistory(userId: string, limit = 50) {
   );
 }
 
+/** Fetch exact owned canvas images, independently of the recent-history limit. */
+export async function listOwnedImagesById(userId: string, ids: string[]) {
+  if (!ids.length) return [];
+  const rows = await db.select().from(imageGenerations).where(and(
+    eq(imageGenerations.userId, userId), inArray(imageGenerations.id, ids),
+  ));
+  return formatImageHistoryRows(rows);
+}
+
 export async function deleteImageRecord(userId: string, id: string) {
   const rows = await db
-    .select()
-    .from(imageGenerations)
+    .delete(imageGenerations)
     .where(
       and(eq(imageGenerations.id, id), eq(imageGenerations.userId, userId)),
-    );
+    )
+    .returning();
   const record = rows[0];
   if (!record) throw new ApiError("记录不存在", 404);
 
@@ -1271,7 +1314,6 @@ export async function deleteImageRecord(userId: string, id: string) {
     /* thumbnail may not exist */
   }
 
-  await db.delete(imageGenerations).where(eq(imageGenerations.id, id));
   return { success: true };
 }
 

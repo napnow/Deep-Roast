@@ -11,6 +11,6 @@ export function createImageContinuationDraft(image: ImageRecord): ImageToImageDr
     styleId: "",
     styleColor: "",
     styleTexture: "",
-    refs: [{ preview: image.imageUrl, base64: image.imageUrl }],
+    refs: [{ preview: image.imageUrl, base64: image.imageUrl, sourceImageId: image.id }],
   };
 }

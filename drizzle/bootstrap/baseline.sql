@@ -54,6 +54,15 @@ CREATE TABLE "credit_transactions" (
 	"created_at" timestamp DEFAULT now()
 );
 
+CREATE TABLE "image_canvas_layouts" (
+	"user_id" uuid PRIMARY KEY NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"nodes" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"hidden_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"viewport" jsonb NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+
 CREATE TABLE "image_generations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"prompt" text NOT NULL,
@@ -61,9 +70,12 @@ CREATE TABLE "image_generations" (
 	"image_url" text NOT NULL,
 	"storage_key" text,
 	"thumb_storage_key" text,
+	"source_image_id" uuid,
+	"version_group_id" uuid,
 	"user_id" uuid NOT NULL,
 	"size" text DEFAULT '1024x1024' NOT NULL,
-	"created_at" timestamp DEFAULT now()
+	"created_at" timestamp DEFAULT now(),
+	CONSTRAINT "image_generations_source_not_self" CHECK ("image_generations"."source_image_id" is null or "image_generations"."source_image_id" <> "image_generations"."id")
 );
 
 CREATE TABLE "image_model_credit_costs" (
@@ -241,6 +253,7 @@ ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_users_id_fk" FOREIGN KEY
 ALTER TABLE "cards" ADD CONSTRAINT "cards_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "conversations" ADD CONSTRAINT "conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "credit_transactions" ADD CONSTRAINT "credit_transactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "image_canvas_layouts" ADD CONSTRAINT "image_canvas_layouts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "image_generations" ADD CONSTRAINT "image_generations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "llm_channel_models" ADD CONSTRAINT "llm_channel_models_channel_id_llm_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."llm_channels"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "messages" ADD CONSTRAINT "messages_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE cascade ON UPDATE no action;
@@ -252,6 +265,7 @@ CREATE INDEX "conversations_user_updated_idx" ON "conversations" USING btree ("u
 CREATE INDEX "credit_transactions_user_created_idx" ON "credit_transactions" USING btree ("user_id","created_at");
 CREATE UNIQUE INDEX "credit_transactions_reservation_id_unique" ON "credit_transactions" USING btree ("reservation_id");
 CREATE INDEX "image_generations_user_created_idx" ON "image_generations" USING btree ("user_id","created_at");
+CREATE INDEX "image_generations_user_version_group_idx" ON "image_generations" USING btree ("user_id",coalesce("version_group_id", "id"),coalesce("created_at", timestamp '1970-01-01 00:00:00') desc,"id" desc);
 CREATE UNIQUE INDEX "llm_channel_models_channel_kind_model_unique" ON "llm_channel_models" USING btree ("channel_id","kind","model_id");
 CREATE UNIQUE INDEX "llm_channel_models_default_kind_model_unique" ON "llm_channel_models" USING btree ("kind","model_id") WHERE "llm_channel_models"."is_default" = 1;
 CREATE UNIQUE INDEX "llm_channels_name_unique" ON "llm_channels" USING btree ("name");

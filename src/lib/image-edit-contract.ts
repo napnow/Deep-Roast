@@ -4,6 +4,7 @@ export interface ImageEditItemInput {
   image: string;
   prompt?: string;
   targetIndex?: number;
+  sourceImageId?: string;
 }
 
 export interface ImageEditRequest {
@@ -12,6 +13,7 @@ export interface ImageEditRequest {
   prompt?: string;
   items?: ImageEditItemInput[];
   targetImage?: string;
+  sourceImageId?: string;
   targetIndex?: number;
   referenceImages?: string[];
   model?: string;
@@ -20,6 +22,8 @@ export interface ImageEditRequest {
 }
 
 export interface ImageEditTaskBase {
+  /** Untrusted until verified against the user and target image. */
+  sourceImageId?: string;
   targetImage: string;
   prompt: string;
   targetIndex: number;

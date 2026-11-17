@@ -42,6 +42,8 @@ export interface ImageRecord {
   size: string;
   createdAt: string;
   sourceMode?: "text" | "edit" | "unknown";
+  sourceImageId?: string | null;
+  versionGroupId?: string | null;
 }
 
 // ── Credits types ──

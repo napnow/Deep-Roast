@@ -88,3 +88,15 @@ describe("image edit task normalization", () => {
     assert.equal(calculateImageEditCost(tasks, 3), 3);
   });
 });
+
+
+it("preserves only the source of each edit target", () => {
+  const tasks = normalizeImageEditRequest({ mode: "per-image", items: [
+    { image: "a", sourceImageId: "source-a" },
+    { image: "b", sourceImageId: "source-b" },
+    { image: "upload" },
+  ] }, "gpt-image-2");
+  assert.deepEqual(tasks.map(task => task.sourceImageId), ["source-a", "source-b", undefined]);
+  const [task] = normalizeImageEditRequest({ mode: "reference", targetImage: "b", referenceImages: ["a"], sourceImageId: "source-b" }, "gpt-image-2");
+  assert.equal(task?.sourceImageId, "source-b");
+});

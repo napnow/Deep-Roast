@@ -184,6 +184,7 @@ html.dark {
     gap: 8px;
   }
   .image-workspace-desktop .workspace-focus-trigger,
+  .image-workspace-desktop .workspace-canvas-trigger,
   .image-workspace-desktop .workspace-library-trigger {
     display: inline-flex;
     min-height: 36px;
@@ -195,12 +196,14 @@ html.dark {
     background: var(--bg-elevated);
     color: var(--text-secondary);
   }
-  .image-workspace-desktop .workspace-focus-trigger {
+  .image-workspace-desktop .workspace-focus-trigger,
+  .image-workspace-desktop .workspace-canvas-trigger {
     border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
     background: color-mix(in srgb, var(--accent-surface) 72%, var(--bg-elevated));
     color: var(--accent);
   }
-  .image-workspace-desktop .workspace-focus-trigger:hover {
+  .image-workspace-desktop .workspace-focus-trigger:hover,
+  .image-workspace-desktop .workspace-canvas-trigger:hover {
     border-color: var(--accent);
     color: var(--accent);
   }
@@ -690,3 +693,27 @@ html.dark {
   .image-workspace-desktop:has(.creation-mode-tabs button:nth-child(3)[aria-selected="true"]) .reverse-prompt-panel { grid-row: 3 / 5; }
 }
 
+.infinite-image-canvas-wrap { flex: 1; min-height: 0; min-width: 0; position: relative; }
+.infinite-image-canvas-wrap[hidden] { display: none; }
+.infinite-image-canvas { width: 100%; height: 100%; position: relative; background: #f4f0ea; }
+.infinite-image-empty { display: grid; place-items: center; height: 100%; color: #7f6b5f; }
+.infinite-image-node { width: 320px; overflow: hidden; border: 1px solid #e2d6cc; border-radius: 15px; background: #fdfaf6; box-shadow: 0 8px 24px #4a35251a; }
+.infinite-image-node.is-selected { border-color: #a64b31; box-shadow: 0 0 0 2px #a64b3133, 0 8px 24px #4a35251a; }
+.infinite-image-node__handle { display: flex; align-items: center; gap: 5px; padding: 9px 13px; color: #8d786b; cursor: grab; font-size: 12px; }
+.infinite-image-node__handle:active { cursor: grabbing; }
+.infinite-image-node__preview { width: 100%; height: 260px; padding: 0; border: 0; display: grid; place-items: center; cursor: zoom-in; color: #796a5e; background: #ece5dd; }
+.infinite-image-node__preview img { width: 100%; height: 100%; object-fit: contain; }
+.infinite-image-node__footer { display: flex; align-items: center; gap: 10px; padding: 12px; }
+.infinite-image-node__footer span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.infinite-image-node__footer button { flex: none; padding: 7px 9px; border: 1px solid #dfc4b6; border-radius: 8px; color: #9d482f; background: #fff9f4; }
+.infinite-image-canvas__hint { position: absolute; z-index: 3; top: 12px; left: 12px; max-width: calc(100% - 24px); padding: 7px 10px; color: #725d51; background: #fffcf8ed; border: 1px solid #e5d9cf; border-radius: 8px; font-size: 12px; pointer-events: none; }
+
+.infinite-image-node__moves { display: flex; gap: 3px; margin-left: auto; }
+.infinite-image-node__moves button { min-width: 28px; min-height: 28px; border: 1px solid #e2d6cc; border-radius: 5px; background: #fff; color: #725d51; cursor: pointer; }
+.infinite-image-node__handle { touch-action: none; user-select: none; -webkit-user-select: none; }
+.infinite-image-canvas__status { position:absolute; z-index:4; right:12px; top:12px; max-width:min(420px, 48%); padding:7px 10px; color:#725d51; background:#fffcf8ed; border:1px solid #e5d9cf; border-radius:8px; font-size:12px; }
+.infinite-image-canvas__status button, .infinite-image-canvas__hidden button { border:1px solid #dfc4b6; border-radius:6px; padding:5px 8px; margin-left:8px; color:#9d482f; background:#fff9f4; cursor:pointer; }
+.infinite-image-canvas__hidden { position:absolute; z-index:4; right:12px; bottom:12px; max-width:260px; max-height:180px; overflow:auto; padding:8px; color:#725d51; background:#fffcf8ed; border:1px solid #e5d9cf; border-radius:8px; font-size:12px; }
+.infinite-image-canvas__hidden summary { cursor:pointer; }
+.infinite-image-canvas__hidden button { display:block; max-width:100%; margin:6px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.infinite-image-node .react-flow__handle { opacity:0; pointer-events:none; }

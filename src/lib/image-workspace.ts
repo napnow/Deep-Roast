@@ -1,6 +1,7 @@
 export interface DraftReference {
   preview: string;
   base64: string;
+  sourceImageId?: string;
 }
 
 export interface TextToImageDraft {

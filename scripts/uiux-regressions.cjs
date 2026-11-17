@@ -27,6 +27,7 @@ window.fetch = async (input, init={}) => {
     window.__resolveReverse = () => resolve(new Response(JSON.stringify({prompt:'User A image description'}),{status:200,headers:{'Content-Type':'application/json'}}));
     window.__reverseSignal = init.signal;
   });
+  if (url === '/api/image-canvas') return new Response(JSON.stringify(init.method === 'PUT' ? {revision: 1} : {layout: null, images: [fixture]}), {status: 200, headers: {'Content-Type': 'application/json'}});
   if (url.includes('/styles')) return new Response(JSON.stringify({styles:[]}),{status:200});
   throw new Error('Unexpected fetch blocked: '+url);
 };
@@ -703,6 +704,17 @@ async function run() {
           buttons.filter((button) => button.getClientRects().length > 0).length,
         ),
     };
+  });
+  await check("desktop-infinite-canvas-toggle", "head", 1440, async (page) => {
+    await page.getByRole("button", { name: "展开作品画布" }).click();
+    await page.locator(".infinite-image-node").waitFor({ state: "visible" });
+    assert.equal(await page.locator(".infinite-image-node").count(), 1);
+    assert.equal(await page.getByRole("button", { name: "返回单图" }).isVisible(), true);
+    await page.getByRole("button", { name: "返回单图" }).click();
+    assert.equal(await page.locator(".result-canvas").first().isVisible(), true);
+    await page.getByRole("button", { name: "展开作品画布" }).click();
+    assert.equal(await page.locator(".infinite-image-node").count(), 1);
+    return {};
   });
   await browser.close();
   const report = { sourceFiles: builds.head.files, results };

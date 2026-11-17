@@ -70,6 +70,7 @@ interface Img2ImgPanelProps {
 interface RefImage {
   preview: string;
   base64: string;
+  sourceImageId?: string;
 }
 
 const MAX_REFS = 5;
@@ -516,6 +517,7 @@ export default function Img2ImgPanel({
         imageData,
         uiState,
         compileEditPrompt(),
+        refs,
       );
       if (
         request.mode === "reference" &&

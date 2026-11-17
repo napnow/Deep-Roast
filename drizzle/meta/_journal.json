@@ -176,6 +176,13 @@
       "when": 1793700810619,
       "tag": "0029_repeat_registration_credits",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793700810620,
+      "tag": "0030_image_canvas_versions",
+      "breakpoints": true
     }
   ]
 }
