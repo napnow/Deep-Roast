@@ -3,9 +3,9 @@ import path from "node:path";
 import { ApiError } from "@/server/http";
 
 const STORAGE_KEY_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp)$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:png|jpe?g|webp|gif)$/i;
 const LEGACY_IMAGE_KEY_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp)$/i;
+  /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp|gif)$/i;
 
 export function privateImageRoot(): string {
   const configured = process.env.DEEPROAST_DATA_DIR?.trim();
@@ -32,7 +32,7 @@ export function privateImagePath(root: string, key: string): string {
 
 export function privateThumbnailPath(root: string, key: string): string {
   const safeKey = assertStorageKey(key);
-  const thumbnailKey = safeKey.replace(/\.(png|jpe?g)$/i, ".webp");
+  const thumbnailKey = safeKey.replace(/\.(png|jpe?g|gif)$/i, ".webp");
   return path.join(root, "thumbs", thumbnailKey);
 }
 

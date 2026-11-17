@@ -50,6 +50,7 @@ function normalizeItems(items: ImageEditItemInput[]): ImageEditTask[] {
   return items
     .map((item, index) => ({
       image: cleanImage(item?.image),
+      sourceImageId: cleanImage(item?.sourceImageId),
       prompt: cleanPrompt(item?.prompt),
       targetIndex:
         Number.isInteger(item?.targetIndex) && (item.targetIndex as number) >= 0
@@ -60,6 +61,7 @@ function normalizeItems(items: ImageEditItemInput[]): ImageEditTask[] {
     .map((item) => ({
       mode: "per-image" as const,
       targetImage: item.image,
+      ...(item.sourceImageId ? { sourceImageId: item.sourceImageId } : {}),
       prompt: item.prompt,
       targetIndex: item.targetIndex,
     }));
@@ -108,6 +110,7 @@ export function normalizeImageEditRequest(
       {
         mode: "reference",
         targetImage,
+        ...(cleanImage(input.sourceImageId) ? { sourceImageId: cleanImage(input.sourceImageId) } : {}),
         referenceImages,
         prompt: cleanPrompt(input.prompt),
         targetIndex:

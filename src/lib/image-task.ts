@@ -15,6 +15,7 @@ export interface ImageTaskRequest {
   count: number;
   images?: string[];
   editRequest?: ImageEditRequest;
+  idempotencyKey?: string;
 }
 
 export interface ImageTaskState {

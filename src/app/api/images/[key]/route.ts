@@ -107,7 +107,7 @@ export const GET = handleRoute(async (req, ctx: Ctx) => {
         "public",
         "images",
         useThumb ? "thumbs" : "",
-        useThumb ? key.replace(/\.(png|jpe?g)$/i, ".webp") : key,
+        useThumb ? key.replace(/\.(png|jpe?g|gif)$/i, ".webp") : key,
       );
 
   const download = url.searchParams.get("download");

@@ -1,7 +1,7 @@
 import { ApiError } from "@/server/http";
 
 export function imageResponse(bytes: Uint8Array, key: string, thumbnail: boolean, download: boolean, check = false): Response {
-  const type = thumbnail ? "image/webp" : /\.jpe?g$/i.test(key) ? "image/jpeg" : /\.webp$/i.test(key) ? "image/webp" : "image/png";
+  const type = thumbnail ? "image/webp" : /\.jpe?g$/i.test(key) ? "image/jpeg" : /\.webp$/i.test(key) ? "image/webp" : /\.gif$/i.test(key) ? "image/gif" : "image/png";
   if (download && !thumbnail) {
     const valid = type === "image/png" ? bytes.length >= 8 && [137,80,78,71,13,10,26,10].every((v,i) => bytes[i] === v)
       : type === "image/jpeg" ? bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255

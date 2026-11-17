@@ -13,6 +13,10 @@ describe("private image storage", () => {
       assertStorageKey("3f3e3c3b-3a39-4837-8b36-123456789abc.png"),
       "3f3e3c3b-3a39-4837-8b36-123456789abc.png",
     );
+    assert.equal(
+      assertStorageKey("3f3e3c3b-3a39-4837-8b36-123456789abc.gif"),
+      "3f3e3c3b-3a39-4837-8b36-123456789abc.gif",
+    );
     assert.throws(() => assertStorageKey("../secret.png"));
     assert.throws(() => assertStorageKey("thumbs/secret.png"));
     assert.throws(() => assertStorageKey("image.svg"));

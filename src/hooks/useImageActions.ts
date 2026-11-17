@@ -26,8 +26,8 @@ function resolveRequestModel(): string {
   return selectedImageModel || config.imageModel;
 }
 
-function idempotencyHeaders(): HeadersInit {
-  return { "Idempotency-Key": crypto.randomUUID() };
+function idempotencyHeaders(key = crypto.randomUUID()): HeadersInit {
+  return { "Idempotency-Key": key };
 }
 
 export function useImageActions(loadCredits: () => Promise<void>) {
@@ -67,11 +67,12 @@ export function useImageActions(loadCredits: () => Promise<void>) {
   }, [requests, setGenerating, clearImageTask]);
 
   const handleGenerateImage = useCallback(
-    async (prompt: string, size: string) => {
+    async (prompt: string, size: string, retryKey?: string) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
+      const idempotencyKey = retryKey ?? crypto.randomUUID();
       setGenerating(true);
-      startImageTask({ mode: "text", prompt, size, count: 1 });
+      startImageTask({ mode: "text", prompt, size, count: 1, idempotencyKey });
       try {
         const data = await apiJson<{
           id: string;
@@ -86,7 +87,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
         if (!generation.isCurrent()) return;
@@ -132,7 +133,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
   );
 
   const handleGenerateImageBatch = useCallback(
-    async (prompt: string, size: string, requestedCount = 1) => {
+    async (prompt: string, size: string, requestedCount = 1, retryKey?: string) => {
       const count = Math.min(Math.max(Math.floor(requestedCount) || 1, 1), 5);
       if (count === 1) {
         await handleGenerateImage(prompt, size);
@@ -142,8 +143,9 @@ export function useImageActions(loadCredits: () => Promise<void>) {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
       const batchGeneration = generation;
+      const idempotencyKey = retryKey ?? crypto.randomUUID();
       setGenerating(true);
-      startImageTask({ mode: "text", prompt, size, count });
+      startImageTask({ mode: "text", prompt, size, count, idempotencyKey });
       const results: {
         id: string;
         prompt: string;
@@ -196,7 +198,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
               method: "POST",
               ...jsonBody(
                 { prompt, size, model: resolveRequestModel() },
-                idempotencyHeaders(),
+                idempotencyHeaders(idempotencyKey),
               ),
               signal: batchGeneration.signal,
             });
@@ -270,9 +272,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
   /** 图生图：提交逐图或目标/参考结构化任务 */
   const handleEditImage = useCallback(
-    async (request: ImageEditRequest, size: string) => {
+    async (request: ImageEditRequest, size: string, retryKey?: string) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
+      const idempotencyKey = retryKey ?? crypto.randomUUID();
       const prompt =
         request.prompt ||
         request.items?.map((item) => item.prompt).filter(Boolean).join("；") ||
@@ -289,6 +292,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         count: 1,
         images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
         editRequest: request,
+        idempotencyKey,
       });
       try {
         const data = await apiJson<{
@@ -299,6 +303,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             imageUrl: string;
             thumbUrl?: string;
             size: string;
+            sourceImageId?: string | null;
+            versionGroupId?: string;
           }[];
           refundPending?: boolean;
           lastError?: string | null;
@@ -309,7 +315,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
         if (!generation.isCurrent()) return;
@@ -320,6 +326,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           imageUrl: img.imageUrl,
           thumbUrl: img.thumbUrl,
           size: img.size,
+          sourceImageId: img.sourceImageId,
+          versionGroupId: img.versionGroupId,
           createdAt: new Date().toISOString(),
           sourceMode: "edit" as const,
         }));
@@ -364,9 +372,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
   /** 图生图批量：按结构化任务生成 N 张变体（最多 5） */
   const handleEditImageBatch = useCallback(
-    async (request: ImageEditRequest, size: string, count: number) => {
+    async (request: ImageEditRequest, size: string, count: number, retryKey?: string) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
+      const idempotencyKey = retryKey ?? crypto.randomUUID();
       const prompt =
         request.prompt ||
         request.items?.map((item) => item.prompt).filter(Boolean).join("；") ||
@@ -381,6 +390,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         prompt,
         size,
         count,
+        idempotencyKey,
         images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
         editRequest: request,
       });
@@ -393,6 +403,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             imageUrl: string;
             thumbUrl?: string;
             size: string;
+            sourceImageId?: string | null;
+            versionGroupId?: string;
           }[];
           total: number;
           succeeded: number;
@@ -408,7 +420,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             size,
             count,
             model: resolveRequestModel(),
-          }, idempotencyHeaders()),
+          }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
         if (!generation.isCurrent()) return;
@@ -419,6 +431,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           imageUrl: img.imageUrl,
           thumbUrl: img.thumbUrl,
           size: img.size,
+          sourceImageId: img.sourceImageId,
+          versionGroupId: img.versionGroupId,
           createdAt: new Date().toISOString(),
           sourceMode: "edit" as const,
         }));
@@ -474,16 +488,17 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     const request = useDeepRoastStore.getState().imageTask.request;
     if (!request) return;
     if (request.mode === "text") {
-      await handleGenerateImageBatch(request.prompt, request.size, request.count);
+      await handleGenerateImageBatch(request.prompt, request.size, request.count, request.idempotencyKey);
     } else if (request.editRequest) {
       if (request.count > 1) {
         await handleEditImageBatch(
           request.editRequest,
           request.size,
           request.count,
+          request.idempotencyKey,
         );
       } else {
-        await handleEditImage(request.editRequest, request.size);
+        await handleEditImage(request.editRequest, request.size, request.idempotencyKey);
       }
     } else if (request.count > 1) {
       await handleEditImageBatch(
@@ -493,6 +508,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         },
         request.size,
         request.count,
+        request.idempotencyKey,
       );
     } else {
       await handleEditImage(
@@ -501,6 +517,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           prompt: request.prompt,
         },
         request.size,
+        request.idempotencyKey,
       );
     }
   }, [requests, userSessionVersion, handleEditImage, handleEditImageBatch, handleGenerateImageBatch]);
@@ -513,6 +530,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         await apiJson(`/api/image-history/${id}`, { method: "DELETE", signal: deletion.signal });
         if (!deletion.isCurrent()) return;
         setImageHistory((prev) => prev.filter((img) => img.id !== id));
+        window.dispatchEvent(new CustomEvent("deeproast:image-deleted", { detail: id }));
         toast("图片已删除", "success");
       } catch {
         if (deletion.isCurrent()) toast("删除失败", "error");

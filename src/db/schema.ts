@@ -375,6 +375,8 @@ export const imageGenerations = pgTable("image_generations", {
   imageUrl: text("image_url").notNull(),
   storageKey: text("storage_key"),
   thumbStorageKey: text("thumb_storage_key"),
+  sourceImageId: uuid("source_image_id"),
+  versionGroupId: uuid("version_group_id"),
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -385,7 +387,27 @@ export const imageGenerations = pgTable("image_generations", {
     table.userId,
     table.createdAt,
   ),
+  userVersionGroupIdx: index("image_generations_user_version_group_idx").on(
+    table.userId,
+    sql`coalesce(${table.versionGroupId}, ${table.id})`,
+    sql`coalesce(${table.createdAt}, timestamp '1970-01-01 00:00:00') desc`,
+    sql`${table.id} desc`,
+  ),
+  sourceNotSelf: check(
+    "image_generations_source_not_self",
+    sql`${table.sourceImageId} is null or ${table.sourceImageId} <> ${table.id}`,
+  ),
 }));
+
+// One layout per account. Revision is incremented atomically on every save.
+export const imageCanvasLayouts = pgTable("image_canvas_layouts", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(1),
+  nodes: jsonb("nodes").$type<Array<{ id: string; x: number; y: number }>>().notNull().default([]),
+  hiddenIds: jsonb("hidden_ids").$type<string[]>().notNull().default([]),
+  viewport: jsonb("viewport").$type<{ x: number; y: number; zoom: number }>().notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 // ── 图生图风格预设（管理端维护，published=1 才对普通用户可见） ──
 export const styles = pgTable("styles", {

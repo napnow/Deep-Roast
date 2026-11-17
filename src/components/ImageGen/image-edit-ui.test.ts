@@ -64,3 +64,16 @@ describe("image edit UI request builder", () => {
     );
   });
 });
+
+
+it("associates source IDs with actual edit targets after changing selection", () => {
+  const refs = [
+    { preview: "a", base64: "a", sourceImageId: "source-a" },
+    { preview: "b", base64: "b", sourceImageId: "source-b" },
+    { preview: "upload", base64: "upload" },
+  ];
+  assert.deepEqual(buildImageEditRequest(["a", "b", "upload"], { mode: "per-image", prompts: [] }, "edit", refs).items?.map(item => item.sourceImageId), ["source-a", "source-b", undefined]);
+  assert.equal(buildImageEditRequest(["a", "b", "upload"], { mode: "reference", targetIndex: 1, prompt: "edit", referenceIndexes: [0] }, "", refs).sourceImageId, "source-b");
+  assert.equal(buildImageEditRequest(["a", "b", "upload"], { mode: "reference", targetIndex: 2, prompt: "edit", referenceIndexes: [0] }, "", refs).sourceImageId, undefined);
+  assert.equal(buildImageEditRequest(["changed"], { mode: "per-image", prompts: [] }, "edit", [refs[0]!]).items?.[0]?.sourceImageId, undefined);
+});

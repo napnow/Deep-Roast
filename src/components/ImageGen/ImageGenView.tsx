@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { ImageRecord } from "@/types";
+import dynamic from "next/dynamic";
 import { normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
 import { getSizeOptions } from "./imageUtils";
 import CreationPanel from "./CreationPanel";
@@ -21,6 +22,7 @@ import ImagePreviewModal from "./ImagePreviewModal";
 import Dialog from "@/components/ui/Dialog";
 import { AppIcon } from "@/components/ui/icons";
 import { useDeepRoastStore } from "@/lib/store";
+import { useAuth } from "@/components/AuthProvider";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { createImageContinuationDraft } from "@/lib/image-continuation";
 import {
@@ -30,6 +32,8 @@ import {
   parseCreationPanelWidth,
   type CreationPanelBounds,
 } from "./creation-workbench-ui";
+
+const InfiniteImageCanvas = dynamic(() => import("./InfiniteImageCanvas"), { ssr: false });
 
 type MobileTab = "generate" | "gallery" | "announcements";
 
@@ -88,6 +92,7 @@ export default function ImageGenView({
   keyboardOffset,
   visibleHeight,
 }: ImageGenViewProps) {
+  const { user } = useAuth();
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const imageGenerationEnabled = useDeepRoastStore(
     (state) => state.config.imageGenerationEnabled,
@@ -119,6 +124,9 @@ export default function ImageGenView({
   const prompt = textDraft.prompt;
   const size = normalizeImageSizeSelection(textDraft.size, model, sizeOptions);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [canvasExpanded, setCanvasExpanded] = useState(false);
+  const [canvasMounted, setCanvasMounted] = useState(false);
+  const userSessionVersion = useDeepRoastStore((state) => state.userSessionVersion);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastGenTime, setLastGenTime] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -214,6 +222,7 @@ export default function ImageGenView({
   }, [generating, history, onActiveImageChange]);
 
   function handleGenerate(p: string, s: string, count = 1) {
+    setCanvasExpanded(false);
     onActiveImageChange(null);
     onGenerate(p, s, count);
   }
@@ -258,6 +267,7 @@ export default function ImageGenView({
           isAdmin={Boolean(isAdmin)}
           onGenerate={handleGenerate}
           onEdit={(request, editSize, count) => {
+            setCanvasExpanded(false);
             if (count > 1 && onEditImageBatch) {
               onEditImageBatch(request, editSize, count);
             } else {
@@ -279,6 +289,9 @@ export default function ImageGenView({
           <div className="workspace-library-bar">
             <span>当前画布</span>
             <div className="workspace-library-actions">
+              <button type="button" className="workspace-canvas-trigger" aria-pressed={canvasExpanded} onClick={() => { setCanvasMounted(true); setCanvasExpanded(value => !value); }}>
+                {canvasExpanded ? "返回单图" : "展开作品画布"}
+              </button>
               {focusImage && (
                 <button
                   type="button"
@@ -299,6 +312,7 @@ export default function ImageGenView({
               </button>
             </div>
           </div>
+          <div style={{ display: canvasExpanded ? "none" : "contents" }}>
           <ResultCanvas
             task={imageTask}
             activeImage={activeImage}
@@ -315,6 +329,10 @@ export default function ImageGenView({
               clearImageTask();
             }}
           />
+          </div>
+          {canvasMounted && <div className="infinite-image-canvas-wrap" hidden={!canvasExpanded}>
+            <InfiniteImageCanvas key={userSessionVersion} accountId={user?.id ?? ""} images={history} onSelect={handleSelectHistory} onPreview={setPreviewImage} onEdit={handleContinueEditing} />
+          </div>}
         </div>
         <AssetInspector
           history={history}

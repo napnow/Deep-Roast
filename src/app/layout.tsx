@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./fonts.css";
+import "@xyflow/react/dist/style.css";
 import { ToastProvider } from "@/components/Toast";
 import AuthProvider from "@/components/AuthProvider";
 import "./globals.css";

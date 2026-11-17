@@ -104,10 +104,14 @@ test("PostgreSQL bootstrap acceptance (explicit local disposable database only)"
       assert.deepEqual(await readSentinel(), sentinel);
     });
 
-    await t.test("legacy at preceding timestamp applies pending 0029 via Drizzle", async () => {
-      await createSyntheticLegacy(artifacts.journal.entries.slice(-21, -1));
+    await t.test("legacy at 0028 applies pending 0029 and 0030 via Drizzle", async () => {
+      await createSyntheticLegacy(artifacts.journal.entries.slice(0, -2));
       // This isolated fixture represents the immediately preceding schema. Never
       // issue this DROP against a real project; its only purpose is this test.
+      await client.query('DROP TABLE "public"."image_canvas_layouts"');
+      await client.query('DROP INDEX "public"."image_generations_user_version_group_idx"');
+      await client.query('ALTER TABLE "public"."image_generations" DROP CONSTRAINT "image_generations_source_not_self"');
+      await client.query('ALTER TABLE "public"."image_generations" DROP COLUMN "source_image_id", DROP COLUMN "version_group_id"');
       await client.query('DROP TABLE "public"."registration_risk_marks"');
       await client.query(`ALTER TABLE public.users DROP COLUMN restricted_until, DROP COLUMN registration_ip_hash`);
       await client.query(`ALTER TABLE public.site_settings
@@ -121,15 +125,18 @@ test("PostgreSQL bootstrap acceptance (explicit local disposable database only)"
       const sentinel = await readSentinel();
       assert.equal((await api.migrateDatabase({ client })).mode, "incremental");
       const after = await readLedger();
-      assert.deepEqual(after.slice(0, -1), ledger);
-      assert.equal(after.length, ledger.length + 1);
+      assert.deepEqual(after.slice(0, -2), ledger);
+      assert.equal(after.length, ledger.length + 2);
       assert.equal(after.at(-1)!.created_at, String(last.when));
       assert.equal(after.at(-1)!.hash, createHash("sha256").update(readFileSync(path.join(artifacts.migrationsFolder, `${last.tag}.sql`))).digest("hex"));
       assert.ok((await tableNames()).includes("registration_risk_marks"));
       const columns = await client.query<{ column_name: string }>(
-        "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name IN ('restricted_until','registration_ip_hash')",
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema='public'
+           AND ((table_name='users' AND column_name IN ('restricted_until','registration_ip_hash'))
+             OR (table_name='image_generations' AND column_name IN ('source_image_id','version_group_id')))`,
       );
-      assert.equal(columns.rows.length, 2);
+      assert.equal(columns.rows.length, 4);
       const defaults = await client.query(`SELECT repeat_registration_limit_enabled, repeat_registration_window_days,
         repeat_registration_signup_bonus, repeat_registration_checkin_reward, repeat_registration_invitation_reward
         FROM public.site_settings LIMIT 1`);
@@ -142,6 +149,60 @@ test("PostgreSQL bootstrap acceptance (explicit local disposable database only)"
       });
       assert.deepEqual((await client.query('SELECT signup_bonus_credits, checkin_reward FROM public.site_settings WHERE id=1')).rows[0], { signup_bonus_credits: 20, checkin_reward: 20 });
       assert.deepEqual(await readSentinel(), sentinel);
+    });
+
+    await t.test("pre-canvas database applies 0030 without changing existing images", async () => {
+      await createSyntheticLegacy(artifacts.journal.entries.slice(0, -1));
+      await client.query('DROP TABLE "public"."image_canvas_layouts"');
+      await client.query('DROP INDEX "public"."image_generations_user_version_group_idx"');
+      await client.query('ALTER TABLE "public"."image_generations" DROP CONSTRAINT "image_generations_source_not_self"');
+      await client.query('ALTER TABLE "public"."image_generations" DROP COLUMN "source_image_id", DROP COLUMN "version_group_id"');
+      const legacyImage = (await client.query<{ id: string }>(
+        `INSERT INTO "public"."image_generations" ("user_id","prompt","image_url")
+         SELECT "id", 'legacy-image', '/images/legacy.png'
+         FROM "public"."users" WHERE "username" = 'bootstrap_fixture_sentinel'
+         RETURNING "id"`,
+      )).rows[0]!;
+      const ledger = await readLedger();
+
+      assert.equal((await api.migrateDatabase({ client })).mode, "incremental");
+      const after = await readLedger();
+      assert.deepEqual(after.slice(0, -1), ledger);
+      assert.equal(after.length, ledger.length + 1);
+      assert.equal(after.at(-1)!.created_at, String(last.when));
+      assert.equal(
+        after.at(-1)!.hash,
+        createHash("sha256").update(readFileSync(path.join(artifacts.migrationsFolder, `${last.tag}.sql`))).digest("hex"),
+      );
+
+      assert.deepEqual(
+        (await client.query(
+          'SELECT "source_image_id","version_group_id" FROM "public"."image_generations" WHERE "id"=$1',
+          [legacyImage.id],
+        )).rows[0],
+        { source_image_id: null, version_group_id: null },
+      );
+      assert.deepEqual(
+        (await client.query(
+          `SELECT to_regclass('public.image_canvas_layouts')::text AS table,
+                  to_regclass('public.image_generations_user_version_group_idx')::text AS index`,
+        )).rows[0],
+        { table: "image_canvas_layouts", index: "image_generations_user_version_group_idx" },
+      );
+      assert.equal(
+        (await client.query(
+          `SELECT count(*)::integer AS count FROM pg_catalog.pg_constraint
+           WHERE conname = 'image_generations_source_not_self'`,
+        )).rows[0].count,
+        1,
+      );
+      await assert.rejects(
+        client.query(
+          'UPDATE "public"."image_generations" SET "source_image_id" = "id" WHERE "id"=$1',
+          [legacyImage.id],
+        ),
+        /image_generations_source_not_self|check constraint/i,
+      );
     });
 
     for (const [name, ddl] of [

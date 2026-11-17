@@ -22,6 +22,6 @@ test("续作保留原提示词作为参考，但不把它当成修改指令", ()
     styleId: "",
     styleColor: "",
     styleTexture: "",
-    refs: [{ preview: image.imageUrl, base64: image.imageUrl }],
+    refs: [{ preview: image.imageUrl, base64: image.imageUrl, sourceImageId: image.id }],
   });
 });
