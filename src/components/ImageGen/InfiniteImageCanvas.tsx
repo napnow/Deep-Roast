@@ -6,7 +6,7 @@ import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
-import { canvasEdges, dedupeCanvasEdges, isLegacyAutoAddedCanvasLayout, mergeCanvasItems, mergeCanvasItemsNear, replaceCanvasPlaceholder, type CanvasItem } from "./canvas-items";
+import { canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, mergeCanvasItems, mergeCanvasItemsNear, replaceCanvasPlaceholder, type CanvasItem } from "./canvas-items";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
@@ -436,6 +436,12 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       count: settings.count,
       run: async signal => {
         const generatedIds = await onGenerate(nodeId, prompt, references, settings, targetImage, { signal });
+        const nodeStillPresent = nodesRef.current.some(current => current.id === nodeId);
+        if (signal.aborted || !nodeStillPresent) {
+          /* The node was removed or the task cancelled while the request was in flight.
+             The work stays in the library, but late results must not recreate canvas nodes or edges. */
+          return { completed: 0, failed: 0 };
+        }
         if (Array.isArray(generatedIds)) {
           const sourceIds = manualEdgesRef.current.filter(edge => edge.target === nodeId).map(edge => edge.source);
           const sourceNode = nodesRef.current.find(current => current.id === nodeId);
@@ -737,11 +743,20 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     const savedNodes = (source?.nodes ?? []).filter(node => node.kind === "text" || all.has(node.id) || isEmptyCanvasNode(node));
     const savedImageNodes = savedNodes.filter(node => node.kind !== "text");
     const savedTextNodes = savedNodes.filter((node): node is Extract<CanvasNodeLayout, { kind: "text" }> => node.kind === "text");
-    const legacyAutoAdded = !autoAddImages
-      && savedImageNodes.length > 0
-      && (source?.connections?.length ?? 0) === 0
-      && isLegacyAutoAddedCanvasLayout(savedImageNodes, [...all.keys()]);
-    const restoredImageNodes = legacyAutoAdded ? [] : savedImageNodes;
+    const linkedIds = new Set<string>();
+    for (const connection of source?.connections ?? []) {
+      linkedIds.add(connection.source);
+      linkedIds.add(connection.target);
+    }
+    const legacyDroppedIds = new Set(!autoAddImages
+      ? findLegacyAutoAddedCanvasIds(
+          savedImageNodes.map(node => ({ id: node.id, x: node.x, y: node.y, placeholder: isEmptyCanvasNode(node) })),
+          linkedIds,
+        )
+      : []);
+    const restoredImageNodes = legacyDroppedIds.size
+      ? savedImageNodes.filter(node => !legacyDroppedIds.has(node.id))
+      : savedImageNodes;
     const candidateIds = autoAddImages
       ? [...new Set([...restoredImageNodes.map(node => node.id), ...all.keys()])]
       : restoredImageNodes.map(node => node.id);
@@ -766,7 +781,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setViewportKey(key => key + 1);
     savedRef.current = 0;
     const hasNew = positions.some(position => !source?.nodes.some(node => node.id === position.id));
-    const hasChanges = Boolean(draft) || hasNew || legacyAutoAdded;
+    const hasChanges = Boolean(draft) || hasNew || legacyDroppedIds.size > 0;
     dirtyRef.current = hasChanges ? 1 : 0;
     const conflict = Boolean(draft && draft.revision !== cloudRevision);
     setReady(true);

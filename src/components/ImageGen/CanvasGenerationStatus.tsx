@@ -41,10 +41,10 @@ export default function CanvasGenerationStatus({
         {isError && <span className="canvas-generation-status__error-copy">{task.error || "服务暂时没有完成生成"}</span>}
         {isActive && <ImageGenStageIndicator elapsedSeconds={task.elapsedSeconds} className="canvas-generation-status__stage" />}
       </div>
-      <div className="canvas-generation-status__actions">
-        {(isActive || isQueued) && <button type="button" onClick={onCancel}>停止生成</button>}
-        {isError && <button type="button" onClick={onRetry}>重新生成</button>}
-        {(isError || task.status === "success" || task.status === "cancelled") && <button type="button" className="is-muted" onClick={onDismiss}>关闭</button>}
+      <div className="canvas-generation-status__actions" onClick={event => event.stopPropagation()}>
+        {(isActive || isQueued) && <button type="button" className="nodrag" onClick={onCancel}>停止生成</button>}
+        {isError && <button type="button" className="nodrag" onClick={onRetry}>重新生成</button>}
+        {(isError || task.status === "success" || task.status === "cancelled") && <button type="button" className="nodrag is-muted" onClick={onDismiss}>关闭</button>}
       </div>
     </section>
   );
