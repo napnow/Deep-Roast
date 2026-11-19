@@ -69,6 +69,7 @@ export default function AssetInspector({
   const selectedImages = visibleImages.filter((image) => selectedIds.has(image.id));
   const selectedGroups = new Set(selectedImages.map((image) => image.versionGroupId).filter(Boolean));
   const selectedGroupId = selectedGroups.size === 1 ? [...selectedGroups][0] : null;
+  const selectedGroupSize = selectedGroupId ? history.filter((image) => image.versionGroupId === selectedGroupId).length : 0;
   const toggleSelected = (id: string) => {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -157,9 +158,9 @@ export default function AssetInspector({
             ) : (
               <>
                 <button type="button" onClick={() => setSelectedIds(new Set(visibleImages.map((image) => image.id)))}>全选</button>
-                <span aria-live="polite">已选 {selectedIds.size} 张</span>
+                <span aria-live="polite">已选 {selectedImages.length} 张</span>
                 <button type="button" onClick={closeSelection}>取消</button>
-                <button type="button" disabled={!selectedIds.size} onClick={() => setBatchMode("selected")}>删除选中</button>
+                <button type="button" disabled={!selectedImages.length} onClick={() => setBatchMode("selected")}>删除选中</button>
                 <button type="button" disabled={!selectedGroupId} onClick={() => setBatchMode("version-group")}>删除版本组</button>
               </>
             )}
@@ -276,11 +277,11 @@ export default function AssetInspector({
       <ConfirmDialog
         open={!!batchMode}
         title={batchMode === "version-group" ? "删除整个版本组" : "删除选中图片"}
-        message={batchMode === "version-group" ? `将删除该版本组的全部图片（${selectedImages.length} 张及其其他版本），此操作不可撤销。` : `将删除已选中的 ${selectedIds.size} 张图片，其他版本不会受影响。`}
+        message={batchMode === "version-group" ? `将删除该版本组的全部图片（共 ${selectedGroupSize} 张，含未显示的其他版本），此操作不可撤销。` : `将删除已选中的 ${selectedImages.length} 张图片，其他版本不会受影响。`}
         confirmText="确认删除"
         onConfirm={async () => {
           if (batchMode === "version-group" && selectedGroupId) await onBatchDelete([selectedGroupId], batchMode);
-          if (batchMode === "selected") await onBatchDelete([...selectedIds], batchMode);
+          if (batchMode === "selected") await onBatchDelete(selectedImages.map((image) => image.id), batchMode);
           setBatchMode(null);
           closeSelection();
         }}
