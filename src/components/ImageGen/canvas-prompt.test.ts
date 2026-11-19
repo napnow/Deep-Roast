@@ -5,6 +5,7 @@ import {
   parsePromptReferences,
   removePromptReference,
   resolvePromptTextReferences,
+  syncPromptPanelValue,
   serializePromptReferences,
   type CanvasPromptReference,
 } from "./canvas-prompt";
@@ -55,4 +56,9 @@ test("expands referenced text nodes with their complete content", () => {
     resolvePromptTextReferences("沿用 @城市夜景#abcd1234 的氛围", [detailedText]),
     "沿用 雨夜霓虹街头，一位撑透明伞的旅人 的氛围",
   );
+});
+
+test("syncs an untouched prompt panel when its node text changes externally", () => {
+  assert.equal(syncPromptPanelValue("", "", "一棵树"), "一棵树");
+  assert.equal(syncPromptPanelValue("面板自己的修改", "", "一棵树"), "面板自己的修改");
 });

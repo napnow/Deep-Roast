@@ -6,7 +6,8 @@ test("starts only two jobs and promotes the next queued node", async () => {
   const started: string[] = [];
   const finishers = new Map<string, () => void>();
   const queue = createCanvasGenerationQueue({ limit: 2 });
-  const run = (nodeId: string) => (_signal: AbortSignal) => new Promise<{ completed: number; failed: number }>(resolve => {
+  const run = (nodeId: string) => (signal: AbortSignal) => new Promise<{ completed: number; failed: number }>(resolve => {
+    void signal;
     started.push(nodeId);
     finishers.set(nodeId, () => resolve({ completed: 1, failed: 0 }));
   });

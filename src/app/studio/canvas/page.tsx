@@ -8,7 +8,7 @@ import InfiniteImageCanvas from "@/components/ImageGen/InfiniteImageCanvas";
 import CanvasAssetPanel from "@/components/ImageGen/CanvasAssetPanel";
 import ImagePreviewModal from "@/components/ImageGen/ImagePreviewModal";
 import { ApiError, apiJson } from "@/lib/client-api";
-import { settleCanvasVariantRequests } from "@/lib/canvas-generation";
+import { settleCanvasVariantRequests, type CanvasGenerateContext } from "@/lib/canvas-generation";
 import type { CanvasPromptPanelSettings } from "@/components/ImageGen/CanvasPromptPanel";
 import { resolvePromptTextReferences, type CanvasPromptReference } from "@/components/ImageGen/canvas-prompt";
 import { useDeepRoastStore } from "@/lib/store";
@@ -87,7 +87,7 @@ export default function CanvasStudioPage() {
     setPendingAddIds(previous => previous.filter(id => !ids.includes(id)));
   }, []);
 
-  const handleGenerate = useCallback(async (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings, canvasTarget: ImageRecord | null) => {
+  const handleGenerate = useCallback(async (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings, canvasTarget: ImageRecord | null, context: CanvasGenerateContext) => {
     const resolvedPrompt = resolvePromptTextReferences(prompt, references);
     const target = canvasTarget?.id === nodeId ? canvasTarget : images.find(image => image.id === nodeId);
     const referenceImages = references
@@ -103,6 +103,7 @@ export default function CanvasStudioPage() {
           const response = await apiJson<{ images: ImageRecord[] }>(settings.count > 1 ? "/api/image-edit/batch" : "/api/image-edit", {
             method: "POST",
             headers: { "Idempotency-Key": crypto.randomUUID() },
+            signal: context.signal,
             ...encodeCanvasBody(settings.count > 1 ? {
               mode: "reference",
               targetImage: sourceReference.imageUrl || sourceReference.previewUrl,
@@ -126,11 +127,12 @@ export default function CanvasStudioPage() {
           });
           results = response.images ?? [];
         } else {
-          const settled = await settleCanvasVariantRequests(settings.count, () => apiJson<ImageRecord>("/api/image", {
+          const settled = await settleCanvasVariantRequests(settings.count, signal => apiJson<ImageRecord>("/api/image", {
             method: "POST",
             headers: { "Idempotency-Key": crypto.randomUUID() },
+            signal,
             ...encodeCanvasBody({ prompt: resolvedPrompt, model: settings.model, size: settings.size }),
-          }));
+          }), context.signal);
           results = settled.values;
           if (!results.length) {
             throw settled.errors[0] instanceof Error
@@ -150,6 +152,7 @@ export default function CanvasStudioPage() {
         setGenerationStatus(`已生成 ${results.length} 张图片，已连接到文本节点。`);
         return results.map(result => result.id);
       } catch (error) {
+        if (context.signal.aborted) throw error;
         setGenerationStatus(error instanceof ApiError ? error.message : "生成失败，请稍后重试。");
         return [];
       }
@@ -180,6 +183,7 @@ export default function CanvasStudioPage() {
       const result = await apiJson<{ images: ImageRecord[]; failed?: number; lastError?: string | null }>(endpoint, {
         method: "POST",
         headers: { "Idempotency-Key": crypto.randomUUID() },
+        signal: context.signal,
         ...encodeCanvasBody(editBody),
       });
       const results = result.images ?? [];
@@ -191,6 +195,7 @@ export default function CanvasStudioPage() {
         : `已生成 ${results.length} 张，可继续在画布中编辑。`);
       return results.map(result => result.id);
     } catch (error) {
+      if (context.signal.aborted) throw error;
       setGenerationStatus(error instanceof ApiError ? error.message : "生成失败，请稍后重试。");
       return [];
     }

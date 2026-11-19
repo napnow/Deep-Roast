@@ -29,7 +29,7 @@ export default function CanvasGenerationStatus({
 
   return (
     <section className={`canvas-generation-status is-${task.status}`} role="status" aria-live="polite" aria-label={`${title}生成状态`}>
-      {isActive && <ThinkingOrb state="working" size={42} />}
+      {isActive && <ThinkingOrb state="working" size={20} />}
       {isQueued && <span className="canvas-generation-status__queue-mark" aria-hidden="true">⋯</span>}
       {isError && <span className="canvas-generation-status__error-mark" aria-hidden="true">!</span>}
       <div className="canvas-generation-status__body">

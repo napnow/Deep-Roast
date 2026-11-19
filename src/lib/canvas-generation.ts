@@ -3,17 +3,25 @@ export type CanvasVariantResults<T> = {
   errors: unknown[];
 };
 
+export type CanvasGenerateContext = {
+  signal: AbortSignal;
+};
+
 export async function settleCanvasVariantRequests<T>(
   count: number,
-  request: () => Promise<T>,
+  request: (signal?: AbortSignal) => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<CanvasVariantResults<T>> {
   const attempts = Math.max(0, Math.floor(count));
-  const settled = await Promise.allSettled(
-    Array.from({ length: attempts }, () => request()),
-  );
-  return settled.reduce<CanvasVariantResults<T>>((result, item) => {
-    if (item.status === "fulfilled") result.values.push(item.value);
-    else result.errors.push(item.reason);
-    return result;
-  }, { values: [], errors: [] });
+  const values: T[] = [];
+  const errors: unknown[] = [];
+  for (let index = 0; index < attempts; index += 1) {
+    if (signal?.aborted) break;
+    try {
+      values.push(await request(signal));
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  return { values, errors };
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges } from "./canvas-items";
+import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges, isLegacyAutoAddedCanvasLayout, mergeCanvasItemsNear, replaceCanvasPlaceholder } from "./canvas-items";
 
 test("adds new images without replacing moved positions or duplicating nodes", () => {
   assert.deepEqual(mergeCanvasItems([{id:"a", x:45, y:-20}], ["a", "b", "b"]), [
@@ -15,6 +15,23 @@ test("removes deleted records and handles an empty library", () => {
 test("newest image is placed in an empty grid position when history is prepended", () => {
   const merged = mergeCanvasItems([{id:"a", x:0, y:0}], ["b", "a"]);
   assert.notDeepEqual({x:merged[0].x,y:merged[0].y}, {x:merged[1].x,y:merged[1].y});
+});
+
+test("recognizes a complete untouched grid as a legacy auto-added canvas", () => {
+  const ids = ["a", "b", "c"];
+  assert.equal(isLegacyAutoAddedCanvasLayout(mergeCanvasItems([], ids), ids), true);
+  assert.equal(isLegacyAutoAddedCanvasLayout([{ id: "a", x: 41, y: 0 }, { id: "b", x: 390, y: 0 }, { id: "c", x: 780, y: 0 }], ids), false);
+});
+
+test("replaces a generated image into its placeholder position", () => {
+  assert.deepEqual(replaceCanvasPlaceholder([{ id: "placeholder", x: 820, y: 240, placeholder: true }], "placeholder", "image"), [
+    { id: "image", x: 820, y: 240 },
+  ]);
+});
+
+test("places generated images near their source node", () => {
+  const result = mergeCanvasItemsNear([{ id: "text", x: 100, y: 200 }], ["image"], "text");
+  assert.deepEqual(result.find(item => item.id === "image"), { id: "image", x: 520, y: 200 });
 });
 
 

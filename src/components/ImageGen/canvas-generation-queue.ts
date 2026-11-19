@@ -56,7 +56,18 @@ export function createCanvasGenerationQueue({ limit = 2, onChange }: QueueOption
   let disposed = false;
   let timer: ReturnType<typeof setInterval> | null = null;
 
-  const snapshot = () => [...tasks.values()].map(({ job: _job, controller: _controller, idleWaiters: _idleWaiters, ...task }) => ({ ...task }));
+  const snapshot = () => [...tasks.values()].map(task => ({
+    taskId: task.taskId,
+    nodeId: task.nodeId,
+    status: task.status,
+    queuedAt: task.queuedAt,
+    startedAt: task.startedAt,
+    elapsedSeconds: task.elapsedSeconds,
+    count: task.count,
+    completed: task.completed,
+    failed: task.failed,
+    error: task.error,
+  }));
   const emit = () => {
     const value = snapshot();
     onChange?.(value);
@@ -116,7 +127,7 @@ export function createCanvasGenerationQueue({ limit = 2, onChange }: QueueOption
       const result = await task.job.run(task.controller.signal);
       finish(task, result);
     } catch (error) {
-      if (task.status !== "cancelled") {
+      if ((task.status as CanvasGenerationTaskStatus) !== "cancelled") {
         task.failed = Math.max(1, task.failed);
         task.error = error instanceof Error ? error.message : "生成失败";
         task.status = isAbortError(error) ? "cancelled" : "error";
@@ -178,11 +189,17 @@ export function createCanvasGenerationQueue({ limit = 2, onChange }: QueueOption
     tasks.delete(nodeId);
     return enqueue(task.job);
   };
+  const dismiss = (nodeId: string) => {
+    const task = tasks.get(nodeId);
+    if (!task || task.status === "queued" || task.status === "generating") return false;
+    tasks.delete(nodeId);
+    emit();
+    return true;
+  };
   const get = (nodeId: string) => {
     const task = tasks.get(nodeId);
     if (!task) return undefined;
-    const { job: _job, controller: _controller, idleWaiters: _idleWaiters, ...value } = task;
-    return { ...value };
+    return snapshot().find(value => value.nodeId === nodeId);
   };
   const getAll = () => snapshot();
   const subscribe = (listener: (tasks: CanvasGenerationTask[]) => void) => {
@@ -209,5 +226,5 @@ export function createCanvasGenerationQueue({ limit = 2, onChange }: QueueOption
     emit();
   };
 
-  return { enqueue, cancel, retry, get, getAll, subscribe, whenIdle, dispose };
+  return { enqueue, cancel, retry, dismiss, get, getAll, subscribe, whenIdle, dispose };
 }

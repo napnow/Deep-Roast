@@ -6,12 +6,16 @@ import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
-import { canvasEdges, dedupeCanvasEdges, mergeCanvasItems } from "./canvas-items";
+import { canvasEdges, dedupeCanvasEdges, isLegacyAutoAddedCanvasLayout, mergeCanvasItems, mergeCanvasItemsNear, replaceCanvasPlaceholder, type CanvasItem } from "./canvas-items";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
+import { createCanvasGenerationQueue, type CanvasGenerationTask } from "./canvas-generation-queue";
+import CanvasGenerationStatus from "./CanvasGenerationStatus";
+import CanvasGenerationQueueSummary from "./CanvasGenerationQueueSummary";
+import type { CanvasGenerateContext } from "@/lib/canvas-generation";
 
-type CanvasGenerateHandler = (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings, targetImage: ImageRecord | null) => void | string[] | Promise<void | string[]>;
+type CanvasGenerateHandler = (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings, targetImage: ImageRecord | null, context: CanvasGenerateContext) => void | string[] | Promise<void | string[]>;
 type CanvasPromptGenerateHandler = (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings) => void | string[] | Promise<void | string[]>;
 
 type ImageNodeData = {
@@ -33,6 +37,10 @@ type ImageNodeData = {
   promptInsertSignal?: { value: string; nonce: number };
   isSelected: boolean;
   isPromptOpen: boolean;
+  generationTask?: CanvasGenerationTask;
+  onCancelGeneration?: (nodeId: string) => void;
+  onRetryGeneration?: (nodeId: string) => void;
+  onDismissGeneration?: (nodeId: string) => void;
 };
 type ImageNode = Node<ImageNodeData, "image">;
 type TextNodeData = {
@@ -50,6 +58,10 @@ type TextNodeData = {
   openLibrarySignal: number;
   promptInsertSignal?: { value: string; nonce: number };
   isPromptOpen: boolean;
+  generationTask?: CanvasGenerationTask;
+  onCancelGeneration?: (nodeId: string) => void;
+  onRetryGeneration?: (nodeId: string) => void;
+  onDismissGeneration?: (nodeId: string) => void;
 };
 type TextNode = Node<TextNodeData, "text">;
 type CanvasNode = ImageNode | TextNode;
@@ -229,6 +241,7 @@ const ImageCanvasNode = memo(function ImageCanvasNode({ id, data, selected }: No
         {!data.isEmpty && <button type="button" className="nodrag" onClick={event => { event.stopPropagation(); data.onContinueEditing(image); }}>继续修改</button>}
         <button type="button" className="nodrag" aria-label={`移出画布：${image.prompt || "图片节点"}`} onClick={event => { event.stopPropagation(); data.onRemove(id); }}>移出</button>
       </div>
+      {data.generationTask && data.onCancelGeneration && data.onRetryGeneration && data.onDismissGeneration && <CanvasGenerationStatus task={data.generationTask} promptSummary={image.prompt} onCancel={() => data.onCancelGeneration?.(id)} onRetry={() => data.onRetryGeneration?.(id)} onDismiss={() => data.onDismissGeneration?.(id)} />}
       <div className="canvas-connection-hitbox canvas-connection-hitbox--source" data-nodeid={id} data-handletype="source" role="button" tabIndex={0} aria-label="选择右侧连线端点" onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); data.onStartKeyboardConnection(id, "source"); } }} onPointerDownCapture={event => data.onStartManualConnection(event, id, "source", null)}><Handle type="source" position={Position.Right} isConnectable /></div>
       {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={image.prompt} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} openLibrarySignal={data.openLibrarySignal} promptInsertSignal={data.promptInsertSignal} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
     </article>
@@ -245,6 +258,7 @@ const TextCanvasNode = memo(function TextCanvasNode({ id, data, selected }: Node
         <button type="button" className="nodrag" aria-label="删除文本节点" onClick={event => { event.stopPropagation(); data.onRemove(id); }}>×</button>
       </div>
       <textarea className="nodrag" value={data.text} onChange={event => data.onChange(id, event.target.value)} aria-label="文本节点内容" maxLength={12000} placeholder="输入提示词" />
+      {data.generationTask && data.onCancelGeneration && data.onRetryGeneration && data.onDismissGeneration && <CanvasGenerationStatus task={data.generationTask} promptSummary={data.text || "文本节点"} onCancel={() => data.onCancelGeneration?.(id)} onRetry={() => data.onRetryGeneration?.(id)} onDismiss={() => data.onDismissGeneration?.(id)} />}
       <div className="canvas-connection-hitbox canvas-connection-hitbox--source" data-nodeid={id} data-handletype="source" role="button" tabIndex={0} aria-label="选择右侧连线端点" onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); data.onStartKeyboardConnection(id, "source"); } }} onPointerDownCapture={event => data.onStartManualConnection(event, id, "source", null)}><Handle type="source" position={Position.Right} isConnectable /></div>
       {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={data.text} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} openLibrarySignal={data.openLibrarySignal} promptInsertSignal={data.promptInsertSignal} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
     </article>
@@ -278,6 +292,21 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   const [pendingConnectionCreate, setPendingConnectionCreate] = useState<PendingConnectionCreate | null>(null);
   const [keyboardConnection, setKeyboardConnection] = useState<KeyboardConnection | null>(null);
   const [manualConnection, setManualConnection] = useState<ManualConnection | null>(null);
+  const [generationTasks, setGenerationTasks] = useState<CanvasGenerationTask[]>([]);
+  const generationTasksRef = useRef<CanvasGenerationTask[]>([]);
+  const generationQueue = useMemo(() => createCanvasGenerationQueue({ limit: 2, onChange: tasks => {
+    setGenerationTasks(tasks);
+  } }), []);
+  useEffect(() => { generationTasksRef.current = generationTasks; }, [generationTasks]);
+  useEffect(() => () => generationQueue.dispose(), [generationQueue]);
+  useEffect(() => {
+    const taskMap = new Map(generationTasks.map(task => [task.nodeId, task]));
+    setNodes(previous => previous.map(node => {
+      const task = taskMap.get(node.id);
+      if (node.type === "text") return { ...node, data: { ...node.data, generationTask: task } };
+      return { ...node, data: { ...node.data, generationTask: task } };
+    }));
+  }, [generationTasks, setNodes]);
   const manualConnectionActive = useRef(false);
   const suppressPaneClick = useRef(false);
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pan");
@@ -303,6 +332,8 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   const [remoteImages, setRemoteImages] = useState<ImageRecord[]>([]);
   const remoteImagesRef = useRef(remoteImages);
   useEffect(() => { remoteImagesRef.current = remoteImages; }, [remoteImages]);
+  const pendingPlaceholderRef = useRef(new Map<string, string>());
+  const pendingAnchorRef = useRef(new Map<string, string>());
   useEffect(() => {
     setRemoteImages(previous => {
       const merged = new Map(previous.map(image => [image.id, image]));
@@ -354,7 +385,8 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setStatus(current => current === "conflict" ? current : "unsaved");
     schedule();
   }, [retainDraft, schedule]);
-  const remove = useCallback((id: string) => {
+  const remove = useCallback((id: string, cancelTask = true) => {
+    if (cancelTask) generationQueue.cancel(id);
     const target = nodesRef.current.find(node => node.id === id);
     if (target?.type === "image" && !target.data.isEmpty && !hiddenRef.current.includes(id)) updateHidden([...hiddenRef.current, id]);
     nodesRef.current = nodesRef.current.filter(node => node.id !== id);
@@ -367,7 +399,16 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setSelectedNodeId(current => current === id ? null : current);
     setPromptNodeId(current => current === id ? null : current);
     changed();
-  }, [changed, setNodes, updateHidden]);
+  }, [changed, generationQueue, setNodes, updateHidden]);
+  const cancelGeneration = useCallback((nodeId: string) => {
+    generationQueue.cancel(nodeId);
+  }, [generationQueue]);
+  const retryGeneration = useCallback((nodeId: string) => {
+    generationQueue.retry(nodeId);
+  }, [generationQueue]);
+  const dismissGeneration = useCallback((nodeId: string) => {
+    generationQueue.dismiss(nodeId);
+  }, [generationQueue]);
   const updateText = useCallback((id: string, text: string) => {
     nodesRef.current = nodesRef.current.map(node => node.id === id && node.type === "text"
       ? { ...node, data: { ...node.data, text } }
@@ -389,19 +430,40 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   const generateForNode = useCallback(async (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings) => {
     const node = nodesRef.current.find(candidate => candidate.id === nodeId);
     const targetImage = node?.type === "image" && !node.data.isEmpty ? node.data.image : null;
-    const generatedIds = await onGenerate?.(nodeId, prompt, references, settings, targetImage);
-    if (Array.isArray(generatedIds)) {
-      const sourceIds = manualEdgesRef.current.filter(edge => edge.target === nodeId).map(edge => edge.source);
-      const sourceNode = nodesRef.current.find(node => node.id === nodeId);
-      if (sourceNode?.type === "image" && sourceNode.data.isEmpty) {
-        remove(nodeId);
-        sourceIds.forEach(sourceId => connectGeneratedNodes(sourceId, generatedIds));
-      } else {
-        connectGeneratedNodes(nodeId, generatedIds);
-      }
-    }
-    return generatedIds;
-  }, [connectGeneratedNodes, onGenerate, remove]);
+    if (!onGenerate) return;
+    generationQueue.enqueue({
+      nodeId,
+      count: settings.count,
+      run: async signal => {
+        const generatedIds = await onGenerate(nodeId, prompt, references, settings, targetImage, { signal });
+        if (Array.isArray(generatedIds)) {
+          const sourceIds = manualEdgesRef.current.filter(edge => edge.target === nodeId).map(edge => edge.source);
+          const sourceNode = nodesRef.current.find(current => current.id === nodeId);
+          if (sourceNode?.type === "image" && sourceNode.data.isEmpty) {
+            const [firstId] = generatedIds;
+            if (firstId) {
+              pendingPlaceholderRef.current.set(firstId, nodeId);
+              generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
+              const next = generatedIds.reduce((edges, targetId) => sourceIds.reduce((result, sourceId) => {
+                if (result.some(edge => edge.source === sourceId && edge.target === targetId)) return result;
+                return addEdge({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null }, result);
+              }, edges), manualEdgesRef.current);
+              manualEdgesRef.current = next;
+              setManualEdges(next);
+              changed();
+            }
+          } else {
+            generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
+            connectGeneratedNodes(nodeId, generatedIds);
+          }
+          return { completed: generatedIds.length, failed: generatedIds.length ? 0 : 1, error: generatedIds.length ? undefined : "未生成图片" };
+        }
+        return { completed: 0, failed: 1, error: "未生成图片" };
+      },
+    });
+    /* Results are connected by the queue job so queued tasks do not hold the prompt panel open. */
+    return;
+  }, [changed, connectGeneratedNodes, generationQueue, onGenerate]);
   const addManualConnection = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || connection.source === connection.target) return;
     const current = manualEdgesRef.current;
@@ -485,14 +547,14 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       type: "text",
       position: position ?? { x: center.x - 140, y: center.y - 90 },
       dragHandle: ".infinite-text-node__handle",
-      data: { text, onChange: updateText, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isPromptOpen: true },
+      data: { text, onChange: updateText, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
     };
     nodesRef.current = [...nodesRef.current, node];
     setNodes(nodesRef.current);
     setSelectedNodeId(id);
     changed();
     return id;
-  }, [beginKeyboardConnection, beginManualConnection, changed, defaultImageModel, generateForNode, imageModels, openLibrarySignal, promptInsertSignal, ready, remove, setNodes, updateText]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, defaultImageModel, dismissGeneration, generateForNode, imageModels, openLibrarySignal, promptInsertSignal, ready, remove, retryGeneration, setNodes, updateText]);
   const addEmptyImageNode = useCallback((position?: { x: number; y: number }) => {
     if (!ready || nodesRef.current.length >= 500) return null;
     const center = flowRef.current?.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }) ?? { x: 120, y: 120 };
@@ -502,7 +564,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       type: "image",
       position: position ?? { x: center.x - 160, y: center.y - 160 },
       dragHandle: ".infinite-image-node__handle",
-      data: { image: emptyImageRecord(id), isEmpty: true, onPreview: preview, onEdit: edit, onContinueEditing: continueEditing, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isSelected: true, isPromptOpen: true },
+      data: { image: emptyImageRecord(id), isEmpty: true, onPreview: preview, onEdit: edit, onContinueEditing: continueEditing, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isSelected: true, isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
     };
     nodesRef.current = [...nodesRef.current, node];
     setNodes(nodesRef.current);
@@ -510,7 +572,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setPromptNodeId(id);
     changed();
     return id;
-  }, [beginKeyboardConnection, beginManualConnection, changed, continueEditing, defaultImageModel, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, ready, remove, setNodes]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, ready, remove, retryGeneration, setNodes]);
   const connectCreatedNode = useCallback((newNodeId: string, pending: PendingConnectionCreate) => {
     const connection = pending.handleType === "source"
       ? { source: pending.fromNodeId, target: newNodeId, sourceHandle: pending.fromHandleId, targetHandle: null }
@@ -606,6 +668,10 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
             openLibrarySignal,
             promptInsertSignal,
             isPromptOpen: position.id === promptNodeId,
+            generationTask: generationTasksRef.current.find(task => task.nodeId === position.id),
+            onCancelGeneration: cancelGeneration,
+            onRetryGeneration: retryGeneration,
+            onDismissGeneration: dismissGeneration,
           },
         }];
       }
@@ -636,6 +702,10 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
             model: image.model || defaultImageModel,
             size: image.size || undefined,
           },
+          generationTask: generationTasksRef.current.find(task => task.nodeId === position.id),
+          onCancelGeneration: cancelGeneration,
+          onRetryGeneration: retryGeneration,
+          onDismissGeneration: dismissGeneration,
           onClosePrompt: () => {
             setPromptNodeId(null);
             setNodes(previous => previous.map(node => ({ ...node, selected: false })));
@@ -643,7 +713,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
         },
       }] : [];
     });
-  }, [beginKeyboardConnection, beginManualConnection, continueEditing, defaultImageModel, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, promptNodeId, remove, selectedNodeId, setNodes, updateText]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, promptNodeId, remove, retryGeneration, selectedNodeId, setNodes, updateText]);
 
   // A returned record is authoritative; local history may be stale after deletion on another device.
   const resolveImages = useCallback(async (ids: string[]) => {
@@ -667,12 +737,17 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     const savedNodes = (source?.nodes ?? []).filter(node => node.kind === "text" || all.has(node.id) || isEmptyCanvasNode(node));
     const savedImageNodes = savedNodes.filter(node => node.kind !== "text");
     const savedTextNodes = savedNodes.filter((node): node is Extract<CanvasNodeLayout, { kind: "text" }> => node.kind === "text");
+    const legacyAutoAdded = !autoAddImages
+      && savedImageNodes.length > 0
+      && (source?.connections?.length ?? 0) === 0
+      && isLegacyAutoAddedCanvasLayout(savedImageNodes, [...all.keys()]);
+    const restoredImageNodes = legacyAutoAdded ? [] : savedImageNodes;
     const candidateIds = autoAddImages
-      ? [...new Set([...savedImageNodes.map(node => node.id), ...all.keys()])]
-      : savedImageNodes.map(node => node.id);
+      ? [...new Set([...restoredImageNodes.map(node => node.id), ...all.keys()])]
+      : restoredImageNodes.map(node => node.id);
     const candidates = candidateIds.filter(id => !hidden.includes(id)).slice(0, 500);
     const positions: CanvasNodeLayout[] = [
-      ...mergeCanvasImageNodes(savedImageNodes, candidates),
+      ...mergeCanvasImageNodes(restoredImageNodes, candidates),
       ...savedTextNodes,
     ];
     const next = makeNodes(positions, all);
@@ -691,7 +766,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setViewportKey(key => key + 1);
     savedRef.current = 0;
     const hasNew = positions.some(position => !source?.nodes.some(node => node.id === position.id));
-    const hasChanges = Boolean(draft) || hasNew;
+    const hasChanges = Boolean(draft) || hasNew || legacyAutoAdded;
     dirtyRef.current = hasChanges ? 1 : 0;
     const conflict = Boolean(draft && draft.revision !== cloudRevision);
     setReady(true);
@@ -852,8 +927,32 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setNodes(previous => {
       const previousImages = previous.filter(node => node.type !== "text");
       const previousText = previous.filter((node): node is TextNode => node.type === "text");
+      let imageItems: CanvasItem[] = previousImages.map(node => ({ id: node.id, x: node.position.x, y: node.position.y, placeholder: node.type === "image" && node.data.isEmpty }));
+      const replacements = new Map<string, string>();
+      for (const id of additions) {
+        const placeholderId = pendingPlaceholderRef.current.get(id);
+        if (placeholderId && imageItems.some(item => item.id === placeholderId)) {
+          imageItems = replaceCanvasPlaceholder(imageItems, placeholderId, id);
+          replacements.set(placeholderId, id);
+          pendingPlaceholderRef.current.delete(id);
+          pendingAnchorRef.current.delete(id);
+          continue;
+        }
+        const requestedAnchor = pendingAnchorRef.current.get(id);
+        const anchorId = requestedAnchor ? replacements.get(requestedAnchor) || requestedAnchor : undefined;
+        if (anchorId) {
+          const allItems = [
+            ...imageItems,
+            ...previousText.map(node => ({ id: node.id, x: node.position.x, y: node.position.y })),
+          ];
+          imageItems = mergeCanvasItemsNear(allItems, [id], anchorId).filter(item => imageItems.some(existing => existing.id === item.id) || item.id === id);
+        } else {
+          imageItems = mergeCanvasItems(imageItems, [id]);
+        }
+        pendingAnchorRef.current.delete(id);
+      }
       const positions: CanvasNodeLayout[] = [
-        ...mergeCanvasImageNodes(previousImages.map(node => ({ id: node.id, x: node.position.x, y: node.position.y, placeholder: node.type === "image" && node.data.isEmpty })), [...previousImages.map(node => node.id), ...additions]),
+        ...imageItems.map(item => ({ ...item, kind: "image" as const })),
         ...previousText.map(node => ({ id: node.id, kind: "text" as const, x: node.position.x, y: node.position.y, text: node.data.text })),
       ];
       const next = makeNodes(positions, records);
@@ -1001,6 +1100,10 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       {manualConnection && <svg className="canvas-manual-connection" aria-hidden="true"><path d={`M ${manualConnection.startX} ${manualConnection.startY} C ${manualConnection.startX + 90} ${manualConnection.startY}, ${manualConnection.currentX - 90} ${manualConnection.currentY}, ${manualConnection.currentX} ${manualConnection.currentY}`} /></svg>}
       {ready && nodes.length > 0 && <ReactFlow key={viewportKey} nodes={nodes} edges={edges} onInit={instance => { flowRef.current = instance; }} onConnect={connectNodes} onConnectEnd={finishConnection} onNodesChange={changeNodes} onNodeDragStop={changed} onMove={(_event, next) => setGridViewport(previous => previous.x === next.x && previous.y === next.y && previous.zoom === next.zoom ? previous : next)} onMoveEnd={moved} onNodeClick={selectNode} onPaneClick={() => { if (suppressPaneClick.current) { suppressPaneClick.current = false; return; } setSelectedNodeId(null); setPromptNodeId(null); setPendingConnectionCreate(null); setNodes(previous => previous.map(node => ({ ...node, selected: false }))); }} nodeTypes={nodeTypes} defaultViewport={viewport} minZoom={0.2} maxZoom={2} panOnDrag={canvasTool === "pan"} selectionOnDrag={canvasTool === "select"} connectionLineStyle={{ stroke: "#a44f32", strokeWidth: 2.2, strokeDasharray: "5 5" }} onlyRenderVisibleElements nodesConnectable deleteKeyCode={null} proOptions={{ hideAttribution: false }} />}
       {ready && nodes.length === 0 && <div className="infinite-image-empty"><strong>画布暂无节点</strong><span>从左侧资产库加入一张作品开始创作</span></div>}
+      <CanvasGenerationQueueSummary tasks={generationTasks} getLabel={nodeId => {
+        const node = nodesRef.current.find(current => current.id === nodeId);
+        return node?.type === "text" ? (node.data.text || "文本节点") : (node?.data.image.prompt || "图片节点");
+      }} onCancel={cancelGeneration} onRetry={retryGeneration} />
       <div className="infinite-image-canvas__topline">
         <div className="infinite-image-canvas__title">
           <strong>作品画布</strong>

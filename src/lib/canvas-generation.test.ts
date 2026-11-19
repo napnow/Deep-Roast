@@ -26,3 +26,17 @@ test("runs the requested number of canvas variants independently", async () => {
   assert.deepEqual(result.values, [1, 2, 3, 4]);
   assert.deepEqual(result.errors, []);
 });
+
+test("canvas variant requests pass the abort signal and stop queued variants", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const result = await settleCanvasVariantRequests(5, signal => {
+    calls += 1;
+    assert.equal(signal, controller.signal);
+    controller.abort();
+    return Promise.reject(Object.assign(new Error("cancelled"), { name: "AbortError" }));
+  }, controller.signal);
+  assert.equal(calls, 1);
+  assert.equal(result.values.length, 0);
+  assert.equal(result.errors.length, 1);
+});
