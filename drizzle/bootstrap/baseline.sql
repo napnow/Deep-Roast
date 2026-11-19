@@ -58,6 +58,7 @@ CREATE TABLE "image_canvas_layouts" (
 	"user_id" uuid PRIMARY KEY NOT NULL,
 	"revision" integer DEFAULT 1 NOT NULL,
 	"nodes" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"connections" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"hidden_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"viewport" jsonb NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL

@@ -22,7 +22,7 @@ export function clearCanvasDraft(storage: DraftStorage, accountId: string): void
   try { storage.removeItem(key(accountId)); } catch { /* Storage can be unavailable. */ }
 }
 export function sameCanvasContent(a: CanvasLayout, b: CanvasLayout): boolean {
-  return JSON.stringify([a.nodes, a.hiddenIds, a.viewport]) === JSON.stringify([b.nodes, b.hiddenIds, b.viewport]);
+  return JSON.stringify([a.nodes, a.connections, a.hiddenIds, a.viewport]) === JSON.stringify([b.nodes, b.connections, b.hiddenIds, b.viewport]);
 }
 
 // The memory copy also protects client-side navigation when browser storage is blocked.

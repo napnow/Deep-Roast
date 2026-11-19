@@ -19,6 +19,7 @@ import {createRoot} from 'react-dom/client';
 import ImageGenView from '@/components/ImageGen/ImageGenView';
 import ChangePasswordModal from '@/components/Auth/ChangePasswordModal';
 import {useDeepRoastStore} from '@/lib/store';
+window.__routerPushes = [];
 const fixture = {id:'fixture-image',prompt:'Synthetic warm ceramic cup',model:'gpt-image-2',size:'1024x1024',imageUrl:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="tan" width="100" height="100"/%3E%3C/svg%3E',createdAt:'2026-09-13T01:00:00Z',sourceMode:'text'};
 window.__calls = []; window.__fetches = [];
 window.fetch = async (input, init={}) => {
@@ -108,7 +109,7 @@ async function build() {
             { filter: /^next-navigation$/, namespace: "test-stub" },
             () => ({
               contents:
-                "export const useRouter = () => ({ push(){}, replace(){}, refresh(){} }); export const usePathname = () => '/'; export const useSearchParams = () => new URLSearchParams();",
+                "export const useRouter = () => ({ push(path){ window.__routerPushes.push(path); }, replace(){}, refresh(){} }); export const usePathname = () => '/'; export const useSearchParams = () => new URLSearchParams();",
               loader: "js",
             }),
           );
@@ -705,15 +706,11 @@ async function run() {
         ),
     };
   });
-  await check("desktop-infinite-canvas-toggle", "head", 1440, async (page) => {
-    await page.getByRole("button", { name: "展开作品画布" }).click();
-    await page.locator(".infinite-image-node").waitFor({ state: "visible" });
-    assert.equal(await page.locator(".infinite-image-node").count(), 1);
-    assert.equal(await page.getByRole("button", { name: "返回单图" }).isVisible(), true);
-    await page.getByRole("button", { name: "返回单图" }).click();
+  await check("desktop-infinite-canvas-entry", "head", 1440, async (page) => {
+    await page.getByRole("button", { name: "打开作品画布" }).click();
+    const pushes = await page.evaluate(() => window.__routerPushes);
+    assert.deepEqual(pushes, ["/studio/canvas"]);
     assert.equal(await page.locator(".result-canvas").first().isVisible(), true);
-    await page.getByRole("button", { name: "展开作品画布" }).click();
-    assert.equal(await page.locator(".infinite-image-node").count(), 1);
     return {};
   });
   await browser.close();
