@@ -48,6 +48,7 @@ import { createImagePerformance, type ImagePerformance } from "./image-performan
 import { imageConcurrency } from "./image-concurrency";
 import { imagePolicyError } from "./image-policy";
 import { resolveImageEditSource, snapshotImageEditSources } from "./image-edit-source";
+import { planImageDeletions, type DeletableImage } from "./image-deletion";
 
 const MAX_PROMPT_LENGTH = 12000;
 
@@ -1279,15 +1280,14 @@ export async function listOwnedImagesById(userId: string, ids: string[]) {
 }
 
 export async function deleteImageRecord(userId: string, id: string) {
-  const rows = await db
-    .delete(imageGenerations)
-    .where(
-      and(eq(imageGenerations.id, id), eq(imageGenerations.userId, userId)),
-    )
-    .returning();
-  const record = rows[0];
-  if (!record) throw new ApiError("记录不存在", 404);
+  const result = await deleteImageRecords(userId, [id]);
+  if (!result.deletedIds.includes(id)) throw new ApiError("记录不存在", 404);
+  return { success: true };
+}
 
+type DeletableImageRow = DeletableImage & typeof imageGenerations.$inferSelect;
+
+async function deleteImageArtifacts(record: typeof imageGenerations.$inferSelect) {
   try {
     const filePath = record.storageKey
       ? privateImagePath(privateImageRoot(), record.storageKey)
@@ -1296,7 +1296,6 @@ export async function deleteImageRecord(userId: string, id: string) {
   } catch {
     /* file may already be gone */
   }
-  // 同步删除缩略图（存在才删）
   try {
     const thumbPath = record.storageKey
       ? privateThumbnailPath(privateImageRoot(), record.storageKey)
@@ -1305,17 +1304,51 @@ export async function deleteImageRecord(userId: string, id: string) {
           "public",
           "images",
           "thumbs",
-          record.imageUrl
-            .split("/")
-            .pop()!
-            .replace(/\.(png|jpe?g)$/i, ".webp"),
+          record.imageUrl.split("/").pop()!.replace(/\.(png|jpe?g)$/i, ".webp"),
         );
     await unlink(thumbPath);
   } catch {
     /* thumbnail may not exist */
   }
+}
 
-  return { success: true };
+export async function deleteImageRecords(userId: string, ids: string[]) {
+  const requestedIds = [...new Set(ids.filter((id) => typeof id === "string" && id.trim()))];
+  if (!requestedIds.length) return { deletedIds: [], failedIds: [] };
+  const records = await db.select().from(imageGenerations).where(and(
+    eq(imageGenerations.userId, userId),
+    inArray(imageGenerations.id, requestedIds),
+  ));
+  const selected = planImageDeletions(records as DeletableImageRow[], requestedIds, { mode: "selected", userId });
+  const selectedIds = selected.map((record) => record.id);
+  if (selectedIds.length) {
+    await db.delete(imageGenerations).where(and(
+      eq(imageGenerations.userId, userId),
+      inArray(imageGenerations.id, selectedIds),
+    ));
+    await Promise.all(selected.map((record) => deleteImageArtifacts(record)));
+  }
+  return {
+    deletedIds: selectedIds,
+    failedIds: requestedIds.filter((id) => !selectedIds.includes(id)),
+  };
+}
+
+export async function deleteImageVersionGroup(userId: string, versionGroupId: string) {
+  if (!versionGroupId?.trim()) throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
+  const records = await db.select().from(imageGenerations).where(and(
+    eq(imageGenerations.userId, userId),
+    eq(imageGenerations.versionGroupId, versionGroupId),
+  ));
+  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId });
+  if (!selected.length) throw new ApiError("版本组不存在", 404, "VERSION_GROUP_NOT_FOUND");
+  const deletedIds = selected.map((record) => record.id);
+  await db.delete(imageGenerations).where(and(
+    eq(imageGenerations.userId, userId),
+    eq(imageGenerations.versionGroupId, versionGroupId),
+  ));
+  await Promise.all(selected.map((record) => deleteImageArtifacts(record)));
+  return { deletedIds, failedIds: [] };
 }
 
 /**

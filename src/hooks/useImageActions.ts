@@ -541,6 +541,30 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     [requests, userSessionVersion, setImageHistory, toast],
   );
 
+  const handleBatchDeleteImages = useCallback(
+    async (ids: string[], mode: "selected" | "version-group") => {
+      const uniqueIds = [...new Set(ids)];
+      if (!uniqueIds.length) return [];
+      try {
+        const result = mode === "version-group"
+          ? await apiJson<{ deletedIds: string[] }>(`/api/image-history/version-group/${encodeURIComponent(uniqueIds[0]!)}`, { method: "DELETE" })
+          : await apiJson<{ deletedIds: string[]; failedIds: string[] }>("/api/image-history/batch", {
+              method: "POST",
+              ...jsonBody({ ids: uniqueIds }),
+            });
+        const deletedIds = result.deletedIds || [];
+        setImageHistory((prev) => prev.filter((img) => !deletedIds.includes(img.id)));
+        deletedIds.forEach((id) => window.dispatchEvent(new CustomEvent("deeproast:image-deleted", { detail: id })));
+        toast(`已删除 ${deletedIds.length} 张图片`, "success");
+        return deletedIds;
+      } catch {
+        toast("批量删除失败，请稍后重试", "error");
+        return [];
+      }
+    },
+    [setImageHistory, toast],
+  );
+
   return {
     handleGenerateImage,
     handleGenerateImageBatch,
@@ -549,5 +573,6 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     handleStopGenerateImage,
     handleRetryImageTask,
     handleDeleteImage,
+    handleBatchDeleteImages,
   };
 }
