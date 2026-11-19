@@ -208,6 +208,15 @@ export default function Home() {
     [actions, activeImageId, setActiveImageId],
   );
 
+  const handleBatchDeleteImages = useCallback(
+    async (ids: string[], mode: "selected" | "version-group") => {
+      const deletedIds = await actions.handleBatchDeleteImages(ids, mode);
+      if (activeImageId && deletedIds.includes(activeImageId)) setActiveImageId(null);
+      return deletedIds;
+    },
+    [actions, activeImageId, setActiveImageId],
+  );
+
   const handleModeChange = useCallback(
     (mode: WorkspaceMode) => {
       setActiveMode(mode);
@@ -331,6 +340,7 @@ export default function Home() {
               activeImage={activeImage}
               onActiveImageChange={handleActiveImageChange}
               onDeleteImage={handleDeleteImage}
+              onBatchDeleteImages={handleBatchDeleteImages}
               credits={credits}
               isAdmin={isAdmin}
               onWalletClick={() => setWalletOpen(true)}

@@ -52,6 +52,7 @@ interface ImageGenViewProps {
   activeImage: ImageRecord | null;
   onActiveImageChange: (item: ImageRecord | null) => void;
   onDeleteImage: (id: string) => void;
+  onBatchDeleteImages: (ids: string[], mode: "selected" | "version-group") => Promise<string[]>;
   credits: number;
   isAdmin?: boolean;
   onWalletClick?: () => void;
@@ -79,6 +80,7 @@ export default function ImageGenView({
   activeImage,
   onActiveImageChange,
   onDeleteImage,
+  onBatchDeleteImages,
   credits,
   isAdmin,
   onWalletClick,
@@ -327,6 +329,7 @@ export default function ImageGenView({
           onSelect={handleSelectHistory}
           onContinueEditing={handleContinueEditing}
           onDelete={onDeleteImage}
+          onBatchDelete={onBatchDeleteImages}
         />
       </div>
 
@@ -360,6 +363,7 @@ export default function ImageGenView({
               history={history}
               onPreview={setPreviewImage}
               onDelete={onDeleteImage}
+              onBatchDelete={onBatchDeleteImages}
             />
           ) : (
             <AnnouncementTab />
@@ -427,6 +431,7 @@ export default function ImageGenView({
               setLibraryOpen(false);
             }}
             onDelete={onDeleteImage}
+            onBatchDelete={onBatchDeleteImages}
           />
         </div>
       </Dialog>

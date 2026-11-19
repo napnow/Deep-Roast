@@ -29,6 +29,10 @@ export type CanvasPromptLibraryResponse = {
   pageSize: number; hasMore: boolean;
 };
 
+export function syncPromptPanelValue(current: string, previousNodeValue: string, nextNodeValue: string) {
+  return current === previousNodeValue ? nextNodeValue : current;
+}
+
 const categoryRules: Array<{ category: PromptContentCategory; hints: string[] }> = [
   { category: "海报排版", hints: ["海报", "poster", "封面", "typography", "banner", "flyer"] },
   { category: "UI 与产品", hints: ["界面", "ui", "interface", "网页", "app", "dashboard", "原型", "landing page"] },

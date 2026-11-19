@@ -25,6 +25,7 @@ interface AssetInspectorProps {
   onSelect: (image: ImageRecord) => void;
   onContinueEditing: (image: ImageRecord) => void;
   onDelete: (id: string) => void;
+  onBatchDelete: (ids: string[], mode: "selected" | "version-group") => Promise<string[]>;
 }
 
 export default function AssetInspector({
@@ -35,6 +36,7 @@ export default function AssetInspector({
   onSelect,
   onContinueEditing,
   onDelete,
+  onBatchDelete,
 }: AssetInspectorProps) {
   const {
     inspectorTab,
@@ -46,6 +48,9 @@ export default function AssetInspector({
     setSelectedImageModel,
   } = useDeepRoastStore();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState<"selected" | "version-group" | null>(null);
   const epoch = useDeepRoastStore((state) => state.userSessionVersion);
   const download = useActionFeedback(`${activeImage?.id || ""}:download`);
   useEffect(() => {
@@ -60,6 +65,18 @@ export default function AssetInspector({
       ),
     [filter, history, query],
   );
+  const visibleImages = groups.flatMap((group) => group.images);
+  const selectedImages = visibleImages.filter((image) => selectedIds.has(image.id));
+  const selectedGroups = new Set(selectedImages.map((image) => image.versionGroupId).filter(Boolean));
+  const selectedGroupId = selectedGroups.size === 1 ? [...selectedGroups][0] : null;
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const closeSelection = () => { setSelecting(false); setSelectedIds(new Set()); };
 
   if (inspectorCollapsed && !forceExpanded) {
     return (
@@ -134,6 +151,19 @@ export default function AssetInspector({
               </button>
             ))}
           </div>
+          <div className="asset-selection-toolbar">
+            {!selecting ? (
+              <button type="button" onClick={() => setSelecting(true)}>选择</button>
+            ) : (
+              <>
+                <button type="button" onClick={() => setSelectedIds(new Set(visibleImages.map((image) => image.id)))}>全选</button>
+                <span aria-live="polite">已选 {selectedIds.size} 张</span>
+                <button type="button" onClick={closeSelection}>取消</button>
+                <button type="button" disabled={!selectedIds.size} onClick={() => setBatchMode("selected")}>删除选中</button>
+                <button type="button" disabled={!selectedGroupId} onClick={() => setBatchMode("version-group")}>删除版本组</button>
+              </>
+            )}
+          </div>
           {groups.length ? (
             groups.map((group) => (
               <section className="asset-group" key={group.label}>
@@ -141,6 +171,7 @@ export default function AssetInspector({
                 <div className="asset-grid">
                   {group.images.map((image) => (
                     <div className="asset-thumbnail" key={image.id}>
+                      {selecting && <button type="button" className={`asset-thumbnail__check ${selectedIds.has(image.id) ? "is-selected" : ""}`} aria-label={`选择图片：${image.prompt}`} aria-pressed={selectedIds.has(image.id)} onClick={() => toggleSelected(image.id)}>{selectedIds.has(image.id) ? "✓" : ""}</button>}
                       <button
                         type="button"
                         className={`asset-thumbnail__select ${
@@ -241,6 +272,19 @@ export default function AssetInspector({
           if (deleteId) onDelete(deleteId);
         }}
         onClose={() => setDeleteId(null)}
+      />
+      <ConfirmDialog
+        open={!!batchMode}
+        title={batchMode === "version-group" ? "删除整个版本组" : "删除选中图片"}
+        message={batchMode === "version-group" ? `将删除该版本组的全部图片（${selectedImages.length} 张及其其他版本），此操作不可撤销。` : `将删除已选中的 ${selectedIds.size} 张图片，其他版本不会受影响。`}
+        confirmText="确认删除"
+        onConfirm={async () => {
+          if (batchMode === "version-group" && selectedGroupId) await onBatchDelete([selectedGroupId], batchMode);
+          if (batchMode === "selected") await onBatchDelete([...selectedIds], batchMode);
+          setBatchMode(null);
+          closeSelection();
+        }}
+        onClose={() => setBatchMode(null)}
       />
     </section>
   );

@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { insertPromptReference, parsePromptReferences, type CanvasPromptReference } from "./canvas-prompt";
+import { insertPromptReference, parsePromptReferences, syncPromptPanelValue, type CanvasPromptReference } from "./canvas-prompt";
 import CanvasPromptChipInput from "./CanvasPromptChipInput";
 import { useCanvasPromptLibrary } from "./useCanvasPromptLibrary";
 import { getSizeOptions } from "./imageUtils";
@@ -59,6 +59,7 @@ export default function CanvasPromptPanel({
   onClose,
 }: CanvasPromptPanelProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
+  const previousInitialPrompt = useRef(initialPrompt);
   const [settings, setSettings] = useState<CanvasPromptPanelSettings>(() => startingSettings(initialSettings, models, defaultModel));
   const [busy, setBusy] = useState(false);
   const [inputMode, setInputMode] = useState<"text" | "image">("text");
@@ -81,8 +82,14 @@ export default function CanvasPromptPanel({
   }, [openLibrarySignal]);
 
   useEffect(() => {
+    setPrompt(current => syncPromptPanelValue(current, previousInitialPrompt.current, initialPrompt));
+    previousInitialPrompt.current = initialPrompt;
+  }, [initialPrompt]);
+
+  useEffect(() => {
     if (!promptInsertSignal) return;
     setPrompt(promptInsertSignal.value);
+    previousInitialPrompt.current = promptInsertSignal.value;
     setShowLibrary(false);
     setInputMode("text");
   }, [promptInsertSignal]);
@@ -125,6 +132,7 @@ export default function CanvasPromptPanel({
     setBusy(true);
     try {
       await onGenerate(nodeId, value, selected, settings);
+      onClose();
     } finally {
       setBusy(false);
     }
