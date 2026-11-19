@@ -176,8 +176,9 @@ test("the actual Drizzle adapter appends only the newer journal migration", asyn
     client.state.ledger.slice(-2).map((row) => row.created_at),
     pending.map((item: { when: number }) => String(item.when)),
   );
-  assert.ok(client.state.tables.some((t) => t.name === "registration_risk_marks"));
+  assert.ok(client.state.tables.some((t) => t.name === "image_canvas_layouts"));
   assert.ok(client.state.tables.some((t) => t.name === "llm_config"));
+  assert.equal(client.calls.some((call) => /ALTER TABLE "image_canvas_layouts" ADD COLUMN "connections"/i.test(call.text)), true);
   assert.equal(client.calls.some((c) => /^CREATE TABLE "announcements"/i.test(c.text)), false);
 });
 

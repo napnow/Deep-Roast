@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasItems, canvasEdges } from "./canvas-items";
+import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges } from "./canvas-items";
 
 test("adds new images without replacing moved positions or duplicating nodes", () => {
   assert.deepEqual(mergeCanvasItems([{id:"a", x:45, y:-20}], ["a", "b", "b"]), [
@@ -23,4 +23,15 @@ test("draws only recorded ancestry between visible distinct images", () => {
     { id: "a" }, { id: "b", sourceImageId: "a" }, { id: "c", sourceImageId: "missing" },
     { id: "d", sourceImageId: "d" }, { id: "e", sourceImageId: null },
   ]), [{ id: "a->b", source: "a", target: "b" }]);
+});
+
+test("renders one edge when ancestry and a saved connection describe the same link", () => {
+  assert.deepEqual(dedupeCanvasEdges([
+    { id: "manual:a->b", source: "a", target: "b" },
+    { id: "a->b", source: "a", target: "b" },
+    { id: "b->c", source: "b", target: "c" },
+  ]), [
+    { id: "manual:a->b", source: "a", target: "b" },
+    { id: "b->c", source: "b", target: "c" },
+  ]);
 });

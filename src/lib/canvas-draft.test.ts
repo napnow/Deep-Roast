@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readCanvasDraft, writeCanvasDraft, clearCanvasDraft, sameCanvasContent } from "./canvas-draft";
 
-const layout = {revision:3,nodes:[{id:"149e2eee-409f-4480-bba3-68da18847df7",x:20,y:-1}],hiddenIds:[],viewport:{x:0,y:0,zoom:1}};
+const layout = {revision:3,nodes:[{id:"149e2eee-409f-4480-bba3-68da18847df7",x:20,y:-1}],connections:[],hiddenIds:[],viewport:{x:0,y:0,zoom:1}};
 function storage() {
   const values = new Map<string,string>();
   return { getItem:(key:string)=>values.get(key) ?? null, setItem:(key:string,value:string)=>{values.set(key,value);}, removeItem:(key:string)=>{values.delete(key);}, values };
@@ -27,4 +27,5 @@ test("same content ignores revision but compares position and viewport", () => {
   assert.equal(sameCanvasContent(layout,{...layout,revision:4}),true);
   assert.equal(sameCanvasContent(layout,{...layout,viewport:{...layout.viewport,zoom:2}}),false);
   assert.equal(sameCanvasContent(layout,{...layout,nodes:[{...layout.nodes[0]!,x:21}]}),false);
+  assert.equal(sameCanvasContent(layout,{...layout,connections:[{id:"a-b",source:layout.nodes[0]!.id,target:"249e2eee-409f-4480-bba3-68da18847df7"}]}),false);
 });

@@ -160,3 +160,20 @@ test("repeat registration migration is additive and preserves existing balances"
   assert.doesNotMatch(sql, /DROP (TABLE|COLUMN)/i);
   assert.doesNotMatch(sql, /UPDATE "users"[\s\S]*credits/i);
 });
+
+test("canvas connection migration keeps existing layouts compatible", () => {
+  const sql = readFileSync(
+    "drizzle/0031_canvas_connections.sql",
+    "utf8",
+  );
+  assert.match(
+    sql,
+    /ADD COLUMN "connections" jsonb DEFAULT '\[\]'::jsonb NOT NULL/,
+  );
+  const journal = JSON.parse(
+    readFileSync("drizzle/meta/_journal.json", "utf8"),
+  ) as { entries: Array<{ tag: string }> };
+  assert.ok(
+    journal.entries.some(entry => entry.tag === "0031_canvas_connections"),
+  );
+});

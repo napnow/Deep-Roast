@@ -403,7 +403,11 @@ export const imageGenerations = pgTable("image_generations", {
 export const imageCanvasLayouts = pgTable("image_canvas_layouts", {
   userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
   revision: integer("revision").notNull().default(1),
-  nodes: jsonb("nodes").$type<Array<{ id: string; x: number; y: number }>>().notNull().default([]),
+  nodes: jsonb("nodes").$type<Array<
+    | { id: string; kind?: "image"; x: number; y: number }
+    | { id: string; kind: "text"; x: number; y: number; text: string }
+  >>().notNull().default([]),
+  connections: jsonb("connections").$type<Array<{ id: string; source: string; target: string }>>().notNull().default([]),
   hiddenIds: jsonb("hidden_ids").$type<string[]>().notNull().default([]),
   viewport: jsonb("viewport").$type<{ x: number; y: number; zoom: number }>().notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

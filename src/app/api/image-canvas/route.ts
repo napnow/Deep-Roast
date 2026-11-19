@@ -4,6 +4,7 @@ import { ApiError } from "@/server/http";
 import { requireActiveUser } from "@/server/auth";
 import { handleRoute, jsonOk, privateNoStore, readJson } from "@/server/http";
 import { loadCanvas, MissingCanvasImagesError, saveCanvas } from "@/server/services/image-canvas";
+import { MAX_CANVAS_LAYOUT_BYTES } from "@/lib/canvas-layout";
 
 export const GET = handleRoute(async req => {
   const { userId } = await requireActiveUser(req);
@@ -12,7 +13,7 @@ export const GET = handleRoute(async req => {
 
 export const PUT = handleRoute(async req => {
   const { userId } = await requireActiveUser(req);
-  const body = await readJson(req, { maxBytes: 128 * 1024 });
+  const body = await readJson(req, { maxBytes: MAX_CANVAS_LAYOUT_BYTES + 64 * 1024 });
   try {
     return privateNoStore(jsonOk(await saveCanvas(userId, body)));
   } catch (error) {

@@ -26,3 +26,14 @@ export function canvasEdges(images: Array<{ id: string; sourceImageId?: string |
     ? [{ id: `${image.sourceImageId}->${image.id}`, source: image.sourceImageId, target: image.id }]
     : []);
 }
+
+export function dedupeCanvasEdges<T extends { source?: unknown; target?: unknown }>(edges: T[]): T[] {
+  const seen = new Set<string>();
+  return edges.filter(edge => {
+    if (typeof edge.source !== "string" || typeof edge.target !== "string") return true;
+    const key = `${edge.source}\u0000${edge.target}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

@@ -1210,12 +1210,13 @@ export async function runImageEditTasks(opts: {
   };
 }
 
-export async function listImageHistory(userId: string, limit = 50) {
+export async function listImageHistory(userId: string, limit = 50, offset = 0) {
   const rows = await db
     .select()
     .from(imageGenerations)
     .where(eq(imageGenerations.userId, userId))
-    .orderBy(desc(imageGenerations.createdAt))
+    .orderBy(desc(imageGenerations.createdAt), desc(imageGenerations.id))
+    .offset(offset)
     .limit(limit);
 
   return formatImageHistoryRows(rows);
