@@ -6,7 +6,7 @@ import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
-import { canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, mergeCanvasItems, mergeCanvasItemsNear, replaceCanvasPlaceholder, type CanvasItem } from "./canvas-items";
+import { canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, mergeCanvasItems, placeCanvasAdditions, replacePlaceholderConnections } from "./canvas-items";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
@@ -334,6 +334,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   useEffect(() => { remoteImagesRef.current = remoteImages; }, [remoteImages]);
   const pendingPlaceholderRef = useRef(new Map<string, string>());
   const pendingAnchorRef = useRef(new Map<string, string>());
+  const [placementRevision, setPlacementRevision] = useState(0);
   useEffect(() => {
     setRemoteImages(previous => {
       const merged = new Map(previous.map(image => [image.id, image]));
@@ -450,10 +451,11 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
             if (firstId) {
               pendingPlaceholderRef.current.set(firstId, nodeId);
               generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
+              const retained = replacePlaceholderConnections(manualEdgesRef.current, nodeId, firstId);
               const next = generatedIds.reduce((edges, targetId) => sourceIds.reduce((result, sourceId) => {
                 if (result.some(edge => edge.source === sourceId && edge.target === targetId)) return result;
                 return addEdge({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null }, result);
-              }, edges), manualEdgesRef.current);
+              }, edges), retained);
               manualEdgesRef.current = next;
               setManualEdges(next);
               changed();
@@ -462,6 +464,9 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
             generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
             connectGeneratedNodes(nodeId, generatedIds);
           }
+          /* The library update can reach the canvas before these hints are recorded,
+             so ask the layout effect to run again and correct the placement. */
+          setPlacementRevision(revision => revision + 1);
           return { completed: generatedIds.length, failed: generatedIds.length ? 0 : 1, error: generatedIds.length ? undefined : "未生成图片" };
         }
         return { completed: 0, failed: 1, error: "未生成图片" };
@@ -934,48 +939,44 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   }, [autoAddImages, changed, hiddenIds, makeNodes, ready, records, setNodes]);
 
   useEffect(() => {
-    if (!ready || autoAddImages || !addImageIds.length) return;
-    const additions = addImageIds.filter(id => records.has(id) && !nodesRef.current.some(node => node.id === id));
+    if (!ready || autoAddImages) return;
+    const pendingHints = new Set([...pendingPlaceholderRef.current.keys(), ...pendingAnchorRef.current.keys()]);
+    const additions = [...new Set([...addImageIds, ...pendingHints])]
+      .filter(id => records.has(id) && (pendingHints.has(id) || !nodesRef.current.some(node => node.id === id)));
     if (!additions.length) return;
     const restored = hiddenRef.current.filter(id => !additions.includes(id));
     if (restored.length !== hiddenRef.current.length) updateHidden(restored);
+    /* Hints are consumed before the state update: React may re-invoke the updater,
+       and a second pass must keep every other node instead of collapsing the canvas
+       down to the freshly generated image. */
+    const placeholders = new Map<string, string>();
+    const anchors = new Map<string, string>();
+    for (const id of additions) {
+      const placeholderId = pendingPlaceholderRef.current.get(id);
+      const anchorId = pendingAnchorRef.current.get(id);
+      if (placeholderId) placeholders.set(id, placeholderId);
+      if (anchorId) anchors.set(id, anchorId);
+      pendingPlaceholderRef.current.delete(id);
+      pendingAnchorRef.current.delete(id);
+    }
     setNodes(previous => {
       const previousImages = previous.filter(node => node.type !== "text");
       const previousText = previous.filter((node): node is TextNode => node.type === "text");
-      let imageItems: CanvasItem[] = previousImages.map(node => ({ id: node.id, x: node.position.x, y: node.position.y, placeholder: node.type === "image" && node.data.isEmpty }));
-      const replacements = new Map<string, string>();
-      for (const id of additions) {
-        const placeholderId = pendingPlaceholderRef.current.get(id);
-        if (placeholderId && imageItems.some(item => item.id === placeholderId)) {
-          imageItems = replaceCanvasPlaceholder(imageItems, placeholderId, id);
-          replacements.set(placeholderId, id);
-          pendingPlaceholderRef.current.delete(id);
-          pendingAnchorRef.current.delete(id);
-          continue;
-        }
-        const requestedAnchor = pendingAnchorRef.current.get(id);
-        const anchorId = requestedAnchor ? replacements.get(requestedAnchor) || requestedAnchor : undefined;
-        if (anchorId) {
-          const allItems = [
-            ...imageItems,
-            ...previousText.map(node => ({ id: node.id, x: node.position.x, y: node.position.y })),
-          ];
-          imageItems = mergeCanvasItemsNear(allItems, [id], anchorId).filter(item => imageItems.some(existing => existing.id === item.id) || item.id === id);
-        } else {
-          imageItems = mergeCanvasItems(imageItems, [id]);
-        }
-        pendingAnchorRef.current.delete(id);
-      }
+      const imageItems = placeCanvasAdditions(
+        previousImages.map(node => ({ id: node.id, x: node.position.x, y: node.position.y, placeholder: node.type === "image" && node.data.isEmpty })),
+        additions,
+        { placeholders, anchors },
+        previousText.map(node => ({ id: node.id, x: node.position.x, y: node.position.y })),
+      );
       const positions: CanvasNodeLayout[] = [
         ...imageItems.map(item => ({ ...item, kind: "image" as const })),
         ...previousText.map(node => ({ id: node.id, kind: "text" as const, x: node.position.x, y: node.position.y, text: node.data.text })),
       ];
       const next = makeNodes(positions, records);
-      nodesRef.current = next;
       return next;
     });
     changed();
-  }, [addImageIds, autoAddImages, changed, makeNodes, ready, records, setNodes, updateHidden]);
+  }, [addImageIds, autoAddImages, changed, makeNodes, placementRevision, ready, records, setNodes, updateHidden]);
 
   useEffect(() => {
     if (ready) onCanvasImageIdsChange?.(nodes.filter(node => node.type !== "text").map(node => node.id));

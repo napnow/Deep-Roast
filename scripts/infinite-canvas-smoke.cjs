@@ -10,14 +10,21 @@ const assert = require('node:assert/strict');
   const queueC = '449e2eee-409f-4480-bba3-68da18847df7';
   const imgs = process.env.CANVAS_CAPACITY_TEST
     ? Array.from({length:501}, (_, index) => img(`149e2eee-409f-4480-bba3-${String(index).padStart(12,'0')}`))
-    : process.env.CANVAS_QUEUE_TEST
-      ? [img(a), img(queueB), img(queueC)]
-      : [img(a), img(b)];
+    : process.env.CANVAS_CHAIN_TEST
+      ? [img(a)]
+      : process.env.CANVAS_QUEUE_TEST
+        ? [img(a), img(queueB), img(queueC)]
+        : [img(a), img(b)];
   const propImages = process.env.CANVAS_OLD_TARGET_TEST ? imgs.slice(0, 1) : imgs;
-  const queueMode = Boolean(process.env.CANVAS_QUEUE_TEST);
+  const queueMode = Boolean(process.env.CANVAS_QUEUE_TEST || process.env.CANVAS_CHAIN_TEST);
+  const dedicatedMode = Boolean(process.env.CANVAS_CHAIN_TEST);
+  const initialAdditions = dedicatedMode ? [a] : [];
   const entry = `import React from 'react'; import {createRoot} from 'react-dom/client'; import InfiniteImageCanvas from './src/components/ImageGen/InfiniteImageCanvas';
-  window.calls=[]; window.pending=new Map(); window.abortedIds=[]; window.ignoreAbort=new Set(); window.queueMode=${queueMode};
-  const root=createRoot(document.getElementById('root')); window.mount=()=>root.render(<InfiniteImageCanvas accountId="fixture-account" images={${JSON.stringify(propImages)}} onSelect={i=>window.calls.push('select:'+i.id)} onPreview={i=>window.calls.push('preview:'+i.id)} onEdit={i=>window.calls.push('edit:'+i.id)} onGenerate={(id,prompt,references,settings,target,ctx)=>{window.calls.push({kind:'generate',id,prompt,targetId:target?.id||null}); ctx?.signal?.addEventListener('abort',()=>{window.abortedIds.push(id); if(!window.ignoreAbort.has(id)){window.pending.get(id)?.reject(Object.assign(new Error('图片生成已取消'),{name:'AbortError'}));}},{once:true}); if(window.queueMode){return new Promise((resolve,reject)=>{window.pending.set(id,{resolve,reject});});} return undefined;}}/>); window.clear=()=>root.render(null); window.mount();`;
+  window.calls=[]; window.pending=new Map(); window.abortedIds=[]; window.ignoreAbort=new Set(); window.queueMode=${queueMode}; window.gallery=${JSON.stringify(propImages)}; window.additions=${JSON.stringify(initialAdditions)};
+  const root=createRoot(document.getElementById('root'));
+  window.mount=()=>root.render(<InfiniteImageCanvas accountId="fixture-account" images={window.gallery} ${dedicatedMode ? 'autoAddImages={false}' : ''} addImageIds={window.additions} onSelect={i=>window.calls.push('select:'+i.id)} onPreview={i=>window.calls.push('preview:'+i.id)} onEdit={i=>window.calls.push('edit:'+i.id)} onGenerate={(id,prompt,references,settings,target,ctx)=>{window.calls.push({kind:'generate',id,prompt,targetId:target?.id||null}); ctx?.signal?.addEventListener('abort',()=>{window.abortedIds.push(id); if(!window.ignoreAbort.has(id)){window.pending.get(id)?.reject(Object.assign(new Error('图片生成已取消'),{name:'AbortError'}));}},{once:true}); if(window.queueMode){return new Promise((resolve,reject)=>{window.pending.set(id,{resolve,reject});});} return undefined;}}/>);
+  window.pushImage=record=>{ window.gallery=[...window.gallery,record]; window.additions=[...window.additions,record.id]; window.mount(); };
+  window.clear=()=>root.render(null); window.mount();`;
   const out = await esbuild.build({stdin:{contents:entry,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,platform:'browser',format:'iife',outdir:'out',jsx:'automatic'});
   const js=out.outputFiles.find(f=>f.path.endsWith('.js')).text;
   const css=fs.readFileSync('node_modules/@xyflow/react/dist/style.css','utf8') + (out.outputFiles.find(f=>f.path.endsWith('.css'))?.text ?? '') + fs.readFileSync('src/app/studio-preview.css','utf8');
@@ -25,18 +32,26 @@ const assert = require('node:assert/strict');
   const context=await browser.newContext({viewport:{width:1400,height:900}});
   let saved=process.env.CANVAS_CAPACITY_TEST ? {revision:1, nodes:imgs.slice(1).map((image,index)=>({id:image.id,x:index===499?1234:(index%25)*400,y:Math.floor(index/25)*500})), hiddenIds:[], viewport:{x:0,y:0,zoom:1}} : null;
   const removed = new Set();
+  const addedImages = [];
+  const library = () => [...imgs, ...addedImages];
   let delayNextGet = false;
   await context.route('http://canvas.test/**', async route => {
     const request=route.request();
     if (request.url().endsWith('/api/image-canvas')) {
       if (request.method()==='GET') {
         if (delayNextGet) { delayNextGet=false; await new Promise(resolve=>setTimeout(resolve,700)); }
-        return route.fulfill({json:{layout:saved,images:imgs.filter(image => !removed.has(image.id))}});
+        return route.fulfill({json:{layout:saved,images:library().filter(image => !removed.has(image.id))}});
       }
-      if (request.method()==='POST') return route.fulfill({json:{images:imgs.filter(image => request.postDataJSON().ids.includes(image.id) && !removed.has(image.id))}});
+      if (request.method()==='POST') return route.fulfill({json:{images:library().filter(image => request.postDataJSON().ids.includes(image.id) && !removed.has(image.id))}});
       const body=request.postDataJSON();
       const missingIds = [...body.nodes.map(node => node.id), ...body.hiddenIds].filter(id => removed.has(id));
       if (missingIds.length) return route.fulfill({status:400,json:{error:'missing',code:'INVALID_CANVAS_IMAGE',missingIds}});
+      const nodeIds = body.nodes.map(node => node.id);
+      const visible = new Set(nodeIds);
+      const invalidConnections = body.connections.filter(connection => connection.source === connection.target || !visible.has(connection.source) || !visible.has(connection.target));
+      if (new Set(nodeIds).size !== nodeIds.length || invalidConnections.length) {
+        return route.fulfill({status:400,json:{error:'invalid connections',code:'INVALID_CANVAS_LAYOUT',invalidConnections}});
+      }
       if (body.revision !== (saved?.revision || 0)) return route.fulfill({status:409,json:{error:'conflict',code:'CANVAS_CONFLICT'}});
       saved={...body,revision:body.revision+1};
       return route.fulfill({json:{revision:saved.revision}});
@@ -106,6 +121,110 @@ const assert = require('node:assert/strict');
     assert.equal(saved.nodes.find(node => node.id.endsWith('000000000500')).x,1234);
     assert.deepEqual(first.errors,[]);
     await browser.close(); console.log('canvas capacity notice and replacement passed'); return;
+  }
+  if (process.env.CANVAS_CHAIN_TEST) {
+    const chainAdded = '649e2eee-409f-4480-bba3-68da18847df7';
+    const chainEdited = '749e2eee-409f-4480-bba3-68da18847df7';
+    const added = {...img(chainAdded), prompt:'链外新增'};
+    const edited = {...img(chainEdited), prompt:'链上修改', sourceImageId:a};
+    const waitForSave = async predicate => {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        if (saved && predicate(saved)) return saved;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert.fail('canvas layout was not saved');
+    };
+    assert.equal(await page.locator('.react-flow__node').count(),1);
+    const imageA = page.locator('.react-flow__node').filter({hasText:'画面 ' + a});
+    await page.getByRole('button',{name:/^\+ 文本节点/}).click();
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 2);
+    const textNode = page.locator('.react-flow__node').filter({has:page.locator('.infinite-text-node')});
+    await textNode.locator('.infinite-text-node').getByRole('textbox',{name:'文本节点内容'}).fill('链首提示词');
+    const textId = await textNode.getAttribute('data-id');
+    assert.ok(textId);
+    // Move the new text node clear of A, then connect text -> A.
+    const textDrag = await textNode.locator('.infinite-text-node__handle').boundingBox();
+    assert.ok(textDrag);
+    await page.mouse.move(textDrag.x + textDrag.width / 2, textDrag.y + textDrag.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(textDrag.x - 460, textDrag.y + 40, {steps:8});
+    await page.mouse.up();
+    const textSource = await textNode.locator('.react-flow__handle.source').boundingBox();
+    const imageTarget = await imageA.locator('.react-flow__handle.target').boundingBox();
+    assert.ok(textSource); assert.ok(imageTarget);
+    await page.mouse.move(textSource.x + textSource.width / 2, textSource.y + textSource.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(imageTarget.x + imageTarget.width / 2, imageTarget.y + imageTarget.height / 2, {steps:8});
+    await page.mouse.up();
+    await waitForSave(layout => (layout.connections || []).some(edge => edge.source === textId && edge.target === a));
+    // Draw an empty downstream image node from A.
+    const sourceHandle = await imageA.locator('.react-flow__handle.source').boundingBox();
+    assert.ok(sourceHandle);
+    await page.mouse.move(sourceHandle.x + sourceHandle.width / 2, sourceHandle.y + sourceHandle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sourceHandle.x + 460, sourceHandle.y + 40, {steps:8});
+    await page.mouse.up();
+    await page.getByRole('menu', {name:'从连接处创建节点'}).waitFor();
+    await page.getByRole('menuitem', {name:/图片节点/}).click();
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 3);
+    const placeholder = page.locator('.react-flow__node').filter({has:page.getByRole('button',{name:'空白图片节点'})});
+    const placeholderId = await placeholder.getAttribute('data-id');
+    assert.ok(placeholderId);
+    await waitForSave(layout => (layout.connections || []).some(edge => edge.source === textId && edge.target === a) && (layout.connections || []).some(edge => edge.source === a && edge.target === placeholderId));
+    assert.equal(await page.locator('.react-flow__edge').count(),2);
+    // Adding a library image carries no generation hint; the existing chain must survive.
+    addedImages.push(added);
+    await page.evaluate(record => window.pushImage(record), added);
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 4);
+    await waitForSave(layout => (layout.nodes || []).some(node => node.id === chainAdded));
+    assert.equal(await page.locator('.react-flow__node').count(),4);
+    assert.equal(await page.locator('.react-flow__edge').count(),2);
+    assert.equal(await page.locator('.react-flow__node').filter({hasText:'链外新增'}).count(),1);
+    // Continuing an image in the middle of the chain must append to it, not fork a lone image.
+    await page.locator('.react-flow__node').filter({hasText:'画面 ' + a}).getByRole('button',{name:'继续修改'}).evaluate(button => button.click());
+    await page.getByRole('textbox',{name:'节点提示词'}).fill('链上修改');
+    await page.getByRole('button',{name:'生成变体'}).click();
+    await page.waitForFunction(() => window.pending.size > 0);
+    assert.equal(await page.evaluate(() => window.calls.filter(call => call.kind === 'generate').at(-1)?.id),a);
+    addedImages.push(edited);
+    await page.evaluate(record => {
+      const nodeId = [...window.pending.keys()].at(-1);
+      window.pushImage(record);
+      window.pending.get(nodeId).resolve([record.id]);
+    }, edited);
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 5);
+    await waitForSave(layout => (layout.nodes || []).some(node => node.id === chainEdited));
+    assert.equal(await page.locator('.react-flow__node').count(),5);
+    assert.ok(saved.nodes.some(node => node.id === a));
+    assert.ok(saved.nodes.some(node => node.id === textId));
+    assert.ok(saved.nodes.some(node => node.id === placeholderId));
+    assert.ok(saved.nodes.some(node => node.id === chainAdded));
+    assert.ok(saved.nodes.some(node => node.id === chainEdited));
+    const anchorX = saved.nodes.find(node => node.id === a).x;
+    assert.equal(saved.nodes.find(node => node.id === chainEdited).x, anchorX + 420);
+    assert.ok((saved.connections || []).some(connection => connection.source === textId && connection.target === a));
+    assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === placeholderId));
+    assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === chainEdited));
+    // Filling the empty node replaces it atomically: no connection may target the old placeholder.
+    await placeholder.locator('.infinite-image-node__handle').evaluate(handle => handle.click());
+    await page.getByRole('textbox',{name:'节点提示词'}).fill('填充空白图片节点');
+    await page.getByRole('button',{name:'生成变体'}).click();
+    await page.waitForFunction(() => window.pending.size > 0);
+    assert.equal(await page.evaluate(() => window.calls.filter(call => call.kind === 'generate').at(-1)?.id),placeholderId);
+    const filledId = '849e2eee-409f-4480-bba3-68da18847df7';
+    const filled = {...img(filledId), prompt:'已填充空白节点', sourceImageId:a};
+    addedImages.push(filled);
+    await page.evaluate(record => {
+      const nodeId = [...window.pending.keys()].at(-1);
+      window.pushImage(record);
+      window.pending.get(nodeId).resolve([record.id]);
+    }, filled);
+    await waitForSave(layout => (layout.nodes || []).some(node => node.id === filled.id) && !(layout.nodes || []).some(node => node.id === placeholderId));
+    assert.equal(saved.nodes.some(node => node.id === placeholderId),false);
+    assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === filled.id));
+    assert.equal((saved.connections || []).some(connection => String(connection.target) === placeholderId),false);
+    assert.deepEqual(first.errors,[]);
+    await browser.close(); console.log('canvas chain retention passed'); return;
   }
   if (process.env.CANVAS_QUEUE_TEST) {
     assert.equal(await page.locator('.react-flow__node').count(),3);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, isAutoAddedGridPosition, mergeCanvasItemsNear, replaceCanvasPlaceholder } from "./canvas-items";
+import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, isAutoAddedGridPosition, mergeCanvasItemsNear, placeCanvasAdditions, replaceCanvasPlaceholder, replacePlaceholderConnections } from "./canvas-items";
 
 test("adds new images without replacing moved positions or duplicating nodes", () => {
   assert.deepEqual(mergeCanvasItems([{id:"a", x:45, y:-20}], ["a", "b", "b"]), [
@@ -59,6 +59,103 @@ test("replaces a generated image into its placeholder position", () => {
 test("places generated images near their source node", () => {
   const result = mergeCanvasItemsNear([{ id: "text", x: 100, y: 200 }], ["image"], "text");
   assert.deepEqual(result.find(item => item.id === "image"), { id: "image", x: 520, y: 200 });
+});
+
+test("keeps a generated chain node within the next column when nodes do not overlap", () => {
+  const result = mergeCanvasItemsNear([
+    { id: "source", x: 0, y: 0 },
+    { id: "existing", x: 756, y: 232 },
+  ], ["image"], "source");
+  assert.deepEqual(result.find(item => item.id === "image"), { id: "image", x: 420, y: 0 });
+});
+
+test("keeps existing nodes when an addition carries no placement hint", () => {
+  const result = placeCanvasAdditions([{ id: "source", x: 100, y: 200 }, { id: "downstream", x: 520, y: 200 }], ["fresh"]);
+  assert.deepEqual(result.map(item => item.id).sort(), ["downstream", "fresh", "source"]);
+  assert.deepEqual(result.find(item => item.id === "source"), { id: "source", x: 100, y: 200 });
+  assert.deepEqual(result.find(item => item.id === "downstream"), { id: "downstream", x: 520, y: 200 });
+});
+
+test("fills the placeholder in place while keeping its siblings", () => {
+  const result = placeCanvasAdditions(
+    [{ id: "source", x: 100, y: 200 }, { id: "placeholder", x: 520, y: 200, placeholder: true }],
+    ["image"],
+    { placeholders: new Map([["image", "placeholder"]]) },
+  );
+  assert.deepEqual(result, [{ id: "source", x: 100, y: 200 }, { id: "image", x: 520, y: 200 }]);
+});
+
+test("lays a generated image beside its anchor without dropping the chain", () => {
+  const result = placeCanvasAdditions(
+    [{ id: "source", x: 100, y: 200 }, { id: "downstream", x: 940, y: 200 }],
+    ["image"],
+    { anchors: new Map([["image", "source"]]) },
+  );
+  assert.deepEqual(result.find(item => item.id === "image"), { id: "image", x: 520, y: 200 });
+  assert.deepEqual(result.map(item => item.id).sort(), ["downstream", "image", "source"]);
+});
+
+test("places a generated image beside a text anchor supplied separately", () => {
+  const result = placeCanvasAdditions(
+    [{ id: "image", x: 0, y: 430 }],
+    ["generated"],
+    { anchors: new Map([["generated", "text"]]) },
+    [{ id: "text", x: 100, y: 200 }],
+  );
+  assert.deepEqual(result, [
+    { id: "image", x: 0, y: 430 },
+    { id: "generated", x: 520, y: 200 },
+  ]);
+});
+
+test("re-running the same update keeps the chain instead of collapsing to the new node", () => {
+  const start = [{ id: "text", x: 80, y: 100 }, { id: "source", x: 100, y: 200 }, { id: "placeholder", x: 940, y: 200, placeholder: true }];
+  const once = placeCanvasAdditions(start, ["image"], { anchors: new Map([["image", "source"]]) });
+  // React may invoke a state updater again after the hints were already consumed.
+  const twice = placeCanvasAdditions(once, ["image"], { anchors: new Map([["image", "source"]]) });
+  const afterConsumed = placeCanvasAdditions(once, ["image"]);
+  for (const layout of [once, twice, afterConsumed]) {
+    assert.deepEqual(layout.map(item => item.id).sort(), ["image", "placeholder", "source", "text"]);
+    assert.deepEqual(layout.find(item => item.id === "image"), { id: "image", x: 520, y: 200 });
+  }
+});
+
+test("contains a placeholder already filled by an earlier pass", () => {
+  const filled = placeCanvasAdditions(
+    [{ id: "source", x: 100, y: 200 }, { id: "placeholder", x: 520, y: 200, placeholder: true }],
+    ["image"],
+    { placeholders: new Map([["image", "placeholder"]]) },
+  );
+  assert.deepEqual(placeCanvasAdditions(filled, ["image"], { placeholders: new Map([["image", "placeholder"]]) }), filled);
+});
+
+test("moves an already placed image when its anchor hint arrives late", () => {
+  const result = placeCanvasAdditions(
+    [{ id: "source", x: 100, y: 200 }, { id: "image", x: 0, y: 430 }],
+    ["image"],
+    { anchors: new Map([["image", "source"]]) },
+  );
+  assert.deepEqual(result, [{ id: "source", x: 100, y: 200 }, { id: "image", x: 520, y: 200 }]);
+});
+
+test("fills the placeholder when a library update places the image first", () => {
+  const result = placeCanvasAdditions(
+    [{ id: "source", x: 100, y: 200 }, { id: "placeholder", x: 520, y: 200, placeholder: true }, { id: "image", x: 0, y: 430 }],
+    ["image"],
+    { placeholders: new Map([["image", "placeholder"]]) },
+  );
+  assert.deepEqual(result, [{ id: "source", x: 100, y: 200 }, { id: "image", x: 520, y: 200 }]);
+});
+
+test("removes incoming placeholder edges and retargets outgoing edges", () => {
+  assert.deepEqual(replacePlaceholderConnections([
+    { id: "source-to-placeholder", source: "source", target: "placeholder" },
+    { id: "placeholder-to-downstream", source: "placeholder", target: "downstream" },
+    { id: "unrelated", source: "a", target: "b" },
+  ], "placeholder", "generated"), [
+    { id: "placeholder-to-downstream", source: "generated", target: "downstream" },
+    { id: "unrelated", source: "a", target: "b" },
+  ]);
 });
 
 

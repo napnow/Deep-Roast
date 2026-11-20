@@ -3,6 +3,8 @@ export interface CanvasItem { id: string; x: number; y: number; placeholder?: bo
 const AUTO_GRID_X = 390;
 const AUTO_GRID_Y = 430;
 const AUTO_GRID_COLUMNS = 4;
+const NEAR_NODE_WIDTH = 320;
+const NEAR_NODE_HEIGHT = 400;
 
 export function mergeCanvasItems(previous: CanvasItem[], ids: string[]): CanvasItem[] {
   const uniqueIds = [...new Set(ids)];
@@ -39,17 +41,81 @@ export function mergeCanvasItemsNear(previous: CanvasItem[], ids: string[], anch
     { x: anchor.x - 420, y: anchor.y },
   ];
   ids.filter(id => !occupied.some(item => item.id === id)).forEach((id, index) => {
-    let candidate = candidates[index % candidates.length]!;
-    let offset = Math.floor(index / candidates.length) + 1;
-    while (occupied.some(item => Math.abs(item.x - candidate.x) < 340 && Math.abs(item.y - candidate.y) < 400)) {
-      candidate = { x: anchor.x + 420 * offset, y: anchor.y + 430 * (index % candidates.length) };
-      offset += 1;
-    }
+    let attempt = index;
+    let candidate: { x: number; y: number };
+    do {
+      const direction = candidates[attempt % candidates.length]!;
+      const ring = Math.floor(attempt / candidates.length) + 1;
+      candidate = {
+        x: anchor.x + (direction.x - anchor.x) * ring,
+        y: anchor.y + (direction.y - anchor.y) * ring,
+      };
+      attempt += 1;
+    } while (occupied.some(item => Math.abs(item.x - candidate.x) < NEAR_NODE_WIDTH && Math.abs(item.y - candidate.y) < NEAR_NODE_HEIGHT));
     const item = { id, x: candidate.x, y: candidate.y };
     occupied.push(item);
     seeded.push(item);
   });
   return mergeCanvasItems(seeded, ids);
+}
+
+/** Placement hints captured before a render, so the state updater stays pure. */
+export interface CanvasAdditionPlacement {
+  /** New image id → placeholder node id it fills in. */
+  placeholders?: ReadonlyMap<string, string>;
+  /** New image id → node id it should be laid out next to. */
+  anchors?: ReadonlyMap<string, string>;
+}
+
+/**
+ * Merge freshly generated images into an existing layout.
+ *
+ * Every other node is preserved: React may re-invoke a `setState` updater, so a
+ * second call with the same (or already consumed) hints has to produce the same
+ * layout instead of collapsing the canvas down to the new node.
+ */
+export function placeCanvasAdditions(
+  items: CanvasItem[],
+  additions: string[],
+  placement: CanvasAdditionPlacement = {},
+  occupied: CanvasItem[] = [],
+): CanvasItem[] {
+  const placeholders = placement.placeholders ?? new Map<string, string>();
+  const anchors = placement.anchors ?? new Map<string, string>();
+  const replacements = new Map<string, string>();
+  let next = items.slice();
+  for (const id of additions) {
+    const placeholderId = placeholders.get(id);
+    if (placeholderId && next.some(item => item.id === placeholderId)) {
+      // A late hint still wins over a copy that a previous pass parked on the grid.
+      next = replaceCanvasPlaceholder(next.filter(item => item.id !== id), placeholderId, id);
+      replacements.set(placeholderId, id);
+      continue;
+    }
+    const requestedAnchor = anchors.get(id);
+    const anchorId = requestedAnchor ? replacements.get(requestedAnchor) ?? requestedAnchor : undefined;
+    if (anchorId && [...next, ...occupied].some(item => item.id === anchorId)) {
+      const others = next.filter(item => item.id !== id);
+      next = mergeCanvasItemsNear([...others, ...occupied], [...others.map(item => item.id), id], anchorId);
+      continue;
+    }
+    if (next.some(item => item.id === id)) continue;
+    next = mergeCanvasItems(next, [...next.map(item => item.id), id]);
+  }
+  return next;
+}
+
+/** Remove links to a filled placeholder and move its downstream links onto the result. */
+export function replacePlaceholderConnections<T extends { source?: unknown; target?: unknown }>(
+  edges: T[],
+  placeholderId: string,
+  replacementId: string,
+): T[] {
+  return edges.flatMap(edge => {
+    if (edge.target === placeholderId) return [];
+    if (edge.source === placeholderId) return [{ ...edge, source: replacementId } as T];
+    return [edge];
+  });
 }
 
 /**
