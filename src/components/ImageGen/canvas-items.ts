@@ -118,6 +118,20 @@ export function replacePlaceholderConnections<T extends { source?: unknown; targ
   });
 }
 
+export function findConnectedPlaceholderIds(
+  nodes: Array<{ id: string; placeholder?: boolean }>,
+  edges: Array<{ source?: unknown; target?: unknown }>,
+  sourceId: string,
+) {
+  const placeholders = new Set(nodes.filter(node => node.placeholder).map(node => node.id));
+  const seen = new Set<string>();
+  return edges.flatMap(edge => {
+    if (edge.source !== sourceId || typeof edge.target !== "string" || !placeholders.has(edge.target) || seen.has(edge.target)) return [];
+    seen.add(edge.target);
+    return [edge.target];
+  });
+}
+
 /**
  * Before the dedicated canvas existed, the inline workspace auto-placed every
  * library image on a deterministic 4-column grid. That lattice is the tell for

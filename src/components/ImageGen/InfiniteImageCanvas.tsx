@@ -6,7 +6,7 @@ import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
-import { canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, mergeCanvasItems, placeCanvasAdditions, replacePlaceholderConnections } from "./canvas-items";
+import { canvasEdges, dedupeCanvasEdges, findConnectedPlaceholderIds, findLegacyAutoAddedCanvasIds, mergeCanvasItems, placeCanvasAdditions, replacePlaceholderConnections } from "./canvas-items";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
@@ -461,8 +461,36 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
               changed();
             }
           } else {
-            generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
-            connectGeneratedNodes(nodeId, generatedIds);
+            const placeholderIds = findConnectedPlaceholderIds(
+              nodesRef.current
+                .filter((current): current is ImageNode => current.type === "image")
+                .map(current => ({ id: current.id, placeholder: current.data.isEmpty === true })),
+              manualEdgesRef.current,
+              nodeId,
+            );
+            const filledCount = Math.min(placeholderIds.length, generatedIds.length);
+            if (!filledCount) {
+              generatedIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
+              connectGeneratedNodes(nodeId, generatedIds);
+            } else {
+              let next = manualEdgesRef.current;
+              for (let index = 0; index < filledCount; index += 1) {
+                const generatedId = generatedIds[index];
+                const placeholderId = placeholderIds[index];
+                const incoming = next.filter(edge => edge.target === placeholderId);
+                next = replacePlaceholderConnections(next, placeholderId, generatedId);
+                for (const edge of incoming) {
+                  next = addEdge({ source: edge.source, target: generatedId, sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null }, next);
+                }
+                pendingPlaceholderRef.current.set(generatedId, placeholderId);
+              }
+              const remainingIds = generatedIds.slice(filledCount);
+              remainingIds.forEach(id => pendingAnchorRef.current.set(id, nodeId));
+              next = remainingIds.reduce((edges, targetId) => addEdge({ source: nodeId, target: targetId, sourceHandle: null, targetHandle: null }, edges), next);
+              manualEdgesRef.current = next;
+              setManualEdges(next);
+              changed();
+            }
           }
           /* The library update can reach the canvas before these hints are recorded,
              so ask the layout effect to run again and correct the placement. */
