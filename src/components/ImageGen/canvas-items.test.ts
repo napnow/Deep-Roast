@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges, findLegacyAutoAddedCanvasIds, isAutoAddedGridPosition, mergeCanvasItemsNear, placeCanvasAdditions, replaceCanvasPlaceholder, replacePlaceholderConnections } from "./canvas-items";
+import { mergeCanvasItems, canvasEdges, dedupeCanvasEdges, findConnectedPlaceholderIds, findLegacyAutoAddedCanvasIds, isAutoAddedGridPosition, mergeCanvasItemsNear, placeCanvasAdditions, replaceCanvasPlaceholder, replacePlaceholderConnections } from "./canvas-items";
 
 test("adds new images without replacing moved positions or duplicating nodes", () => {
   assert.deepEqual(mergeCanvasItems([{id:"a", x:45, y:-20}], ["a", "b", "b"]), [
@@ -156,6 +156,24 @@ test("removes incoming placeholder edges and retargets outgoing edges", () => {
     { id: "placeholder-to-downstream", source: "generated", target: "downstream" },
     { id: "unrelated", source: "a", target: "b" },
   ]);
+});
+
+test("finds empty downstream nodes in connection order", () => {
+  assert.deepEqual(findConnectedPlaceholderIds(
+    [
+      { id: "source" },
+      { id: "placeholder-a", placeholder: true },
+      { id: "placeholder-b", placeholder: true },
+      { id: "filled" },
+    ],
+    [
+      { source: "source", target: "filled" },
+      { source: "source", target: "placeholder-b" },
+      { source: "source", target: "placeholder-a" },
+      { source: "other", target: "placeholder-a" },
+    ],
+    "source",
+  ), ["placeholder-b", "placeholder-a"]);
 });
 
 

@@ -171,6 +171,7 @@ const assert = require('node:assert/strict');
     const placeholderId = await placeholder.getAttribute('data-id');
     assert.ok(placeholderId);
     await waitForSave(layout => (layout.connections || []).some(edge => edge.source === textId && edge.target === a) && (layout.connections || []).some(edge => edge.source === a && edge.target === placeholderId));
+    const placeholderX = saved.nodes.find(node => node.id === placeholderId).x;
     assert.equal(await page.locator('.react-flow__edge').count(),2);
     // Adding a library image carries no generation hint; the existing chain must survive.
     addedImages.push(added);
@@ -180,7 +181,7 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('.react-flow__node').count(),4);
     assert.equal(await page.locator('.react-flow__edge').count(),2);
     assert.equal(await page.locator('.react-flow__node').filter({hasText:'链外新增'}).count(),1);
-    // Continuing an image in the middle of the chain must append to it, not fork a lone image.
+    // Continuing an image with a connected empty downstream node must fill that node.
     await page.locator('.react-flow__node').filter({hasText:'画面 ' + a}).getByRole('button',{name:'继续修改'}).evaluate(button => button.click());
     await page.getByRole('textbox',{name:'节点提示词'}).fill('链上修改');
     await page.getByRole('button',{name:'生成变体'}).click();
@@ -192,37 +193,17 @@ const assert = require('node:assert/strict');
       window.pushImage(record);
       window.pending.get(nodeId).resolve([record.id]);
     }, edited);
-    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 5);
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 4);
     await waitForSave(layout => (layout.nodes || []).some(node => node.id === chainEdited));
-    assert.equal(await page.locator('.react-flow__node').count(),5);
+    assert.equal(await page.locator('.react-flow__node').count(),4);
     assert.ok(saved.nodes.some(node => node.id === a));
     assert.ok(saved.nodes.some(node => node.id === textId));
-    assert.ok(saved.nodes.some(node => node.id === placeholderId));
+    assert.equal(saved.nodes.some(node => node.id === placeholderId),false);
     assert.ok(saved.nodes.some(node => node.id === chainAdded));
     assert.ok(saved.nodes.some(node => node.id === chainEdited));
-    const anchorX = saved.nodes.find(node => node.id === a).x;
-    assert.equal(saved.nodes.find(node => node.id === chainEdited).x, anchorX + 420);
+    assert.equal(saved.nodes.find(node => node.id === chainEdited).x, placeholderX);
     assert.ok((saved.connections || []).some(connection => connection.source === textId && connection.target === a));
-    assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === placeholderId));
     assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === chainEdited));
-    // Filling the empty node replaces it atomically: no connection may target the old placeholder.
-    await placeholder.locator('.infinite-image-node__handle').evaluate(handle => handle.click());
-    await page.getByRole('textbox',{name:'节点提示词'}).fill('填充空白图片节点');
-    await page.getByRole('button',{name:'生成变体'}).click();
-    await page.waitForFunction(() => window.pending.size > 0);
-    assert.equal(await page.evaluate(() => window.calls.filter(call => call.kind === 'generate').at(-1)?.id),placeholderId);
-    const filledId = '849e2eee-409f-4480-bba3-68da18847df7';
-    const filled = {...img(filledId), prompt:'已填充空白节点', sourceImageId:a};
-    addedImages.push(filled);
-    await page.evaluate(record => {
-      const nodeId = [...window.pending.keys()].at(-1);
-      window.pushImage(record);
-      window.pending.get(nodeId).resolve([record.id]);
-    }, filled);
-    await waitForSave(layout => (layout.nodes || []).some(node => node.id === filled.id) && !(layout.nodes || []).some(node => node.id === placeholderId));
-    assert.equal(saved.nodes.some(node => node.id === placeholderId),false);
-    assert.ok((saved.connections || []).some(connection => connection.source === a && connection.target === filled.id));
-    assert.equal((saved.connections || []).some(connection => String(connection.target) === placeholderId),false);
     assert.deepEqual(first.errors,[]);
     await browser.close(); console.log('canvas chain retention passed'); return;
   }
