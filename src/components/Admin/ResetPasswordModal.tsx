@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiJson, jsonBody } from "@/lib/client-api";
+import { useToast } from "@/components/Toast";
 
 const MIN = 8;
 
@@ -16,6 +17,7 @@ export default function ResetPasswordModal({
   onClose,
   user,
 }: ResetPasswordModalProps) {
+  const { toast } = useToast();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -54,7 +56,7 @@ export default function ResetPasswordModal({
       });
       setTempShown(null);
       setError("");
-      alert(`已重置用户 ${user!.username} 的密码（请自行告知用户）`);
+      toast(`已重置用户 ${user!.username} 的密码（请自行告知用户）`, "success");
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "重置失败");
@@ -88,9 +90,9 @@ export default function ResetPasswordModal({
     if (!tempShown) return;
     try {
       await navigator.clipboard.writeText(tempShown);
-      alert("已复制到剪贴板");
+      toast("已复制到剪贴板", "success");
     } catch {
-      alert("复制失败，请手动选中复制");
+      toast("复制失败，请手动选中复制", "error");
     }
   }
 

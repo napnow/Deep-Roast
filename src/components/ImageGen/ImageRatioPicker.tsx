@@ -20,7 +20,7 @@ interface Props {
 
 type EditorMode = "none" | "ratio" | "pixel";
 
-function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
+export function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
   const match = /^(\d+)x(\d+)$/.exec(size);
   const w = Number(match?.[1] || 1);
   const h = Number(match?.[2] || 1);
@@ -51,7 +51,7 @@ function CustomRatioEditor({ size, disabled, onChange }: Pick<Props, "size" | "d
   );
 }
 
-function CustomPixelEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
+export function CustomPixelEditor({ size, disabled, onChange }: Pick<Props, "size" | "disabled" | "onChange">) {
   const match = /^(\d+)x(\d+)$/.exec(size);
   const [width, setWidth] = useState(match?.[1] || "1024");
   const [height, setHeight] = useState(match?.[2] || "1024");

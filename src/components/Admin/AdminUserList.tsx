@@ -100,12 +100,14 @@ export default function AdminUserList({
       </div>
 
       <nav className="admin-module-nav" aria-label="管理模块">
+        <h6>运营</h6>
         <button className={overviewActive ? "is-active" : ""} onClick={onShowOverview} aria-current={overviewActive ? "page" : undefined}>
           <AppIcon name="details" />运营总览
         </button>
         <button className={usersActive ? "is-active" : ""} onClick={onShowUsers} aria-current={usersActive ? "page" : undefined}>
           <AppIcon name="user" />用户管理
         </button>
+        <h6>配置</h6>
         <button className={siteActive ? "is-active" : ""} onClick={onShowSite} aria-current={siteActive ? "page" : undefined}>
           <AppIcon name="announcement" />站点与内容
         </button>

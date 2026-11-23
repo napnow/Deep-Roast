@@ -5,15 +5,13 @@ import { useRouter } from "next/navigation";
 import AppModals from "@/components/AppModals";
 import { useAuth } from "@/components/AuthProvider";
 import TextModePanel from "@/components/Chat/TextModePanel";
-import Header from "@/components/Header";
-import ImageGenView from "@/components/ImageGen/ImageGenView";
+import AnnouncementTab from "@/components/ImageGen/AnnouncementTab";
 import MobileDrawer from "@/components/ImageGen/MobileDrawer";
 import { useToast } from "@/components/Toast";
 import AppShell from "@/components/Workspace/AppShell";
 import MobileWorkspaceNav from "@/components/Workspace/MobileWorkspaceNav";
 import {
   getMobilePrimaryWorkspace,
-  getMobileWorkspaceTitle,
   type MobileImageTab,
   type MobilePrimaryWorkspace,
 } from "@/components/Workspace/mobile-workspace-ui";
@@ -27,8 +25,10 @@ import {
   parseStoredWorkspaceMode,
   type WorkspaceMode,
 } from "@/lib/workspace-preferences";
-import { type ImageRecord } from "@/types";
 import { isLocalMobilePreview } from "@/lib/local-preview";
+import RedesignTopbar, { type RedesignNav } from "@/components/Redesign/RedesignTopbar";
+import RedesignStudio from "@/components/Redesign/RedesignStudio";
+import type { RedesignView } from "@/components/Redesign/redesign-ui";
 
 const WORKSPACE_STORAGE_KEY = "deep-roast-workspace";
 const INSPECTOR_COLLAPSED_STORAGE_KEY =
@@ -46,6 +46,7 @@ export default function Home() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
   const [donationEnabled, setDonationEnabled] = useState(false);
   const [donationOpen, setDonationOpen] = useState(false);
+  const [rdView, setRdView] = useState<RedesignView>("create");
   const mobileViewport = useMobileViewport();
 
   // The existing development-only preview identity gets an isolated demo image.
@@ -181,23 +182,12 @@ export default function Home() {
       : Boolean(
           config.textModel && config.enabledTextModels.includes(config.textModel),
         );
-  const activeImage = activeImageId
-    ? imageHistory.find((image) => image.id === activeImageId) ?? null
-    : null;
   const hasApiKey = Boolean(config.hasApiKey);
   const role = user?.role || "user";
   const isAdmin = role === "admin";
   const mobilePrimaryWorkspace = getMobilePrimaryWorkspace(
     activeMode,
     mobileTab,
-  );
-  const mobileWorkspaceTitle = getMobileWorkspaceTitle(activeMode, mobileTab);
-
-  const handleActiveImageChange = useCallback(
-    (image: ImageRecord | null) => {
-      setActiveImageId(image?.id ?? null);
-    },
-    [setActiveImageId],
   );
 
   const handleDeleteImage = useCallback(
@@ -241,6 +231,7 @@ export default function Home() {
     (tab: MobileImageTab) => {
       setActiveMode("image");
       setMobileTab(tab);
+      setRdView(tab === "gallery" ? "gallery" : "create");
       setDrawerOpen(false);
       setChatSidebarOpen(false);
     },
@@ -283,19 +274,34 @@ export default function Home() {
     [handleSelectImageTab, handleSwitchChat],
   );
 
+  const handleRedesignNav = (nav: RedesignNav) => {
+    if (nav === "canvas") {
+      softNavigate(router, "/studio/canvas");
+      return;
+    }
+    if (nav === "chat") {
+      handleModeChange("chat");
+      return;
+    }
+    setMobileTab(nav === "gallery" ? "gallery" : "generate");
+    setRdView(nav);
+    handleModeChange("image");
+  };
+
   const header = (
-    <Header
-      activeMode={activeMode}
-      onModeChange={handleModeChange}
+    <RedesignTopbar
+      active={activeMode === "chat" ? "chat" : rdView}
+      onSelect={handleRedesignNav}
       username={user?.username || ""}
       role={role}
-      onLogout={logout}
       credits={credits}
-      donationEnabled={donationEnabled}
-      onDonationClick={() => setDonationOpen(true)}
+      onLogout={logout}
       onWalletClick={() => setWalletOpen(true)}
+      checkinAvailable={checkinEligible && !todayChecked}
+      checkinReward={checkinReward}
+      checkinLoading={checkinLoading}
+      onCheckin={handleCheckin}
       onMenuClick={handleMenuClick}
-      mobileTitle={mobileWorkspaceTitle}
     />
   );
 
@@ -328,29 +334,30 @@ export default function Home() {
             aria-hidden={activeMode !== "image"}
             inert={activeMode !== "image"}
           >
-            <ImageGenView
-              model={currentModel}
-              onGenerate={actions.handleGenerateImageBatch}
-              onEditImage={actions.handleEditImage}
-              onEditImageBatch={actions.handleEditImageBatch}
-              onStopGenerate={actions.handleStopGenerateImage}
-              onRetryGenerate={actions.handleRetryImageTask}
-              generating={generating}
-              history={imageHistory}
-              activeImage={activeImage}
-              onActiveImageChange={handleActiveImageChange}
-              onDeleteImage={handleDeleteImage}
-              onBatchDeleteImages={handleBatchDeleteImages}
-              credits={credits}
-              isAdmin={isAdmin}
-              onWalletClick={() => setWalletOpen(true)}
-              mobileTab={mobileTab}
-              onMobileGenerateTab={() => handleSelectImageTab("generate")}
-              keyboardInset={mobileViewport.keyboardInset}
-              keyboardOpen={mobileViewport.keyboardOpen}
-              keyboardOffset={mobileViewport.keyboardOffset}
-              visibleHeight={mobileViewport.visibleHeight}
-            />
+            {mobileTab === "announcements" ? (
+              <AnnouncementTab />
+            ) : (
+              <RedesignStudio
+                view={rdView}
+                model={currentModel}
+                history={imageHistory}
+                generating={generating}
+                credits={credits}
+                isAdmin={isAdmin}
+                onGenerate={actions.handleGenerateImageBatch}
+                onEditImage={actions.handleEditImage}
+                onEditImageBatch={actions.handleEditImageBatch}
+                onStopGenerate={actions.handleStopGenerateImage}
+                onRetryGenerate={actions.handleRetryImageTask}
+                onDeleteImage={handleDeleteImage}
+                onBatchDeleteImages={handleBatchDeleteImages}
+                onWalletClick={() => setWalletOpen(true)}
+                onShowCreate={() => {
+                  setMobileTab("generate");
+                  setRdView("create");
+                }}
+              />
+            )}
           </section>
 
           <section

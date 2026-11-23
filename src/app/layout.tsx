@@ -3,8 +3,13 @@ import "./fonts.css";
 import "@xyflow/react/dist/style.css";
 import { ToastProvider } from "@/components/Toast";
 import AuthProvider from "@/components/AuthProvider";
+import { ConfirmProvider } from "@/components/ConfirmProvider";
 import "./globals.css";
 import "./studio-preview.css";
+import "./ui-polish.css";
+import "./redesign.css";
+import "./redesign-shell.css";
+import "./unify.css";
 
 export const metadata: Metadata = {
   title: "深焙",
@@ -90,7 +95,9 @@ export default function RootLayout({
       >
         <ToastProvider>
           <AuthProvider>
-            <div className="dr-app h-full">{children}</div>
+            <ConfirmProvider>
+              <div className="dr-app h-full">{children}</div>
+            </ConfirmProvider>
           </AuthProvider>
         </ToastProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 import AdminDashboard from "@/components/Admin/AdminDashboard";
 import AdminDirectory from "@/components/Admin/AdminDirectory";
 import AdminUserList from "@/components/Admin/AdminUserList";
@@ -21,7 +22,8 @@ export default function AdminDemo() {
   const [users, setUsers] = useState(samples);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [detailTab, setDetailTab] = useState("图片");
-  const notice = () => window.alert("本地示例预览，不会执行真实管理操作。");
+  const { toast } = useToast();
+  const notice = () => toast("本地示例预览，不会执行真实管理操作。", "info");
   if (process.env.NODE_ENV !== "development") return null;
   return <div className="admin-demo-wrap"><div className="admin-demo-notice">本地管理台预览 · 全部为示例数据，不连接线上后台</div><div className="admin-shell admin-demo-shell">
     <AdminUserList users={users} selectedUser={selected} overviewActive={view === "overview"} usersActive={view === "users" || view === "detail"} siteActive={view === "site"} aiActive={view === "ai"} loadingUsers={false} onShowOverview={() => setView("overview")} onShowUsers={() => setView("users")} onShowSite={() => setView("site")} onShowAi={() => setView("ai")} onSelect={(u) => { setSelected(u); setView("detail"); }} onOpenMobileUsers={() => setView("users")} onBack={() => router.push("/?preview=mobile")} onOpenCleanup={notice} onOpenImageCleanup={notice} onToggleCleanupProtected={(u) => setUsers((all) => all.map((item) => item.id === u.id ? { ...item, cleanupProtected: !item.cleanupProtected } : item))} />

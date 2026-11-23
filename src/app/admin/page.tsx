@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
+import { useToast } from "@/components/Toast";
 import type {
   AdminUser,
   ImageRecord,
@@ -32,6 +34,8 @@ import { softNavigate } from "@/lib/nav-transition";
 export default function AdminPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const confirm = useConfirm();
+  const { toast } = useToast();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -162,14 +166,14 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "永久保号设置失败");
+        toast(data.error || "永久保号设置失败", "error");
         return;
       }
       const refreshedUsers = await refreshUsers();
       const updated = refreshedUsers.find((item) => item.id === target.id);
       if (updated && selectedUser?.id === target.id) setSelectedUser(updated);
     } catch {
-      alert("网络错误");
+      toast("网络错误", "error");
     } finally {
       setUserActionLoading(false);
     }
@@ -222,7 +226,15 @@ export default function AdminPage() {
       return;
     const next = selectedUser.status === "banned" ? "active" : "banned";
     const label = next === "banned" ? "封禁" : "解封";
-    if (!confirm(`确认${label}用户「${selectedUser.username}」？`)) return;
+    if (
+      !(await confirm({
+        title: `${label}用户`,
+        message: `确认${label}用户「${selectedUser.username}」？`,
+        confirmText: `确认${label}`,
+        danger: next === "banned",
+      }))
+    )
+      return;
     setUserActionLoading(true);
     try {
       const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
@@ -232,7 +244,7 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || `${label}失败`);
+        toast(data.error || `${label}失败`, "error");
       } else {
         const list = await refreshUsers();
         const updated = list.find((u) => u.id === selectedUser.id);
@@ -240,7 +252,7 @@ export default function AdminPage() {
         else setSelectedUser({ ...selectedUser, status: next });
       }
     } catch {
-      alert("网络错误");
+      toast("网络错误", "error");
     }
     setUserActionLoading(false);
   }
@@ -249,9 +261,10 @@ export default function AdminPage() {
     if (!selectedUser || selectedUser.role === "admin" || userActionLoading)
       return;
     if (
-      !confirm(
-        `确认永久删除用户「${selectedUser.username}」？对话、图片与积分流水将一并删除，不可恢复。`,
-      )
+      !(await confirm({
+        title: "永久删除用户",
+        message: `确认永久删除用户「${selectedUser.username}」？对话、图片与积分流水将一并删除，不可恢复。`,
+      }))
     ) {
       return;
     }
@@ -262,14 +275,14 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "删除失败");
+        toast(data.error || "删除失败", "error");
       } else {
         setSelectedUser(null);
         setMainView("overview");
         await refreshUsers();
       }
     } catch {
-      alert("网络错误");
+      toast("网络错误", "error");
     }
     setUserActionLoading(false);
   }
@@ -332,7 +345,7 @@ export default function AdminPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || "调配失败");
+        toast(err.error || "调配失败", "error");
       } else {
         const data = await res.json();
         setAdjustAmount(0);
@@ -349,7 +362,7 @@ export default function AdminPage() {
           });
       }
     } catch {
-      alert("网络错误");
+      toast("网络错误", "error");
     }
     setAdjustLoading(false);
   }
@@ -432,6 +445,27 @@ export default function AdminPage() {
       />
 
       <div className="admin-main">
+        <div className="admin-ctop">
+          <div className="admin-ctop__crumb">
+            控制台<i>/</i>
+            <b>
+              {mainView === "site"
+                ? "站点与内容"
+                : mainView === "ai"
+                  ? "AI 能力"
+                  : mainView === "users"
+                    ? "用户"
+                    : mainView === "detail" && selectedUser
+                      ? `用户 / ${selectedUser.username}`
+                      : "概览"}
+            </b>
+          </div>
+          <span className="admin-ctop__grow" />
+          <button type="button" onClick={() => void handleRefresh()} disabled={refreshing}>
+            {refreshing ? "刷新中…" : "刷新"}
+          </button>
+          <button type="button" onClick={() => softNavigate(router, "/")}>← 返回创作</button>
+        </div>
         {mainView === "site" ? (
           <AdminSiteContentPage />
         ) : mainView === "ai" ? (
@@ -730,14 +764,14 @@ export default function AdminPage() {
       />
 
       <AdminCleanupUsersModal
-        key={cleanupOpen ? "open" : "closed"}
+        key={cleanupOpen ? "cleanup-users-open" : "cleanup-users-closed"}
         open={cleanupOpen}
         onClose={() => setCleanupOpen(false)}
         onCompleted={handleCleanupCompleted}
       />
 
       <AdminCleanupImagesModal
-        key={cleanupImagesOpen ? "open" : "closed"}
+        key={cleanupImagesOpen ? "cleanup-images-open" : "cleanup-images-closed"}
         open={cleanupImagesOpen}
         onClose={() => setCleanupImagesOpen(false)}
         onCompleted={handleImageCleanupCompleted}
