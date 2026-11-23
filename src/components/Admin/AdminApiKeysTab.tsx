@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiJson, jsonBody } from "@/lib/client-api";
 import { apiKeyStatusLabel } from "@/lib/api-key-ui";
 import { AppIcon } from "@/components/ui/icons";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 interface KeyRecord {
   id: string;
@@ -17,6 +18,7 @@ interface KeyRecord {
 }
 
 export default function AdminApiKeysTab({ userId }: { userId: string }) {
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<KeyRecord[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -67,7 +69,13 @@ export default function AdminApiKeysTab({ userId }: { userId: string }) {
   }
 
   async function remove(key: KeyRecord) {
-    if (!window.confirm(`确认删除 Key「${key.name || key.keyPrefix}」？`)) return;
+    if (
+      !(await confirm({
+        title: "删除 API Key",
+        message: `确认删除 Key「${key.name || key.keyPrefix}」？使用它的调用会立即失效。`,
+      }))
+    )
+      return;
     setBusy(key.id);
     try {
       await apiJson(`/api/admin/users/${userId}/api-keys/${key.id}`, { method: "DELETE" });

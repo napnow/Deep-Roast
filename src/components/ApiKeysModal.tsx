@@ -2,6 +2,7 @@
 
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { Input } from "@/components/ui/Field";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -73,6 +74,7 @@ export default function ApiKeysModal({
     "success",
   );
   const sessionRef = useRef(0);
+  const confirm = useConfirm();
 
   const curlCommand = useMemo(() => buildApiCurlExample(origin), [origin]);
   const imageCostHint = useMemo(() => {
@@ -217,7 +219,14 @@ export default function ApiKeysModal({
   }
 
   async function rotate(item: ApiKeyItem) {
-    if (!window.confirm("重新生成后，旧 Key 会立即失效，是否继续？")) return;
+    if (
+      !(await confirm({
+        title: "重新生成 Key",
+        message: "重新生成后，旧 Key 会立即失效，是否继续？",
+        confirmText: "重新生成",
+      }))
+    )
+      return;
     const session = sessionRef.current;
     setBusyKeyId(item.id);
     setMessage("");
@@ -262,9 +271,10 @@ export default function ApiKeysModal({
 
   async function revoke(item: ApiKeyItem) {
     if (
-      !window.confirm(
-        `确定删除${item.name ? `“${item.name}”` : "这个 Key"}吗？删除后无法恢复。`,
-      )
+      !(await confirm({
+        title: "删除 API Key",
+        message: `确定删除${item.name ? `“${item.name}”` : "这个 Key"}吗？删除后无法恢复。`,
+      }))
     )
       return;
     const session = sessionRef.current;

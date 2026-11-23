@@ -107,23 +107,9 @@ export default function ChatView({
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.length === 0 && !streaming && (
-            <div className="text-center mt-24 animate-fade-up px-6">
-              <p
-                className="font-display text-5xl mb-4 select-none"
-                style={{ color: "var(--accent)", opacity: 0.85 }}
-              >
-                焙
-              </p>
-              <p
-                className="font-display text-xl mb-2 text-[var(--text-primary)]"
-              >
-                慢火，把想法焙透
-              </p>
-              <p
-                className="text-sm max-w-sm mx-auto leading-relaxed text-[var(--text-muted)]"
-              >
-                在下方输入，Enter 发送。深度思考会慢一点——值得等。
-              </p>
+            <div className="rd-chat-empty animate-fade-up">
+              <h2>有什么想聊的？</h2>
+              <p>提问、改文案、聊聊画面构思都可以。</p>
             </div>
           )}
 

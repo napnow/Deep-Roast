@@ -90,7 +90,7 @@ export default function ChatInput({
           placeholder={
             unavailable
               ? "管理员暂未启用对话模型"
-              : "输入消息… Enter 发送 · Shift+Enter 换行"
+              : "输入消息…"
           }
           rows={1}
           disabled={disabled || unavailable}

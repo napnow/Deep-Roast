@@ -6,7 +6,6 @@ test("home exposes persistent mobile workspace navigation", () => {
   const source = readFileSync("src/app/page.tsx", "utf8");
   assert.match(source, /MobileWorkspaceNav/);
   assert.match(source, /handleSelectMobileWorkspace/);
-  assert.match(source, /mobileWorkspaceTitle/);
   assert.match(source, /onOpenWallet=\{\(\) => setWalletOpen\(true\)\}/);
   assert.match(source, /onOpenPassword=\{\(\) => setPwOpen\(true\)\}/);
   assert.match(source, /onOpenApiKeys=\{\(\) => setApiOpen\(true\)\}/);
@@ -23,6 +22,13 @@ test("desktop chat menu continues to open the existing chat sidebar", () => {
     source,
     /isDesktop && activeMode === "chat"[\s\S]*setChatSidebarOpen\(true\);/,
   );
+});
+
+test("redesign navigation keeps mobile tabs aligned and preserves announcements", () => {
+  const source = readFileSync("src/app/page.tsx", "utf8");
+  assert.match(source, /setMobileTab\(nav === "gallery" \? "gallery" : "generate"\)/);
+  assert.match(source, /AnnouncementTab/);
+  assert.match(source, /mobileTab === "announcements"/);
 });
 
 test("mobile workspace shell keeps four equal touch targets", () => {

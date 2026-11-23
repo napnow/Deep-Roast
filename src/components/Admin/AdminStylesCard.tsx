@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, jsonBody } from "@/lib/client-api";
 import type { EditStyle } from "@/types";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const EMPTY_FORM = {
   styleKey: "",
@@ -13,6 +14,7 @@ const EMPTY_FORM = {
 };
 
 export default function AdminStylesCard() {
+  const confirm = useConfirm();
   const [list, setList] = useState<EditStyle[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,7 +121,7 @@ export default function AdminStylesCard() {
   }
 
   async function remove(s: EditStyle) {
-    if (!confirm(`删除风格「${s.label}」？该操作不可恢复。`)) return;
+    if (!(await confirm({ title: "删除风格", message: `删除风格「${s.label}」？该操作不可恢复。` }))) return;
     setSaving(true);
     setMsg("");
     try {

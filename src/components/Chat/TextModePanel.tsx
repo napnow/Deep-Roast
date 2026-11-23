@@ -67,27 +67,16 @@ export default function TextModePanel({
       ) : (
         <div className="dr-canvas flex-1 flex items-center justify-center">
           <div className="text-center space-y-5 animate-fade-up max-w-md px-6">
-            <div
-              className="mx-auto h-14 w-14 rounded-2xl flex items-center justify-center font-display text-2xl font-semibold"
-              style={{
-                background:
-                  "linear-gradient(145deg, var(--accent-soft), var(--accent))",
-                color: "var(--accent-on)",
-                boxShadow: "var(--shadow-md)",
-              }}
-            >
-              焙
-            </div>
             <div>
               <p
-                className="font-display text-2xl font-semibold text-[var(--text-primary)]"
+                className="text-[22px] font-semibold tracking-tight text-[var(--text-primary)]"
               >
-                深焙
+                有什么想聊的？
               </p>
               <p
                 className="text-sm mt-1.5 text-[var(--text-muted)]"
               >
-                深度思考，慢焙出好答案
+                提问、改文案、聊聊画面构思都可以。
               </p>
               <p
                 className="text-xs mt-2 text-[var(--text-muted)]"
@@ -99,11 +88,11 @@ export default function TextModePanel({
               <button
                 onClick={onNew}
                 disabled={!modelAvailable}
-                className="mt-5 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 hover:scale-[1.02]"
+                className="mt-5 px-5 py-2.5 rounded-full text-sm font-semibold transition-all active:scale-95 disabled:opacity-40"
                 style={{
-                  background: "var(--accent)",
-                  color: "var(--accent-on)",
-                  boxShadow: "var(--shadow-sm)",
+                  background: "var(--text-primary)",
+                  color: "var(--bg-surface)",
+                  boxShadow: "0 8px 20px -8px rgba(17,17,16,.45)",
                 }}
               >
                 开始新对话

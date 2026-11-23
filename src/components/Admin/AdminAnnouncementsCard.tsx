@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiJson } from "@/lib/client-api";
+import { useConfirm } from "@/components/ConfirmProvider";
 import type { Announcement } from "@/types";
 
 export default function AdminAnnouncementsCard() {
+  const confirm = useConfirm();
   const [list, setList] = useState<Announcement[]>([]);
   const [body, setBody] = useState("");
   const [image, setImage] = useState<File | null>(null);
@@ -55,7 +57,7 @@ export default function AdminAnnouncementsCard() {
   }
 
   async function remove(id: string) {
-    if (!confirm("删除这条公告？")) return;
+    if (!(await confirm({ title: "删除公告", message: "删除这条公告？用户将不再看到它。" }))) return;
     setSaving(true);
     setMsg("");
     try {

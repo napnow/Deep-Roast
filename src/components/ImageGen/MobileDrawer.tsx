@@ -218,7 +218,7 @@ export default function MobileDrawer({
       <div
         role="dialog"
         aria-label="菜单"
-        className="md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[78vw] flex flex-col animate-drawer-in"
+        className="rd-drawer md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[78vw] flex flex-col animate-drawer-in"
         style={{
           background:
             "color-mix(in srgb, var(--bg-surface) 92%, transparent)",
@@ -234,17 +234,16 @@ export default function MobileDrawer({
           style={{ borderColor: "var(--border)" }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm shrink-0"
-              style={{
-                background:
-                  "linear-gradient(145deg, var(--accent-soft), var(--accent))",
-                color: "var(--accent-on)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              焙
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand-mark.png"
+              alt=""
+              width={36}
+              height={36}
+              draggable={false}
+              className="h-9 w-9 rounded-xl shrink-0 object-cover"
+              style={{ boxShadow: "0 0 0 1px var(--border)" }}
+            />
             <div className="min-w-0">
               <p
                 className="text-[13px] font-semibold truncate text-[var(--text-primary)]"
@@ -389,8 +388,8 @@ export default function MobileDrawer({
             onClick={handleLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
             style={{
-              background: "var(--danger-surface)",
-              border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
+              background: "transparent",
+              border: "1px solid var(--border)",
               color: "var(--danger)",
             }}
           >
