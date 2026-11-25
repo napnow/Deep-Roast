@@ -110,7 +110,34 @@ export default function CanvasPromptChipInput({ value, references, onChange, onS
 
   return <div className="canvas-prompt-chip-input">
     {!value.trim() && <span className="canvas-prompt-chip-input__placeholder">{placeholder}</span>}
-    <div ref={editorRef} className="canvas-prompt-chip-input__editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={ariaLabel} onInput={syncFromEditor} onKeyDown={handleKeyDown} onBlur={() => window.setTimeout(() => setMentionQuery(null), 120)} />
+    <div
+      ref={editorRef}
+      className="canvas-prompt-chip-input__editor"
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline="true"
+      aria-label={ariaLabel}
+      onInput={syncFromEditor}
+      onPaste={event => {
+        event.preventDefault();
+        const plain = event.clipboardData.getData("text/plain");
+        if (!plain) return;
+        const selection = window.getSelection();
+        if (!selection?.rangeCount) return;
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const textNode = document.createTextNode(plain);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        syncFromEditor();
+      }}
+      onKeyDown={handleKeyDown}
+      onBlur={() => window.setTimeout(() => setMentionQuery(null), 120)}
+    />
     {mentionQuery !== null && candidates.length > 0 && <div className="canvas-prompt-chip-input__menu" role="listbox" aria-label="引用候选">
       {candidates.map((candidate, index) => <button key={candidate.id} type="button" role="option" aria-selected={index === activeIndex} onMouseDown={event => { event.preventDefault(); selectMention(candidate); }}>
         {candidate.previewUrl ? <img src={candidate.previewUrl} alt="" aria-hidden /> : <span className="canvas-prompt-chip-input__icon">字</span>}

@@ -183,7 +183,7 @@ body {
 }
 
 .font-display {
-  font-family: var(--font-display), "Songti SC", "Noto Serif SC", serif;
+  font-family: var(--font-display), "Songti SC", "Source Han Serif SC", "Noto Serif SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-feature-settings: "ss01" on;
   letter-spacing: -0.02em;
 }
@@ -5123,9 +5123,11 @@ html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-activ
   font-size: 12px;
 }
 .ui-button--icon {
-  width: 40px;
-  min-height: 40px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   padding: 0;
+  border-radius: 999px;
 }
 .ui-button--quiet {
   background: transparent;
@@ -5137,6 +5139,9 @@ html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-activ
 }
 .ui-button:hover:not(:disabled) {
   filter: brightness(0.96);
+}
+html.dark .ui-button:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 .ui-spinner {
   width: 14px;
@@ -5239,9 +5244,15 @@ html.dark .asset-tabs button.is-active, html.dark .asset-filters button.is-activ
   background: var(--bg-elevated);
 }
 .chat-latest {
-  align-self: center;
-  margin: 8px;
-  box-shadow: var(--shadow-sm);
+  position: absolute;
+  left: 50%;
+  bottom: 92px;
+  z-index: 15;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 .result-error-actions {
   display: flex;

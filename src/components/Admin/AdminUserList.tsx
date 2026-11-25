@@ -59,44 +59,35 @@ export default function AdminUserList({
   return (
     <aside className="admin-rail admin-rail--navigation">
       <div
-        className="px-4 pt-4 pb-3 border-b shrink-0"
+        className="px-4 pt-4 pb-3.5 border-b shrink-0"
         style={{ borderColor: "var(--border)" }}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg font-display text-sm font-semibold shrink-0"
-                style={{
-                  background:
-                    "linear-gradient(145deg, var(--accent-soft), var(--accent))",
-                  color: "var(--accent-on)",
-                  boxShadow:
-                    "0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent)",
-                }}
-                aria-hidden
-              >
-                焙
-              </span>
-              <div className="min-w-0">
-                <p className="admin-title text-[1.05rem] leading-none">管理台</p>
-                <p
-                  className="text-[10px] mt-1 tracking-[0.14em] uppercase text-[var(--text-muted)]"
-                >
-                  Atelier Console
-                </p>
-              </div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="admin-brand group flex w-full items-center gap-2.5 text-left transition-opacity hover:opacity-85"
+          title="返回深焙创作台"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand-mark.png"
+            alt=""
+            width={32}
+            height={32}
+            draggable={false}
+            className="admin-brand__mark h-8 w-8 rounded-lg object-cover shrink-0"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <p className="admin-title text-[15px] font-semibold leading-none truncate">
+                深焙 · 管理台
+              </p>
             </div>
+            <p className="text-[10px] mt-1 tracking-[0.12em] uppercase text-[var(--text-muted)] truncate">
+              DEEP ROAST CONSOLE
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="admin-btn admin-btn--ghost shrink-0 !px-2 !py-1 text-[11px]"
-            title="返回工作台"
-          >
-            返回
-          </button>
-        </div>
+        </button>
       </div>
 
       <nav className="admin-module-nav" aria-label="管理模块">

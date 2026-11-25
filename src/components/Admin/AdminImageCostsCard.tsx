@@ -158,7 +158,7 @@ export default function AdminImageCostsCard() {
                     aria-label={`${modelId} 每张图片积分`}
                     className="admin-input w-28 text-right tabular-nums"
                   />
-                  <span className="text-[11px] text-[var(--text-muted)]">
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)]">
                     积分/张
                   </span>
                 </span>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useShallow } from "zustand/react/shallow";
 import AppModals from "@/components/AppModals";
 import { useAuth } from "@/components/AuthProvider";
 import TextModePanel from "@/components/Chat/TextModePanel";
@@ -79,6 +80,8 @@ export default function Home() {
     streaming,
     streamingText,
     imageHistory,
+    imageHistoryHasMore,
+    loadingMoreImages,
     generating,
     credits,
     checkinReward,
@@ -90,7 +93,36 @@ export default function Home() {
     setPwOpen,
     setApiOpen,
     setSettingsOpen,
-  } = useDeepRoastStore();
+  } = useDeepRoastStore(
+    useShallow((state) => ({
+      activeMode: state.activeMode,
+      setActiveMode: state.setActiveMode,
+      setInspectorCollapsed: state.setInspectorCollapsed,
+      activeImageId: state.activeImageId,
+      setActiveImageId: state.setActiveImageId,
+      config: state.config,
+      selectedImageModel: state.selectedImageModel,
+      conversations: state.conversations,
+      activeConvId: state.activeConvId,
+      chatMessages: state.chatMessages,
+      streaming: state.streaming,
+      streamingText: state.streamingText,
+      imageHistory: state.imageHistory,
+      imageHistoryHasMore: state.imageHistoryHasMore,
+      loadingMoreImages: state.loadingMoreImages,
+      generating: state.generating,
+      credits: state.credits,
+      checkinReward: state.checkinReward,
+      checkinEligible: state.checkinEligible,
+      todayChecked: state.todayChecked,
+      setCredits: state.setCredits,
+      setCheckinStatus: state.setCheckinStatus,
+      setWalletOpen: state.setWalletOpen,
+      setPwOpen: state.setPwOpen,
+      setApiOpen: state.setApiOpen,
+      setSettingsOpen: state.setSettingsOpen,
+    })),
+  );
 
   useEffect(() => {
     if (isLocalMobilePreview(window.location.search, process.env.NODE_ENV)) return;
@@ -259,6 +291,10 @@ export default function Home() {
     softNavigate(router, "/admin");
   }, [router]);
 
+  const handleOpenCanvas = useCallback(() => {
+    softNavigate(router, "/studio/canvas");
+  }, [router]);
+
   const handleSelectMobileWorkspace = useCallback(
     (workspace: MobilePrimaryWorkspace) => {
       if (workspace === "account") {
@@ -295,6 +331,8 @@ export default function Home() {
       username={user?.username || ""}
       role={role}
       credits={credits}
+      donationEnabled={donationEnabled}
+      onOpenDonation={() => setDonationOpen(true)}
       onLogout={logout}
       onWalletClick={() => setWalletOpen(true)}
       checkinAvailable={checkinEligible && !todayChecked}
@@ -319,9 +357,17 @@ export default function Home() {
               color: "var(--accent)",
             }}
           >
-            {isAdmin
-              ? "未配置 API Key — 请从管理控制台完成设置"
-              : "生图服务暂未配置 — 请联系管理员"}
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="underline-offset-4 hover:underline"
+              >
+                未配置 API Key — 点击此处配置模型渠道与密钥 →
+              </button>
+            ) : (
+              "生图服务暂未配置 — 请联系管理员"
+            )}
           </div>
         ) : null}
 
@@ -341,6 +387,9 @@ export default function Home() {
                 view={rdView}
                 model={currentModel}
                 history={imageHistory}
+                hasMore={imageHistoryHasMore}
+                loadingMore={loadingMoreImages}
+                onLoadMore={actions.loadMoreImageHistory}
                 generating={generating}
                 credits={credits}
                 isAdmin={isAdmin}
@@ -409,6 +458,7 @@ export default function Home() {
           onOpenChatHistory={handleOpenChatHistory}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenAdmin={handleOpenAdmin}
+          onOpenCanvas={handleOpenCanvas}
           onCheckin={handleCheckin}
           onLogout={logout}
           onClose={() => setDrawerOpen(false)}

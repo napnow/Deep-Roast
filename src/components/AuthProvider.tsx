@@ -46,18 +46,18 @@ function AuthBootScreen({ label }: { label: string }) {
       className="min-h-screen flex flex-col items-center justify-center gap-4 animate-fade-in"
       style={{ background: "var(--bg-root)", color: "var(--text-muted)" }}
     >
-      <span
-        className="inline-flex h-11 w-11 items-center justify-center rounded-xl font-display text-lg font-semibold"
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand-mark.png"
+        alt=""
+        width={44}
+        height={44}
+        draggable={false}
+        className="h-11 w-11 rounded-xl object-cover"
         style={{
-          background:
-            "linear-gradient(145deg, var(--accent-soft), var(--accent))",
-          color: "var(--accent-on)",
-          boxShadow: "var(--shadow-md)",
+          boxShadow: "0 0 0 1px var(--border-strong), var(--shadow-md)",
         }}
-        aria-hidden
-      >
-        焙
-      </span>
+      />
       <p className="text-xs tracking-[0.14em] uppercase">{label}</p>
     </div>
   );
@@ -80,7 +80,20 @@ export default function AuthProvider({
 
   const publishUser = useCallback((next: AuthUser | null) => {
     // Invalidate private work and clear the store before exposing the new user.
-    useDeepRoastStore.getState().setUserSession(next?.id ?? null);
+    const store = useDeepRoastStore.getState();
+    store.setUserSession(next?.id ?? null);
+    if (next) {
+      if (typeof next.credits === "number") {
+        store.setCredits(next.credits);
+      }
+      if (next.checkin) {
+        store.setCheckinStatus({
+          eligible: !!next.checkin.eligible,
+          todayChecked: !!next.checkin.todayChecked,
+          reward: next.checkin.reward,
+        });
+      }
+    }
     setUser(next);
     setLoading(false);
   }, []);

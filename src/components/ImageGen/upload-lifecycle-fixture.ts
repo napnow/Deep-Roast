@@ -245,10 +245,15 @@ export function createUploadHarness(initialProps: Partial<PanelProps> = {}) {
     },
     "@/lib/prompt-polish": promptPolish,
     "@/lib/image-edit-polish": imageEditPolish,
+    "zustand/react/shallow": { useShallow: <T>(fn: T) => fn },
     "@/lib/store": {
-      useDeepRoastStore: Object.assign(() => storeState, {
-        subscribe: () => () => {},
-      }),
+      useDeepRoastStore: Object.assign(
+        (selector?: (s: typeof storeState) => unknown) =>
+          selector ? selector(storeState) : storeState,
+        {
+          subscribe: () => () => {},
+        },
+      ),
     },
   };
   const context = createContext({

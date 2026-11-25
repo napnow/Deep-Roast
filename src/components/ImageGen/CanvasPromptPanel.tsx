@@ -4,7 +4,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { insertPromptReference, parsePromptReferences, syncPromptPanelValue, type CanvasPromptReference } from "./canvas-prompt";
 import CanvasPromptChipInput from "./CanvasPromptChipInput";
-import { useCanvasPromptLibrary } from "./useCanvasPromptLibrary";
 import { getSizeOptions } from "./imageUtils";
 import { getImageModelLabel } from "./image-model-presentation";
 import { normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
@@ -23,8 +22,6 @@ export interface CanvasPromptPanelProps {
   initialSettings?: Partial<CanvasPromptPanelSettings>;
   models?: string[];
   defaultModel?: string;
-  openLibrarySignal?: number;
-  promptInsertSignal?: { value: string; nonce: number };
   onGenerate: (nodeId: string, prompt: string, references: CanvasPromptReference[], settings: CanvasPromptPanelSettings) => void | string[] | Promise<void | string[]>;
   onClose: () => void;
 }
@@ -53,8 +50,6 @@ export default function CanvasPromptPanel({
   initialSettings,
   models = [],
   defaultModel = fallbackModel,
-  openLibrarySignal = 0,
-  promptInsertSignal,
   onGenerate,
   onClose,
 }: CanvasPromptPanelProps) {
@@ -63,13 +58,8 @@ export default function CanvasPromptPanel({
   const [settings, setSettings] = useState<CanvasPromptPanelSettings>(() => startingSettings(initialSettings, models, defaultModel));
   const [busy, setBusy] = useState(false);
   const [inputMode, setInputMode] = useState<"text" | "image">("text");
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [libraryQuery, setLibraryQuery] = useState("");
-  const [libraryCategory, setLibraryCategory] = useState("全部");
   const selected = useMemo(() => candidates.filter(candidate => prompt.includes(candidate.label)), [candidates, prompt]);
   const tokens = useMemo(() => parsePromptReferences(prompt, candidates), [candidates, prompt]);
-  const promptData = useCanvasPromptLibrary({ keyword: libraryQuery, category: libraryCategory, pageSize: 12, enabled: showLibrary });
-  const libraryCategories = useMemo(() => ["全部", ...promptData.categories], [promptData.categories]);
   const availableModels = useMemo(() => models.filter(Boolean), [models]);
   const modelOptions = useMemo(() => {
     const ids = availableModels.length ? availableModels : [settings.model];
@@ -78,21 +68,9 @@ export default function CanvasPromptPanel({
   const sizeOptions = useMemo(() => getSizeOptions(settings.model), [settings.model]);
 
   useEffect(() => {
-    if (openLibrarySignal > 0) setShowLibrary(true);
-  }, [openLibrarySignal]);
-
-  useEffect(() => {
     setPrompt(current => syncPromptPanelValue(current, previousInitialPrompt.current, initialPrompt));
     previousInitialPrompt.current = initialPrompt;
   }, [initialPrompt]);
-
-  useEffect(() => {
-    if (!promptInsertSignal) return;
-    setPrompt(promptInsertSignal.value);
-    previousInitialPrompt.current = promptInsertSignal.value;
-    setShowLibrary(false);
-    setInputMode("text");
-  }, [promptInsertSignal]);
 
   useEffect(() => {
     setSettings(current => {
@@ -118,12 +96,6 @@ export default function CanvasPromptPanel({
 
   function addReference(reference: CanvasPromptReference) {
     setPrompt(value => insertPromptReference(value.replace(/@[^@\s]*$/, ""), reference));
-  }
-
-  function applyLibraryPrompt(value: string) {
-    setPrompt(value);
-    setShowLibrary(false);
-    setInputMode("text");
   }
 
   async function submit() {
@@ -154,34 +126,7 @@ export default function CanvasPromptPanel({
     <div className="canvas-prompt-panel__modes" aria-label="创作输入方式">
       <button type="button" aria-pressed={inputMode === "text"} onClick={() => setInputMode("text")}>文字生成</button>
       <button type="button" aria-pressed={inputMode === "image"} onClick={() => setInputMode("image")}>添加图片</button>
-      <button type="button" className="canvas-prompt-panel__library-toggle" aria-expanded={showLibrary} onClick={() => setShowLibrary(value => !value)}>提示词库</button>
     </div>
-    {showLibrary && <section className="canvas-prompt-panel__library" aria-label="提示词库">
-      <aside className="canvas-prompt-panel__library-sidebar" aria-label="提示词分类">
-        <div className="canvas-prompt-panel__library-heading">分类</div>
-        <div className="canvas-prompt-panel__library-categories">
-          {libraryCategories.map(category => <button key={category} type="button" aria-pressed={libraryCategory === category} onClick={() => setLibraryCategory(category)}>
-            <span>{category}</span>
-            <small>{category === "全部" ? promptData.total : promptData.categoryCounts[category] ?? 0}</small>
-          </button>)}
-        </div>
-      </aside>
-      <div className="canvas-prompt-panel__library-results">
-        <search className="canvas-prompt-panel__search">
-          <label>
-            <span className="sr-only">搜索提示词</span>
-            <input name="prompt-library-search" value={libraryQuery} onChange={event => setLibraryQuery(event.target.value)} placeholder="搜索提示词" type="search" />
-          </label>
-        </search>
-        <div className="canvas-prompt-panel__library-items">
-          {promptData.loading && <em>正在加载真实提示词库…</em>}
-          {promptData.error && <em>{promptData.error} <button type="button" onClick={() => void promptData.reload()}>重试</button></em>}
-          {!promptData.loading && !promptData.error && promptData.items.map(item => <button key={item.id} type="button" className="canvas-prompt-panel__library-item" onClick={() => applyLibraryPrompt(item.prompt)}><strong>{item.title}<small>{item.category}</small></strong><span>{item.sourceLabel} · {item.description || item.prompt}</span></button>)}
-          {!promptData.loading && !promptData.error && !promptData.items.length && <em>没有匹配的提示词</em>}
-          {!promptData.loading && !promptData.error && promptData.hasMore && <button type="button" className="canvas-prompt-library-more" disabled={promptData.loadingMore} onClick={() => void promptData.loadMore()}>{promptData.loadingMore ? "正在加载…" : "加载更多"}</button>}
-        </div>
-      </div>
-    </section>}
     {inputMode === "image" && <div className="canvas-prompt-panel__image-picker" aria-label="添加画布参考图">
       <span>选择画布中的图片作为参考</span>
       <div>{candidates.filter(candidate => candidate.kind === "image").slice(0, 8).map(candidate => <button key={candidate.id} type="button" className={selected.some(item => item.id === candidate.id) ? "is-selected" : ""} onClick={() => addReference(candidate)}>

@@ -230,7 +230,7 @@ export default function AdminDonationCard() {
                 onChange={(e) => setText(e.target.value)}
                 rows={2}
                 maxLength={200}
-                placeholder="例如：如果觉得好用，请我喝杯咖啡吧 ☕"
+                placeholder="例如：如果觉得好用，欢迎支持深焙持续运营"
                 className="admin-input resize-y min-h-[3rem]"
               />
               <div className="flex flex-wrap gap-2 items-center mt-2">

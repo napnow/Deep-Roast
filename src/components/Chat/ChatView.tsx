@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
+import { AppIcon } from "@/components/ui/icons";
 import { copyText } from "@/lib/browser-actions";
 import { useActionFeedback } from "@/hooks/useActionFeedback";
 import ChatInput from "./ChatInput";
@@ -92,7 +93,7 @@ export default function ChatView({
   }
 
   return (
-    <div className="dr-canvas flex-1 flex flex-col min-h-0">
+    <div className="dr-canvas relative flex-1 flex flex-col min-h-0">
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 py-6"
@@ -108,6 +109,8 @@ export default function ChatView({
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.length === 0 && !streaming && (
             <div className="rd-chat-empty animate-fade-up">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand-mark.png" alt="" width={52} height={52} draggable={false} />
               <h2>有什么想聊的？</h2>
               <p>提问、改文案、聊聊画面构思都可以。</p>
             </div>
@@ -209,7 +212,7 @@ export default function ChatView({
                           <span
                             className="text-xs text-[var(--text-muted)]"
                           >
-                            正在生成你的形象…
+                            正在生成图片…
                           </span>
                         </div>
                       ) : (
@@ -393,7 +396,7 @@ export default function ChatView({
               className="mobile-image-preview-close flex"
               aria-label="关闭对话图片预览"
             >
-              ✕
+              <AppIcon name="close" size={16} />
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

@@ -127,9 +127,9 @@ export default function AdminAnnouncementsCard() {
           <p className="text-[10px] text-[var(--text-muted)]">
             支持 PNG / JPG / WebP，最大 2MB；用户端点击箭头后查看。
           </p>
-          {image && (
+            {image && (
             <div className="flex items-center gap-3">
-              <span className="inline-flex h-16 w-16 items-center justify-center rounded border text-center text-[10px]" style={{ color: "var(--accent, #ff8c00)" }}>
+              <span className="inline-flex h-12 px-2.5 items-center justify-center rounded-lg border text-center text-[10px]" style={{ color: "var(--accent)", borderColor: "var(--border)" }}>
                 二维码
               </span>
               <span className="min-w-0 truncate text-[11px] text-[var(--text-secondary)]">
@@ -175,21 +175,61 @@ export default function AdminAnnouncementsCard() {
                 key={announcement.id}
                 className="rounded-[var(--radius)] px-3 py-2.5"
                 style={{
-                  background: announcement.pinned ? "var(--accent-bg, rgba(255,140,0,0.06))" : "var(--bg-root)",
-                  border: `1px solid ${announcement.pinned ? "var(--accent, #ff8c00)" : "var(--border)"}`,
+                  background: announcement.pinned
+                    ? "var(--accent-surface)"
+                    : "var(--bg-root)",
+                  border: `1px solid ${
+                    announcement.pinned
+                      ? "color-mix(in srgb, var(--accent) 42%, transparent)"
+                      : "var(--border)"
+                  }`,
                 }}
               >
                 <div className="flex justify-between gap-3 items-start">
-                  <p className="text-[12.5px] whitespace-pre-wrap flex-1 leading-relaxed text-[var(--text-secondary)]">
-                    {announcement.pinned && <span style={{ color: "var(--accent, #ff8c00)" }}>📌 </span>}
-                    {announcement.body}
-                    {announcement.imageUrl && <span className="ml-1 text-[10px]" style={{ color: "var(--accent, #ff8c00)" }}>（含二维码）</span>}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    {announcement.pinned && (
+                      <span
+                        className="inline-block mb-1 rounded-full px-2 py-0.5 text-[9.5px] font-semibold"
+                        style={{
+                          background: "color-mix(in srgb, var(--accent) 16%, transparent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        置顶
+                      </span>
+                    )}
+                    <p className="text-[12.5px] whitespace-pre-wrap leading-relaxed text-[var(--text-secondary)]">
+                      {announcement.body}
+                      {announcement.imageUrl && (
+                        <span
+                          className="ml-1 text-[10px]"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          （含二维码）
+                        </span>
+                      )}
+                    </p>
+                  </div>
                   <div className="flex gap-2 shrink-0 pt-0.5">
-                    <button type="button" disabled={saving} onClick={() => togglePin(announcement.id)} className="text-[10px] font-semibold" style={{ color: announcement.pinned ? "var(--accent, #ff8c00)" : "var(--text-muted)" }}>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => togglePin(announcement.id)}
+                      className="text-[10px] font-semibold"
+                      style={{
+                        color: announcement.pinned
+                          ? "var(--accent)"
+                          : "var(--text-muted)",
+                      }}
+                    >
                       {announcement.pinned ? "取消置顶" : "置顶"}
                     </button>
-                    <button type="button" disabled={saving} onClick={() => remove(announcement.id)} className="text-[10px] font-semibold text-[var(--danger)]">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => remove(announcement.id)}
+                      className="text-[10px] font-semibold text-[var(--danger)]"
+                    >
                       删除
                     </button>
                   </div>

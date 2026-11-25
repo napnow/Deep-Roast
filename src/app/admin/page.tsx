@@ -29,6 +29,7 @@ import AdminAiCapabilitiesPage from "@/components/Admin/AdminAiCapabilitiesPage"
 import MobileAdminUserSheet from "@/components/Admin/MobileAdminUserSheet";
 import AdminCleanupUsersModal from "@/components/Admin/AdminCleanupUsersModal";
 import AdminCleanupImagesModal from "@/components/Admin/AdminCleanupImagesModal";
+import { AppIcon } from "@/components/ui/icons";
 import { softNavigate } from "@/lib/nav-transition";
 
 export default function AdminPage() {
@@ -447,24 +448,70 @@ export default function AdminPage() {
       <div className="admin-main">
         <div className="admin-ctop">
           <div className="admin-ctop__crumb">
-            控制台<i>/</i>
-            <b>
-              {mainView === "site"
-                ? "站点与内容"
-                : mainView === "ai"
-                  ? "AI 能力"
-                  : mainView === "users"
-                    ? "用户"
-                    : mainView === "detail" && selectedUser
-                      ? `用户 / ${selectedUser.username}`
-                      : "概览"}
-            </b>
+            <span>管理台</span>
+            <i>/</i>
+            {mainView === "detail" && selectedUser ? (
+              <>
+                <button
+                  type="button"
+                  className="admin-ctop__link"
+                  onClick={() => setMainView("users")}
+                >
+                  用户管理
+                </button>
+                <i>/</i>
+                <b>{selectedUser.username}</b>
+              </>
+            ) : (
+              <b>
+                {mainView === "site"
+                  ? "站点与内容"
+                  : mainView === "ai"
+                    ? "AI 能力"
+                    : mainView === "users"
+                      ? "用户管理"
+                      : "运营总览"}
+              </b>
+            )}
           </div>
           <span className="admin-ctop__grow" />
-          <button type="button" onClick={() => void handleRefresh()} disabled={refreshing}>
+          {lastRefreshed && (
+            <span className="admin-ctop__meta hidden sm:inline">
+              更新于 {lastRefreshed}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5"
+          >
+            <AppIcon
+              name="refresh"
+              size={12}
+              className={refreshing ? "animate-spin" : undefined}
+            />
             {refreshing ? "刷新中…" : "刷新"}
           </button>
-          <button type="button" onClick={() => softNavigate(router, "/")}>← 返回创作</button>
+          <button
+            type="button"
+            className="admin-ctop__icon-btn"
+            onClick={() => {
+              const nextDark = !document.documentElement.classList.contains("dark");
+              document.documentElement.classList.toggle("dark", nextDark);
+              window.localStorage.setItem("theme", nextDark ? "dark" : "light");
+              const meta = document.querySelector('meta[name="theme-color"]');
+              if (meta) meta.setAttribute("content", nextDark ? "#141210" : "#f8f7f4");
+            }}
+            title="切换深浅色主题"
+            aria-label="切换深浅色主题"
+          >
+            <AppIcon name="sun" size={14} className="admin-theme-icon admin-theme-icon--sun" />
+            <AppIcon name="moon" size={14} className="admin-theme-icon admin-theme-icon--moon" />
+          </button>
+          <button type="button" onClick={() => softNavigate(router, "/")}>
+            ← 返回创作
+          </button>
         </div>
         {mainView === "site" ? (
           <AdminSiteContentPage />
@@ -484,7 +531,7 @@ export default function AdminPage() {
             onSite={() => setMainView("site")}
           />
         ) : (
-          <div className="max-w-5xl mx-auto space-y-5 animate-fade-up">
+          <div className="admin-workspace-page space-y-5 animate-fade-up">
             {/* User dossier header */}
             <section className="admin-card overflow-hidden">
               <div
@@ -585,29 +632,6 @@ export default function AdminPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={refreshing}
-                      onClick={handleRefresh}
-                      className="admin-btn admin-btn--ghost"
-                      title="重新拉取用户列表与该用户的最新数据"
-                    >
-                      <span
-                        aria-hidden
-                        className="inline-block mr-1.5"
-                        style={
-                          refreshing
-                            ? {
-                                display: "inline-block",
-                                animation: "spin 0.8s linear infinite",
-                              }
-                            : undefined
-                        }
-                      >
-                        ⟳
-                      </span>
-                      {refreshing ? "刷新中…" : "刷新"}
-                    </button>
                     <button
                       type="button"
                       onClick={() => setResetOpen(true)}

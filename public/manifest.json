@@ -1,17 +1,23 @@
 {
-  "name": "深焙",
+  "name": "深焙 Deep Roast",
   "short_name": "深焙",
-  "description": "深度思考，慢工出好答案",
+  "description": "慢工细作，让灵感显影为好作品",
   "start_url": "/login",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#e6e2d9",
-  "theme_color": "#e6e2d9",
+  "background_color": "#f8f7f4",
+  "theme_color": "#f8f7f4",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icon-192.png?v=puppy",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-256.png?v=puppy",
+      "sizes": "256x256",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

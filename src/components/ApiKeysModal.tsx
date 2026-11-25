@@ -2,6 +2,7 @@
 
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
+import { AppIcon } from "@/components/ui/icons";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { Input } from "@/components/ui/Field";
 
@@ -340,7 +341,7 @@ export default function ApiKeysModal({
             >
               <div className="flex min-w-0 items-start gap-3">
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border text-lg"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
                   style={{
                     color: "var(--accent)",
                     borderColor: "var(--border-strong)",
@@ -348,7 +349,7 @@ export default function ApiKeysModal({
                   }}
                   aria-hidden="true"
                 >
-                  ◆
+                  <AppIcon name="code" size={18} />
                 </div>
                 <div>
                   <p
@@ -375,9 +376,9 @@ export default function ApiKeysModal({
                 type="button"
                 onClick={closeModal}
                 aria-label="关闭 API 接入"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg transition-transform hover:scale-105 text-[var(--text-muted)]"
+                className="flex shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105 text-[var(--text-muted)]"
               >
-                ×
+                <AppIcon name="close" size={14} />
               </Button>
             </header>
 

@@ -50,7 +50,7 @@ test("mobile workspace shell keeps four equal touch targets", () => {
   );
   assert.match(header, /mobile-app-header/);
   assert.match(nav, /AppIcon/);
-  assert.match(nav, /gallery:\s*"history"/);
+  assert.match(nav, /gallery:\s*"gallery"/);
   assert.match(drawer, /label:\s*"积分与邀请"/);
   assert.match(drawer, /label:\s*"修改密码"/);
   assert.match(drawer, /label:\s*"打赏支持"/);

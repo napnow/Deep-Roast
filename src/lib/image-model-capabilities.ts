@@ -71,7 +71,7 @@ export const GEMINI_IMAGE_2K_SIZE_OPTIONS: ImageSizeOption[] = [
 /** Flow2API 接受的 aspectRatio 取值。 */
 export const GEMINI_ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
 
-const GPT_IMAGE_MODEL_PATTERN = /^gpt-image-2(?:$|\.5(?:-|$))/i;
+const GPT_IMAGE_MODEL_PATTERN = /^gpt-image-2(?:$|\.\d+(?:-|$))/i;
 
 /** Whether a model supports the GPT image native-size plus exact-crop workflow. */
 export function isGptImageModel(model: string): boolean {

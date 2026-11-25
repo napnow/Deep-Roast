@@ -82,7 +82,7 @@ export default function TextModePanel({
                 className="text-xs mt-2 text-[var(--text-muted)]"
               >
                 {modelAvailable
-                  ? "在左侧点「新对话」开始"
+                  ? "点击下方按钮，开始一段新的对话与构思"
                   : "管理员暂未启用对话模型"}
               </p>
               <button

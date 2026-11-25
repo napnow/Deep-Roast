@@ -125,15 +125,17 @@ export function sessionFixture(options: { pathname?: string } = {}) {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     zustand: { create(initializer: any) {
       store = createStore<DeepRoastState>(initializer);
-      const hook = () => {
+      const hook = (selector?: (s: DeepRoastState) => any) => {
         if (active && !active.unsubscribe) {
           const runner = active;
           runner.unsubscribe = store.subscribe(() => { runner.dirty = true; });
         }
-        return store.getState();
+        const state = store.getState();
+        return selector ? selector(state) : state;
       };
       return Object.assign(hook, store);
     } },
+    "zustand/react/shallow": { useShallow: <T>(fn: T) => fn },
     "next/navigation": { useRouter: () => router, usePathname: () => options.pathname ?? "/login" },
     "@/lib/auth-client": {
       getAuth() { const request = deferred<AuthUser | null>(); authRequests.push(request); return request.promise; },

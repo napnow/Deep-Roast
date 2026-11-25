@@ -29,6 +29,8 @@ interface MobileDrawerProps {
   onOpenSettings: () => void;
   /** 进入既有管理控制台 */
   onOpenAdmin: () => void;
+  /** 进入无限画布工作台 */
+  onOpenCanvas?: () => void;
   /** 复用已有签到流程 */
   onCheckin: () => void;
   /** 复用已有退出登录流程 */
@@ -39,7 +41,7 @@ interface MobileDrawerProps {
 /**
  * 手机端全局抽屉侧栏（汉堡唤起）：
  * - 高频的生图、图库、对话由主页面常驻导航承载；
- * - 抽屉只保留签到、会话记录、公告和主题等次级功能。
+ * - 抽屉保留签到、画布、会话记录、公告和主题等次级功能。
  */
 export default function MobileDrawer({
   open,
@@ -56,6 +58,7 @@ export default function MobileDrawer({
   onOpenChatHistory,
   onOpenSettings,
   onOpenAdmin,
+  onOpenCanvas,
   onCheckin,
   onLogout,
   onClose,
@@ -71,16 +74,26 @@ export default function MobileDrawer({
     reward: checkinReward,
   });
 
-  // 主题切换（.dark class + localStorage「theme」；跟随 layout.tsx 的初始化脚本）
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   function toggleTheme() {
     const next = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", next ? "#141210" : "#f8f7f4");
     setIsDark(next);
   }
 
@@ -89,7 +102,6 @@ export default function MobileDrawer({
     onLogout();
   }
 
-  // 打开抽屉时刷新公告红点
   useEffect(() => {
     if (open) ann.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,6 +112,7 @@ export default function MobileDrawer({
   const menuItems: Array<{
     key:
       | "wallet"
+      | "canvas"
       | "password"
       | "api-keys"
       | "donation"
@@ -118,6 +131,16 @@ export default function MobileDrawer({
       icon: "wallet",
       desc: "查看余额、积分明细和邀请链接",
     },
+    ...(onOpenCanvas
+      ? [
+          {
+            key: "canvas" as const,
+            label: "作品画布",
+            icon: "canvas" as AppIconName,
+            desc: "进入无限节点画布串联创作",
+          },
+        ]
+      : []),
     {
       key: "password",
       label: "修改密码",
@@ -127,7 +150,7 @@ export default function MobileDrawer({
     {
       key: "api-keys",
       label: "API 接入",
-      icon: "details",
+      icon: "code",
       desc: "创建、复制和管理你的 API Key",
     },
     ...(role === "admin"
@@ -135,13 +158,13 @@ export default function MobileDrawer({
           {
             key: "settings" as const,
             label: "模型配置",
-            icon: "settings" as AppIconName,
+            icon: "sliders" as AppIconName,
             desc: "管理渠道和可用模型",
           },
           {
             key: "admin" as const,
             label: "管理控制台",
-            icon: "details" as AppIconName,
+            icon: "layout" as AppIconName,
             desc: "运营、用户和站点管理",
           },
         ]
@@ -151,7 +174,7 @@ export default function MobileDrawer({
           {
             key: "donation" as const,
             label: "打赏支持",
-            icon: "details" as AppIconName,
+            icon: "heart" as AppIconName,
             desc: "支持深焙持续运营",
           },
         ]
@@ -177,6 +200,10 @@ export default function MobileDrawer({
     onClose();
     if (key === "wallet") {
       onOpenWallet();
+      return;
+    }
+    if (key === "canvas") {
+      onOpenCanvas?.();
       return;
     }
     if (key === "password") {
@@ -208,27 +235,22 @@ export default function MobileDrawer({
 
   return (
     <>
-      {/* 遮罩 */}
       <div
         className="md:hidden fixed inset-0 z-40 bg-black/45 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
         aria-hidden
       />
-      {/* 抽屉 */}
       <div
         role="dialog"
+        aria-modal="true"
         aria-label="菜单"
-        className="rd-drawer md:hidden fixed inset-y-0 left-0 z-50 w-64 max-w-[78vw] flex flex-col animate-drawer-in"
+        className="rd-drawer md:hidden fixed inset-y-0 left-0 z-50 w-68 max-w-[82vw] flex flex-col animate-drawer-in"
         style={{
-          background:
-            "color-mix(in srgb, var(--bg-surface) 92%, transparent)",
-          backdropFilter: "blur(20px) saturate(1.2)",
-          WebkitBackdropFilter: "blur(20px) saturate(1.2)",
+          background: "var(--bg-surface)",
           borderRight: "1px solid var(--border-strong)",
           boxShadow: "var(--shadow-lg)",
         }}
       >
-        {/* 头部 */}
         <div
           className="flex items-center justify-between px-4 py-4 border-b shrink-0"
           style={{ borderColor: "var(--border)" }}
@@ -242,37 +264,23 @@ export default function MobileDrawer({
               height={36}
               draggable={false}
               className="h-9 w-9 rounded-xl shrink-0 object-cover"
-              style={{ boxShadow: "0 0 0 1px var(--border)" }}
+              style={{ boxShadow: "0 0 0 1px var(--border-strong)" }}
             />
             <div className="min-w-0">
-              <p
-                className="text-[13px] font-semibold truncate text-[var(--text-primary)]"
-              >
+              <p className="text-[13px] font-semibold truncate text-[var(--text-primary)]">
                 {username}
               </p>
-              <p
-                className="text-[10px] mt-0.5 text-[var(--text-muted)]"
-              >
+              <p className="text-[10.5px] mt-0.5 text-[var(--text-muted)]">
                 {role === "admin" ? "管理员" : "用户"} · 深焙
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 hover:scale-110 active:scale-95 text-[var(--text-muted)]"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"
             aria-label="关闭菜单"
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            <AppIcon name="close" size={16} />
           </button>
         </div>
 
@@ -288,88 +296,72 @@ export default function MobileDrawer({
               <small>{checkinCard.detail}</small>
             </span>
             <span className="mobile-checkin-card__indicator" aria-hidden="true">
-              {todayChecked ? "✓" : "→"}
+              {todayChecked ? <AppIcon name="check" size={14} /> : "→"}
             </span>
           </button>
         </div>
 
-        {/* 菜单项 */}
-        <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-1">
-          {menuItems.map((item) => {
-            return (
-              <button
-                key={item.key}
-                onClick={() => handleMenuItemClick(item.key)}
-                className="w-full flex items-center gap-3 px-3.5 py-3.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
-                style={{
-                  background: "transparent",
-                  border: "1px solid transparent",
-                }}
-              >
-                <span
-                  className="flex h-5 w-5 items-center justify-center shrink-0 relative text-[var(--text-muted)]"
-                >
-                  <AppIcon name={item.icon} size={18} strokeWidth={1.8} />
-                  {item.unread && (
-                    <span
-                      className="absolute -top-0.5 -right-1.5 h-2 w-2 rounded-full"
-                      style={{
-                        background: "var(--danger)",
-                        boxShadow: "0 0 6px var(--danger)",
-                      }}
-                    />
-                  )}
-                </span>
-                <span className="flex-1 text-left min-w-0">
+        <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-0.5">
+          {menuItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleMenuItemClick(item.key)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors hover:bg-[var(--bg-elevated)] active:scale-[0.99]"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 relative bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+                <AppIcon name={item.icon} size={16} strokeWidth={1.8} />
+                {item.unread && (
                   <span
-                    className="block text-[13px] font-semibold text-[var(--text-primary)]"
-                  >
-                    {item.label}
-                  </span>
-                  <span
-                    className="block text-[10.5px] mt-0.5 text-[var(--text-muted)]"
-                  >
-                    {item.desc}
-                  </span>
+                    className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full"
+                    style={{
+                      background: "var(--danger)",
+                      boxShadow: "0 0 6px var(--danger)",
+                    }}
+                  />
+                )}
+              </span>
+              <span className="flex-1 text-left min-w-0">
+                <span className="block text-[13px] font-semibold text-[var(--text-primary)]">
+                  {item.label}
                 </span>
-              </button>
-            );
-          })}
+                <span className="block text-[11px] mt-0.5 truncate text-[var(--text-muted)]">
+                  {item.desc}
+                </span>
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* 底部：主题切换 */}
         <div
           className="px-3 py-3 border-t shrink-0 space-y-2"
-          style={{ borderColor: "var(--border)" }}
+          style={{
+            borderColor: "var(--border)",
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
+          }}
         >
           <button
             type="button"
+            role="switch"
+            aria-checked={isDark}
             onClick={toggleTheme}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors active:scale-[0.99]"
             style={{
-              background: "var(--bg-root)",
+              background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
             }}
           >
             <span className="flex items-center gap-2.5 min-w-0">
-              <span
-                className="text-[15px] leading-none shrink-0 text-[var(--text-muted)]"
-              >
-                {isDark ? "🌙" : "☀️"}
+              <span className="text-[var(--text-secondary)] shrink-0">
+                <AppIcon name={isDark ? "moon" : "sun"} size={16} />
               </span>
-              <span
-                className="text-[13px] font-medium text-[var(--text-primary)]"
-              >
+              <span className="text-[13px] font-medium text-[var(--text-primary)]">
                 深色模式
               </span>
             </span>
-            {/* 开关 */}
             <span
-              className={`relative inline-flex h-[22px] w-[38px] items-center rounded-full transition-colors duration-200 shrink-0 ${
-                isDark ? "" : ""
-              }`}
+              className="relative inline-flex h-[22px] w-[38px] items-center rounded-full transition-colors duration-200 shrink-0"
               style={{
-                background: isDark ? "var(--accent)" : "var(--bg-elevated)",
+                background: isDark ? "var(--accent)" : "var(--bg-hover)",
                 border: `1px solid ${
                   isDark ? "var(--accent)" : "var(--border-strong)"
                 }`,
@@ -386,19 +378,16 @@ export default function MobileDrawer({
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 active:scale-[0.98]"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors hover:bg-[var(--danger-surface)] active:scale-[0.99]"
             style={{
               background: "transparent",
               border: "1px solid var(--border)",
               color: "var(--danger)",
             }}
           >
-            <AppIcon name="arrow-left" size={16} strokeWidth={1.8} />
+            <AppIcon name="logout" size={16} strokeWidth={1.85} />
             <span className="text-[13px] font-semibold">退出登录</span>
           </button>
-          <p className="text-[10px] px-1 text-[var(--text-muted)]">
-            深焙 Deep Roast · 慢工出好图
-          </p>
         </div>
       </div>
     </>

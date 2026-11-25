@@ -6,7 +6,7 @@
   --z-drawer: 40;
   --z-modal: 60;
   --z-popover: 70;
-  --z-toast: 80;
+  --z-toast: 110;
 }
 .ui-toast-stack { z-index: var(--z-toast); }
 

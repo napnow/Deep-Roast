@@ -94,7 +94,7 @@ export default function AdminInvitationsCard() {
           </p>
         ) : !data ? null : (
           <>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div
                 className="rounded-[var(--radius)] px-3.5 py-3"
                 style={{ background: "var(--bg-root)", border: "1px solid var(--border)" }}
@@ -181,7 +181,7 @@ export default function AdminInvitationsCard() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className="admin-btn admin-btn-secondary"
+                    className="admin-btn admin-btn--ghost"
                     disabled={offset === 0 || pageLoading}
                     onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
                   >
@@ -189,7 +189,7 @@ export default function AdminInvitationsCard() {
                   </button>
                   <button
                     type="button"
-                    className="admin-btn admin-btn-secondary"
+                    className="admin-btn admin-btn--ghost"
                     disabled={!data.pagination.hasMore || pageLoading}
                     onClick={() => {
                       if (data.pagination.nextOffset !== null) {

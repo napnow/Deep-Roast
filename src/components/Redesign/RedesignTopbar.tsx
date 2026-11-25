@@ -19,6 +19,8 @@ interface RedesignTopbarProps {
   username: string;
   role: string;
   credits: number;
+  donationEnabled?: boolean;
+  onOpenDonation?: () => void;
   onLogout: () => void;
   onWalletClick: () => void;
   checkinAvailable: boolean;
@@ -34,6 +36,8 @@ export default function RedesignTopbar({
   username,
   role,
   credits,
+  donationEnabled,
+  onOpenDonation,
   onLogout,
   onWalletClick,
   checkinAvailable,
@@ -52,7 +56,7 @@ export default function RedesignTopbar({
           </button>
         )}
         <button type="button" className="rd-brand" onClick={() => onSelect("create")} aria-label="深焙 · 回到创作">
-          <img className="rd-mark" src="/brand-mark.png" alt="" width={28} height={28} draggable={false} />
+          <img className="rd-mark" src="/brand-mark.png" alt="" width={30} height={30} draggable={false} />
           <span>深焙</span>
           <small>DEEP ROAST</small>
         </button>
@@ -86,7 +90,15 @@ export default function RedesignTopbar({
           )}
         </div>
         <div className="rd-bell"><AnnouncementBell /></div>
-        <div className="rd-user"><UserMenu username={username} role={role} onLogout={onLogout} /></div>
+        <div className="rd-user">
+          <UserMenu
+            username={username}
+            role={role}
+            donationEnabled={donationEnabled}
+            onOpenDonation={onOpenDonation}
+            onLogout={onLogout}
+          />
+        </div>
       </div>
     </header>
   );

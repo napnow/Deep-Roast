@@ -74,6 +74,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               </p>
               <div className="flex gap-2 justify-end">
                 <Button
+                  autoFocus={danger}
                   onClick={() => settle(false)}
                   className="ui-confirm-btn ui-confirm-btn--ghost"
                 >
@@ -81,7 +82,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 </Button>
                 <Button
                   variant={danger ? "danger" : undefined}
-                  autoFocus
+                  autoFocus={!danger}
                   onClick={() => settle(true)}
                   className={`ui-confirm-btn ${danger ? "ui-confirm-btn--danger" : "ui-confirm-btn--primary"}`}
                 >

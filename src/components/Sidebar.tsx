@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { relativeTime } from "@/types";
 import type { Conversation } from "@/types";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -37,6 +37,37 @@ export default function Sidebar({
   const [pendingDeleteTitle, setPendingDeleteTitle] = useState("");
   const [query, setQuery] = useState("");
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const asideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!menuId) return;
+    function onDocDown(e: MouseEvent) {
+      if (asideRef.current && !asideRef.current.contains(e.target as Node)) {
+        setMenuId(null);
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest("[data-conv-menu]")) setMenuId(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuId(null);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuId]);
+
+  function commitRename(conv: Conversation) {
+    const next = editingTitle.trim();
+    setEditingId(null);
+    if (next && next !== conv.title) onRename(conv.id, next);
+  }
+
   const groups = useMemo(
     () => groupConversations(filterConversations(conversations, query)),
     [conversations, query],
@@ -51,6 +82,7 @@ export default function Sidebar({
         />
       )}
       <aside
+        ref={asideRef}
         className={`w-64 shrink-0 border-r flex flex-col h-full fixed md:static inset-y-0 left-0 z-40 transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
@@ -109,11 +141,11 @@ export default function Sidebar({
       <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
         {conversations.length === 0 && (
           <div className="text-center mt-12 px-4">
-            <p
-              className="font-display text-2xl mb-2 opacity-40 text-[var(--accent)]"
-            >
-              焙
-            </p>
+            <AppIcon
+              name="chat"
+              size={22}
+              className="mx-auto mb-2.5 opacity-45 text-[var(--accent)]"
+            />
             <p className="text-xs leading-relaxed text-[var(--text-muted)]">
               还没有对话。点上方开始一炉新的思考。
             </p>
@@ -124,12 +156,24 @@ export default function Sidebar({
           <p key={`${group.label}-heading`} className="chat-group-label">{group.label}</p>,
           ...group.conversations.map((conv) => {
           const isActive = activeId === conv.id;
+          const isEditing = editingId === conv.id;
           return (
             <div
               key={conv.id}
+              role="button"
+              tabIndex={0}
               onClick={() => {
+                if (isEditing) return;
                 onSelect(conv.id);
                 onClose?.();
+              }}
+              onKeyDown={(e) => {
+                if (isEditing) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect(conv.id);
+                  onClose?.();
+                }
               }}
               className="group relative pl-3 pr-2 py-2.5 rounded-lg cursor-pointer transition-all duration-150"
               style={{
@@ -144,10 +188,38 @@ export default function Sidebar({
                 />
               )}
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[13px] font-medium leading-tight">
-                  {conv.title}
-                </span>
+                {isEditing ? (
+                  <input
+                    autoFocus
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={() => commitRename(conv)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitRename(conv);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setEditingId(null);
+                      }
+                    }}
+                    aria-label="修改对话标题"
+                    className="min-w-0 flex-1 rounded-md border px-2 py-0.5 text-[13px] font-medium outline-none"
+                    style={{
+                      background: "var(--bg-surface)",
+                      borderColor: "var(--accent)",
+                      color: "var(--text-primary)",
+                    }}
+                  />
+                ) : (
+                  <span className="truncate text-[13px] font-medium leading-tight">
+                    {conv.title}
+                  </span>
+                )}
                 <button
+                  data-conv-menu
                   onClick={(e) => {
                     e.stopPropagation();
                     setMenuId((id) => id === conv.id ? null : conv.id);
@@ -158,10 +230,14 @@ export default function Sidebar({
                   <AppIcon name="more" size={14} />
                 </button>
                 {menuId === conv.id ? (
-                  <div className="chat-row-menu" onClick={(event) => event.stopPropagation()}>
+                  <div
+                    data-conv-menu
+                    className="chat-row-menu"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <button onClick={() => {
-                      const title = window.prompt("修改对话标题", conv.title)?.trim();
-                      if (title) onRename(conv.id, title);
+                      setEditingId(conv.id);
+                      setEditingTitle(conv.title);
                       setMenuId(null);
                     }}>重命名</button>
                     <button className="is-danger" onClick={() => {

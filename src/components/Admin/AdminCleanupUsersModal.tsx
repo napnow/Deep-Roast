@@ -89,6 +89,15 @@ export default function AdminCleanupUsersModal({
     };
   }, [open, reloadToken]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !executing) onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, executing, onClose]);
+
   async function handleExecute() {
     if (executing || !preview || preview.total === 0) return;
 

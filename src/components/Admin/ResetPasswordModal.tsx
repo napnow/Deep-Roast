@@ -35,6 +35,15 @@ export default function ResetPasswordModal({
     wasOpen.current = open;
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !saving && !tempShown) onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, saving, tempShown, onClose]);
+
   if (!open || !user) return null;
 
   async function handSet(e: React.FormEvent) {
