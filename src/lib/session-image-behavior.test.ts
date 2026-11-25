@@ -227,3 +227,46 @@ test("stopping a current batch preserves acknowledged images exactly once", asyn
     assert.equal(env.store.getState().generating, false);
   });
 });
+
+test("text batches derive distinct per-slot Idempotency-Key headers", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+  const pending = images.value.handleGenerateImageBatch("batch-slots", size, 3);
+  await env.flush();
+  respond(env.requests[0], image("slot-0"));
+  await env.flush();
+  respond(env.requests[1], image("slot-1"));
+  respond(env.requests[2], image("slot-2"));
+  await pending; await env.flush();
+  const keys = env.requests.map((req) => new Headers(req.init?.headers).get("Idempotency-Key"));
+  assert.equal(new Set(keys).size, 3, "each slot must have its own Idempotency-Key");
+  assert.ok(keys[0]?.endsWith(":0"));
+  assert.ok(keys[1]?.endsWith(":1"));
+  assert.ok(keys[2]?.endsWith(":2"));
+});
+
+test("retry issues a fresh Idempotency-Key after a 502 error while preserving it on network failure", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+
+  const first = images.value.handleGenerateImage("retry-service", size);
+  const firstKey = new Headers(env.requests[0].init?.headers).get("Idempotency-Key");
+  respond(env.requests[0], { error: "上游超时", code: "UPSTREAM_IMAGE_ERROR" }, 502);
+  await first; await env.flush();
+
+  images.value.handleRetryImageTask();
+  await env.flush();
+  const secondKey = new Headers(env.requests[1].init?.headers).get("Idempotency-Key");
+  assert.notEqual(secondKey, firstKey, "service failure must generate a new Idempotency-Key on retry");
+  env.requests[1].reject(new Error("TypeError: Failed to fetch"));
+  await env.flush();
+
+  images.value.handleRetryImageTask();
+  await env.flush();
+  const thirdKey = new Headers(env.requests[2].init?.headers).get("Idempotency-Key");
+  assert.equal(thirdKey, secondKey, "network failure must reuse Idempotency-Key to avoid double charge");
+  respond(env.requests[2], image("recovered"));
+  await env.flush();
+});

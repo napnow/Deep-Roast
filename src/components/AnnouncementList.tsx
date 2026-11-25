@@ -67,7 +67,7 @@ export default function AnnouncementList({
                   aria-expanded={expanded}
                   aria-controls={`announcement-image-${a.id}`}
                   className="inline-flex items-center gap-1 text-[11px] font-medium transition-colors"
-                  style={{ color: "var(--accent, #ff8c00)" }}
+                  style={{ color: "var(--accent)" }}
                 >
                   <span
                     aria-hidden="true"

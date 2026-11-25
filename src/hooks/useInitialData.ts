@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useDeepRoastStore } from "@/lib/store";
 import { apiJson } from "@/lib/client-api";
 import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
@@ -11,6 +12,8 @@ import {
   IMAGE_MODEL_PREFERENCE_STORAGE_KEY,
   resolveImageModelAfterConfigLoad,
 } from "@/lib/image-model-preferences";
+
+const IMAGE_PAGE_SIZE = 50;
 
 /** 挂载时加载配置 / 图片历史 / 积分与签到状态 */
 export function useInitialData() {
@@ -23,9 +26,25 @@ export function useInitialData() {
     setSelectedImageModel,
     setConversations,
     setImageHistory,
+    setImageHistoryHasMore,
+    setLoadingMoreImages,
     setCredits,
     setCheckinStatus,
-  } = useDeepRoastStore();
+  } = useDeepRoastStore(
+    useShallow((state) => ({
+      userSessionId: state.userSessionId,
+      userSessionVersion: state.userSessionVersion,
+      replaceConfig: state.replaceConfig,
+      setImageModels: state.setImageModels,
+      setSelectedImageModel: state.setSelectedImageModel,
+      setConversations: state.setConversations,
+      setImageHistory: state.setImageHistory,
+      setImageHistoryHasMore: state.setImageHistoryHasMore,
+      setLoadingMoreImages: state.setLoadingMoreImages,
+      setCredits: state.setCredits,
+      setCheckinStatus: state.setCheckinStatus,
+    })),
+  );
 
   useEffect(() => {
     requests.activate();
@@ -114,14 +133,55 @@ export function useInitialData() {
     const request = requests.start("images", userSessionVersion);
     if (!request) return;
     try {
-      const data = await apiJson<ImageRecord[]>("/api/image-history", { signal: request.signal });
-      if (request.isCurrent()) setImageHistory(data);
+      const data = await apiJson<ImageRecord[]>(
+        "/api/image-history",
+        { signal: request.signal },
+      );
+      if (request.isCurrent()) {
+        setImageHistory(data);
+        setImageHistoryHasMore(data.length === IMAGE_PAGE_SIZE);
+      }
     } catch {
       if (request.isCurrent()) console.error("Failed to load image history");
     } finally {
       request.finish();
     }
-  }, [requests, userSessionId, userSessionVersion, setImageHistory]);
+  }, [requests, userSessionId, userSessionVersion, setImageHistory, setImageHistoryHasMore]);
+
+  const loadMoreImageHistory = useCallback(async () => {
+    if (!userSessionId) return;
+    const state = useDeepRoastStore.getState();
+    if (state.loadingMoreImages || !state.imageHistoryHasMore) return;
+    const offset = state.imageHistory.length;
+    const request = requests.start("images-more", userSessionVersion);
+    if (!request) return;
+    setLoadingMoreImages(true);
+    try {
+      const page = await apiJson<ImageRecord[]>(
+        `/api/image-history?limit=${IMAGE_PAGE_SIZE}&offset=${offset}`,
+        { signal: request.signal },
+      );
+      if (!request.isCurrent()) return;
+      setImageHistory((previous) => {
+        const seen = new Set(previous.map((item) => item.id));
+        const next = page.filter((item) => !seen.has(item.id));
+        return [...previous, ...next];
+      });
+      setImageHistoryHasMore(page.length === IMAGE_PAGE_SIZE);
+    } catch {
+      if (request.isCurrent()) console.error("Failed to load more image history");
+    } finally {
+      if (request.isCurrent()) setLoadingMoreImages(false);
+      request.finish();
+    }
+  }, [
+    requests,
+    userSessionId,
+    userSessionVersion,
+    setImageHistory,
+    setImageHistoryHasMore,
+    setLoadingMoreImages,
+  ]);
 
   const loadCredits = useCallback(async () => {
     if (!userSessionId) return;
@@ -156,9 +216,17 @@ export function useInitialData() {
     if (isLocalMobilePreview(window.location.search, process.env.NODE_ENV)) return;
     loadConfig();
     loadImageHistory();
-    loadCredits();
+    if (!useDeepRoastStore.getState().creditsHydrated) {
+      loadCredits();
+    }
     loadConversations();
   }, [loadConfig, loadImageHistory, loadCredits, loadConversations]);
 
-  return { loadConfig, loadImageHistory, loadCredits, loadConversations };
+  return {
+    loadConfig,
+    loadImageHistory,
+    loadMoreImageHistory,
+    loadCredits,
+    loadConversations,
+  };
 }

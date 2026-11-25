@@ -160,6 +160,7 @@ export default function LoginPage() {
           <div className="relative text-center max-w-5xl">
             {/* 大标题：字母自动从左到右点燃（玻璃渐变文字） */}
             <h1
+              aria-label={TITLE}
               className="font-display italic font-normal tracking-[-0.02em] inline-flex items-baseline"
               style={{
                 fontSize: "clamp(2.5rem, 11vw, 7rem)",
@@ -169,22 +170,21 @@ export default function LoginPage() {
             >
               {(() => {
                 let charIndex = 0;
-                // 阶段一：全部字母雾气浮现成暗字（公共延迟）
                 const blurDelay = introDone
                   ? introSkipped
-                    ? 0.05
-                    : 2.6
+                    ? 0.04
+                    : 1.75
                   : 60;
-                // 阶段二：从左到右依序点燃（逐字递增，间隔拉大让波次清晰）
                 const igniteDelayOf = (i: number) =>
                   introDone
                     ? introSkipped
-                      ? 0.4 + i * 0.12
-                      : 3.3 + i * 0.13
+                      ? 0.25 + i * 0.09
+                      : 2.05 + i * 0.1
                     : 60;
                 return TITLE.split(" ").map((word, wi) => (
                   <span
                     key={wi}
+                    aria-hidden="true"
                     className="inline-block"
                     style={{ marginRight: "0.28em" }}
                   >
@@ -217,12 +217,12 @@ export default function LoginPage() {
                 style={{
                   color: "#a89a8a",
                   animation:
-                    "hero-rise 1.5s cubic-bezier(0.16,1,0.3,1) " +
-                    (introDone ? (introSkipped ? 0.6 : 5.0) : 60) +
+                    "hero-rise 1.2s cubic-bezier(0.16,1,0.3,1) " +
+                    (introDone ? (introSkipped ? 0.35 : 2.95) : 60) +
                     "s both",
                 }}
               >
-                深度思考，慢工出好答案。
+                慢工细作，让灵感显影为好作品。
               </p>
             </div>
 
@@ -236,8 +236,8 @@ export default function LoginPage() {
                 className="hero-fade hero-cta"
                 style={{
                   animation:
-                    "hero-fade 1.1s ease " +
-                    (introDone ? (introSkipped ? 0.8 : 5.4) : 60) +
+                    "hero-fade 0.9s ease " +
+                    (introDone ? (introSkipped ? 0.5 : 3.25) : 60) +
                     "s both",
                 }}
               >

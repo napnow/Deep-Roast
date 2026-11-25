@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-25 — UI/UX polish, brand unification and reliability fixes
+
+Production release: `/opt/deeproast-releases/20261125-uiux-polish-v2` (BUILD_ID `SocmThaY5YN_4ySqoQRDT`). Previous rollback target: `20261125-uiux-polish` → `20261124-image26-ratio`.
+
+### Reliability fixes
+
+- Batch image generation now sends a per-slot `Idempotency-Key` (`<key>:<index>`), eliminating `409 IDEMPOTENCY_IN_PROGRESS` collisions between parallel slots.
+- Retrying after a server-side failure uses a fresh `Idempotency-Key`; network-level retries keep the original key so they can safely replay.
+- Single shared `pg.Pool` (`globalThis` guard, `max 10`, idle/connection timeouts) to prevent pool leaks on hot reload.
+- Merged duplicate `users` queries in session resolution into one `SELECT`.
+- Memoized the 2.8 MB prompt-library snapshot normalization.
+- `sharp.cache(false)` + `sharp.concurrency(1)` in crop path to keep RSS under `MemoryMax=300M`.
+- Store selectors wrapped in `useShallow` to stop root re-renders on every keystroke; image history now paginates with “加载更多历史作品”.
+- Includes the `image26-ratio` capability/crop changes already running in production since 2026-11-24.
+
+### Visual & UX
+
+- Unified light “暖调画廊白” and dark “深焙暗房” tokens across Studio, Chat, Login, Canvas, Admin and all modals.
+- Puppy brand mark (`brand-mark.png`) everywhere: top bar, mobile drawer, boot screen, chat empty state, canvas top bar, admin sidebar; new rounded favicons/PWA icons (`?v=puppy`).
+- Replaced scattered emoji / text glyphs with a unified stroke icon set (`AppIcon`).
+- Studio: removed the redundant kicker badge; mobile hides the inspiration example cards; style menu de-duplicated (single “无预设”); composer toolbar wraps instead of overflowing with long model names (character counter only shown at ≥ 500 chars).
+- Infinite canvas: removed the prompt-library feature and placeholder toolbar buttons; added credit pill and theme toggle; removed accidental-click logout.
+- Admin console: unified layout across all five modules, sticky breadcrumb top bar with refresh/theme toggle, grouped site settings with inline status, fixed negative credit input, Esc closes all admin modals.
+- Inline conversation rename (no `window.prompt`), session-once skippable login intro, accessible dialogs.
+
+### Verification
+
+- `tsc --noEmit` 0 errors, ESLint 0 errors, `npm test` 571 pass / 6 DB-integration skipped, `test:uiux` 25/25, `test:interactions` 27/27, `next build` OK.
+- Post-deploy browser check on `https://deeproast.sryze.cc` (desktop 1280/820 px, mobile 390 px, light & dark): 0 console errors.
+- See `docs/operations/uiux-polish-release-2026-11-25.md` for deployment and rollback details.
+
 ## 2026-09-04 — Full production version recovery
 
 ### Restored product features

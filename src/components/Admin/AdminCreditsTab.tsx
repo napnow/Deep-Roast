@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { CreditTransaction } from "@/types";
 import { CREDIT_TYPE_LABELS, RECHARGE_PLANS } from "@/types";
 
@@ -22,6 +23,13 @@ export default function AdminCreditsTab({
   onNoteChange,
   onAdjust,
 }: AdminCreditsTabProps) {
+  const [rawAmount, setRawAmount] = useState(() =>
+    adjustAmount ? String(adjustAmount) : "",
+  );
+  const displayAmount =
+    adjustAmount === 0 && (rawAmount === "-" || rawAmount === "")
+      ? rawAmount
+      : String(adjustAmount);
   return (
     <section className="space-y-4">
       <div className="admin-card">
@@ -39,11 +47,23 @@ export default function AdminCreditsTab({
         <div className="admin-card-body">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <input
-              type="number"
-              value={adjustAmount || ""}
-              onChange={(e) => onAmountChange(parseInt(e.target.value) || 0)}
-              placeholder="正数加 / 负数扣"
-              className="admin-input sm:flex-1"
+              type="text"
+              inputMode="numeric"
+              value={displayAmount}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                if (v === "" || v === "-") {
+                  setRawAmount(v);
+                  onAmountChange(0);
+                  return;
+                }
+                if (/^-?\d+$/.test(v)) {
+                  setRawAmount(v);
+                  onAmountChange(parseInt(v, 10) || 0);
+                }
+              }}
+              placeholder="正数加 / 负数扣（如 -50）"
+              className="admin-input sm:flex-1 tabular-nums"
             />
             <input
               type="text"
@@ -109,7 +129,7 @@ export default function AdminCreditsTab({
                     <span
                       className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 tracking-wide"
                       style={{
-                        background: typeInfo.color + "22",
+                        background: `color-mix(in srgb, ${typeInfo.color} 14%, transparent)`,
                         color: typeInfo.color,
                       }}
                     >

@@ -89,40 +89,98 @@ export default function AdminApiKeysTab({ userId }: { userId: string }) {
 
   return (
     <section className="admin-card">
-      <div className="admin-card-body space-y-4">
+      <div className="admin-card-head">
         <div>
           <p className="admin-kicker">API Access</p>
-          <h2 className="admin-title text-xl mt-1">用户 API Key</h2>
-          <p className="text-xs mt-1 text-[var(--text-muted)]">
+          <h2 className="admin-title text-lg mt-1">用户 API Key</h2>
+          <p className="text-[11px] mt-1 text-[var(--text-muted)]">
             可创建、停用或删除该用户的中转密钥；完整 Key 仅用户本人可查看和复制。
           </p>
         </div>
+        <span
+          className="text-[11px] tabular-nums px-2 py-0.5 rounded-full"
+          style={{
+            background: "var(--bg-root)",
+            color: "var(--text-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {keys.length}
+        </span>
+      </div>
+      <div className="admin-card-body space-y-4">
         <div className="admin-api-key-create flex gap-2">
-          <input className="ui-field flex-1 px-3" value={name} onChange={(event) => setName(event.target.value)} placeholder="Key 名称" />
-          <button className="ui-button ui-button--primary" disabled={!name.trim() || busy !== null} onClick={createKey}>
-            <AppIcon name="key" />{busy === "create" ? "创建中…" : "创建 Key"}
+          <input
+            className="admin-input flex-1"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="输入 Key 备注名称…"
+          />
+          <button
+            type="button"
+            className="admin-btn admin-btn--solid shrink-0"
+            disabled={!name.trim() || busy !== null}
+            onClick={createKey}
+          >
+            <AppIcon name="key" size={14} />
+            {busy === "create" ? "创建中…" : "创建 Key"}
           </button>
         </div>
         {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
         <div className="admin-key-list">
-          {keys.length === 0 ? <p className="asset-empty">该用户暂无 API Key</p> : keys.map((key) => (
-            <article key={key.id} className="admin-key-row">
-              <div className="min-w-0">
-                <p className="font-semibold text-sm truncate">{key.name || "未命名 Key"}</p>
-                <p className="font-mono text-[11px] mt-1 text-[var(--text-muted)]">{key.keyPrefix}…</p>
-              </div>
-              <div className="admin-key-metrics">
-                <span>{apiKeyStatusLabel(key.status)}</span>
-                <span>{key.usageCount} 次请求</span>
-                <span>{key.creditsConsumed} 积分</span>
-                <span>{key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleString("zh-CN") : "未使用"}</span>
-              </div>
-              <div className="flex gap-2">
-                <button className="ui-button" disabled={busy === key.id} onClick={() => toggle(key)}>{key.status === "active" ? "停用" : "启用"}</button>
-                <button className="ui-button ui-button--danger" disabled={busy === key.id} onClick={() => remove(key)}>删除</button>
-              </div>
-            </article>
-          ))}
+          {keys.length === 0 ? (
+            <div
+              className="rounded-[var(--radius)] px-3 py-8 text-center text-xs"
+              style={{
+                background: "var(--bg-root)",
+                color: "var(--text-muted)",
+                border: "1px dashed var(--border-strong)",
+              }}
+            >
+              该用户暂无 API Key
+            </div>
+          ) : (
+            keys.map((key) => (
+              <article key={key.id} className="admin-key-row">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate text-[var(--text-primary)]">
+                    {key.name || "未命名 Key"}
+                  </p>
+                  <p className="font-mono text-[11px] mt-1 text-[var(--text-muted)]">
+                    {key.keyPrefix}…
+                  </p>
+                </div>
+                <div className="admin-key-metrics">
+                  <span>{apiKeyStatusLabel(key.status)}</span>
+                  <span>{key.usageCount} 次请求</span>
+                  <span>{key.creditsConsumed} 积分</span>
+                  <span>
+                    {key.lastUsedAt
+                      ? new Date(key.lastUsedAt).toLocaleString("zh-CN")
+                      : "未使用"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn--ghost"
+                    disabled={busy === key.id}
+                    onClick={() => toggle(key)}
+                  >
+                    {key.status === "active" ? "停用" : "启用"}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn--danger"
+                    disabled={busy === key.id}
+                    onClick={() => remove(key)}
+                  >
+                    删除
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </div>
     </section>

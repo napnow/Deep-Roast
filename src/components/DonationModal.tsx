@@ -2,10 +2,11 @@
 
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
+import { AppIcon } from "@/components/ui/icons";
 
 import { useEffect, useState, useRef } from "react";
 
-const DEFAULT_TEXT = "如果觉得好用，欢迎打赏支持一下 ☕";
+const DEFAULT_TEXT = "如果觉得好用，欢迎打赏支持一下。";
 
 interface DonationModalProps {
   open: boolean;
@@ -83,17 +84,18 @@ export default function DonationModal({ open, onClose }: DonationModalProps) {
             >
               <div className="flex items-center justify-between">
                 <h2
-                  className="text-sm font-semibold text-[var(--text-primary)]"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]"
                 >
-                  💝 打赏支持
+                  <AppIcon name="heart" size={15} className="text-[var(--accent)]" />
+                  打赏支持
                 </h2>
                 <Button
                   size="icon"
                   onClick={onClose}
                   aria-label="关闭"
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 text-[var(--text-muted)]"
+                  className="rounded-full flex items-center justify-center transition-all duration-150 hover:scale-105 text-[var(--text-muted)]"
                 >
-                  ✕
+                  <AppIcon name="close" size={14} />
                 </Button>
               </div>
 
@@ -109,7 +111,7 @@ export default function DonationModal({ open, onClose }: DonationModalProps) {
               )}
               {!loading && !error && !imageUrl && (
                 <p className="text-xs text-[var(--text-muted)]">
-                  管理员暂未配置收款码，感谢你的心意 💛
+                  管理员暂未配置收款码，感谢你的心意。
                 </p>
               )}
               {!loading && !error && (

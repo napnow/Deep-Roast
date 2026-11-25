@@ -4,6 +4,12 @@ export interface AuthUser {
   id: string;
   username: string;
   role: string;
+  credits?: number;
+  checkin?: {
+    eligible?: boolean;
+    todayChecked?: boolean;
+    reward?: number;
+  };
 }
 
 export async function getAuth(): Promise<AuthUser | null> {

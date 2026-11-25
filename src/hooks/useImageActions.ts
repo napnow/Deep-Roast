@@ -3,6 +3,7 @@
 import { getRefundPendingNotice } from "@/lib/image-edit-feedback";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
@@ -44,7 +45,19 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     finishImageTask,
     failImageTask,
     clearImageTask,
-  } = useDeepRoastStore();
+  } = useDeepRoastStore(
+    useShallow((state) => ({
+      userSessionVersion: state.userSessionVersion,
+      setImageHistory: state.setImageHistory,
+      setGenerating: state.setGenerating,
+      setWalletOpen: state.setWalletOpen,
+      setActiveImageId: state.setActiveImageId,
+      startImageTask: state.startImageTask,
+      finishImageTask: state.finishImageTask,
+      failImageTask: state.failImageTask,
+      clearImageTask: state.clearImageTask,
+    })),
+  );
 
   useEffect(() => {
     requests.activate();
@@ -136,7 +149,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     async (prompt: string, size: string, requestedCount = 1, retryKey?: string) => {
       const count = Math.min(Math.max(Math.floor(requestedCount) || 1, 1), 5);
       if (count === 1) {
-        await handleGenerateImage(prompt, size);
+        await handleGenerateImage(prompt, size, retryKey);
         return;
       }
 
@@ -198,7 +211,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
               method: "POST",
               ...jsonBody(
                 { prompt, size, model: resolveRequestModel() },
-                idempotencyHeaders(idempotencyKey),
+                idempotencyHeaders(`${idempotencyKey}:${index}`),
               ),
               signal: batchGeneration.signal,
             });
@@ -485,20 +498,24 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
   const handleRetryImageTask = useCallback(async () => {
     if (!requests.isActive(userSessionVersion)) return;
-    const request = useDeepRoastStore.getState().imageTask.request;
+    const { request, error } = useDeepRoastStore.getState().imageTask;
     if (!request) return;
+    // Only reuse the previous key when the client never received a definitive
+    // HTTP response (network drop). Once the server persisted a failed status,
+    // reusing the same key would replay the cached error for 24 hours.
+    const retryKey = error?.kind === "network" ? request.idempotencyKey : undefined;
     if (request.mode === "text") {
-      await handleGenerateImageBatch(request.prompt, request.size, request.count, request.idempotencyKey);
+      await handleGenerateImageBatch(request.prompt, request.size, request.count, retryKey);
     } else if (request.editRequest) {
       if (request.count > 1) {
         await handleEditImageBatch(
           request.editRequest,
           request.size,
           request.count,
-          request.idempotencyKey,
+          retryKey,
         );
       } else {
-        await handleEditImage(request.editRequest, request.size, request.idempotencyKey);
+        await handleEditImage(request.editRequest, request.size, retryKey);
       }
     } else if (request.count > 1) {
       await handleEditImageBatch(
@@ -508,7 +525,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         },
         request.size,
         request.count,
-        request.idempotencyKey,
+        retryKey,
       );
     } else {
       await handleEditImage(
@@ -517,7 +534,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           prompt: request.prompt,
         },
         request.size,
-        request.idempotencyKey,
+        retryKey,
       );
     }
   }, [requests, userSessionVersion, handleEditImage, handleEditImageBatch, handleGenerateImageBatch]);

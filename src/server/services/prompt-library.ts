@@ -19,9 +19,17 @@ const SOURCE_BASE = "https://raw.githubusercontent.com/yukkcat/image-prompts/mai
 const PROMPT_LIBRARY_CACHE_TTL_MS = 5 * 60 * 1000;
 export const MAX_PROMPT_SOURCE_BYTES = 1024 * 1024;
 
+let cachedSnapshotItems: CanvasPromptLibraryItem[] | null = null;
 let cachedItems: CanvasPromptLibraryItem[] | null = null;
 let cacheExpiresAt = 0;
 let loadPromise: Promise<CanvasPromptLibraryItem[]> | null = null;
+
+function getSnapshotItems(): CanvasPromptLibraryItem[] {
+  if (!cachedSnapshotItems) {
+    cachedSnapshotItems = normalizePromptLibrary(promptLibrarySnapshot);
+  }
+  return cachedSnapshotItems;
+}
 
 export function parsePromptLibrarySource(body: Buffer, maxBytes = MAX_PROMPT_SOURCE_BYTES): unknown[] {
   if (body.byteLength > maxBytes) throw new Error("提示词库上游响应过大");
@@ -34,7 +42,7 @@ export function parsePromptLibrarySource(body: Buffer, maxBytes = MAX_PROMPT_SOU
 }
 
 function mergePromptLibraryItems(remoteItems: CanvasPromptLibraryItem[]) {
-  const snapshotItems = normalizePromptLibrary(promptLibrarySnapshot);
+  const snapshotItems = getSnapshotItems();
   const seen = new Set<string>();
   return [...remoteItems, ...snapshotItems].filter((item) => {
     if (seen.has(item.id)) return false;

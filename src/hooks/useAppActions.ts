@@ -10,8 +10,13 @@ import { useConfigActions } from "@/hooks/useConfigActions";
  * page.tsx 只依赖这一处，内部按域拆分便于维护。
  */
 export function useAppActions() {
-  const { loadConfig, loadImageHistory, loadConversations, loadCredits } =
-    useInitialData();
+  const {
+    loadConfig,
+    loadImageHistory,
+    loadMoreImageHistory,
+    loadConversations,
+    loadCredits,
+  } = useInitialData();
   const image = useImageActions(loadCredits);
   const chat = useChatActions(loadConversations, loadCredits);
   const config = useConfigActions(loadConfig);
@@ -22,6 +27,7 @@ export function useAppActions() {
     ...config,
     loadCredits,
     loadImageHistory,
+    loadMoreImageHistory,
     loadConversations,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/components/AuthProvider";
 import { useDeepRoastStore } from "@/lib/store";
@@ -32,7 +33,19 @@ export function useChatActions(
     setStreamingText,
     setWalletOpen,
     resetChatSession,
-  } = useDeepRoastStore();
+  } = useDeepRoastStore(
+    useShallow((state) => ({
+      userSessionVersion: state.userSessionVersion,
+      config: state.config,
+      setConversations: state.setConversations,
+      setActiveConvId: state.setActiveConvId,
+      setChatMessages: state.setChatMessages,
+      setStreaming: state.setStreaming,
+      setStreamingText: state.setStreamingText,
+      setWalletOpen: state.setWalletOpen,
+      resetChatSession: state.resetChatSession,
+    })),
+  );
 
   useEffect(() => {
     requests.activate();
@@ -298,7 +311,7 @@ export function useChatActions(
               ...prev,
               {
                 role: "assistant",
-                content: "正在生成你的形象…",
+                content: "正在生成图片…",
                 metadata: {
                   image: {
                     status: "pending",

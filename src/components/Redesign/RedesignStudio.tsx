@@ -7,6 +7,7 @@ import type { ImageRecord } from "@/types";
 import { DEFAULT_IMAGE_MODEL_CREDIT_COST, IMAGE_STYLE_PRESETS } from "@/types";
 import { useDeepRoastStore } from "@/lib/store";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { AppIcon } from "@/components/ui/icons";
 import { imageSizeLabel, normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
 import { isGptImageModel } from "@/lib/image-model-capabilities";
 import { copyText } from "@/lib/browser-actions";
@@ -37,10 +38,19 @@ import {
   type RedesignView,
 } from "./redesign-ui";
 
-const SUGGESTIONS = [
-  "雨夜的老城区咖啡馆，玻璃上的水汽，暖黄灯光从里面透出来，35mm 胶片",
-  "一只橘猫趴在旧书店窗台上晒太阳，柔和逆光",
-  "极简产品摄影：磨砂玻璃香水瓶，奶油色背景，硬光阴影",
+const SUGGESTIONS: ReadonlyArray<{ category: string; prompt: string }> = [
+  {
+    category: "胶片叙事 · 16:9",
+    prompt: "雨夜的老城区咖啡馆，玻璃上的水汽，暖黄灯光从里面透出来，35mm 胶片质感",
+  },
+  {
+    category: "自然光影 · 4:3",
+    prompt: "一只橘猫趴在旧书店木质窗台上晒太阳，尘埃在柔和逆光中浮游，浅景深",
+  },
+  {
+    category: "商业静物 · 1:1",
+    prompt: "极简编辑感产品摄影：磨砂琥珀玻璃香水瓶立于天然石材上，暖米色背景与利落树影",
+  },
 ];
 
 const MODE_LABEL: Record<ImageBatch["mode"], string> = { text: "文生图", edit: "图生图", unknown: "生图" };
@@ -65,6 +75,9 @@ export interface RedesignStudioProps {
   view: RedesignView;
   model: string;
   history: ImageRecord[];
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   generating: boolean;
   credits: number;
   isAdmin: boolean;
@@ -85,6 +98,9 @@ export default function RedesignStudio({
   view,
   model,
   history,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   generating,
   credits,
   isAdmin,
@@ -251,6 +267,22 @@ export default function RedesignStudio({
     onGenerate(batch.prompt, batch.size, Math.min(5, Math.max(1, batch.images.length)));
   }
 
+  function renderLoadMore() {
+    if (!hasMore || !onLoadMore) return null;
+    return (
+      <div className="rd-more-wrap">
+        <button
+          type="button"
+          className="rd-bb is-visible"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {loadingMore ? "正在加载历史作品…" : "加载更多历史作品"}
+        </button>
+      </div>
+    );
+  }
+
   function renderCard(image: ImageRecord, inRow: boolean) {
     const picking = selecting && !inRow;
     const picked = picking && selectedIds.has(image.id);
@@ -273,28 +305,37 @@ export default function RedesignStudio({
         }}
       >
         <img src={thumbSrc(image)} alt={image.prompt} loading="lazy" draggable={false} />
-        {picking && <span className="rd-pick" aria-hidden="true">{picked ? "✓" : ""}</span>}
-        {!picking && <div className="rd-quick" onClick={(event) => event.stopPropagation()}>
-          <button type="button" onClick={() => continueEditing(image)} title="继续修改" aria-label="继续修改">✎</button>
-          <button
-            type="button"
-            title="下载原图"
-            aria-label="下载原图"
-            disabled={cardDownload.status === "pending"}
-            aria-busy={cardDownload.status === "pending"}
-            onClick={() => void cardDownload.run((signal) => downloadImage(image, signal), "已发起下载", "下载未完成，请检查网络后重试。")}
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            className={armed === image.id ? "is-armed" : ""}
-            onClick={() => armDelete(image.id)}
-            title={armed === image.id ? "再点一次确认删除" : "删除"}
-          >
-            {armed === image.id ? "删除" : "✕"}
-          </button>
-        </div>}
+        {picking && (
+          <span className="rd-pick" aria-hidden="true">
+            {picked ? <AppIcon name="check" size={13} strokeWidth={2.4} /> : null}
+          </span>
+        )}
+        {!picking && (
+          <div className="rd-quick" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={() => continueEditing(image)} title="继续修改" aria-label="继续修改">
+              <AppIcon name="edit" size={14} />
+            </button>
+            <button
+              type="button"
+              title="下载原图"
+              aria-label="下载原图"
+              disabled={cardDownload.status === "pending"}
+              aria-busy={cardDownload.status === "pending"}
+              onClick={() => void cardDownload.run((signal) => downloadImage(image, signal), "已发起下载", "下载未完成，请检查网络后重试。")}
+            >
+              <AppIcon name="download" size={14} />
+            </button>
+            <button
+              type="button"
+              className={armed === image.id ? "is-armed" : ""}
+              onClick={() => armDelete(image.id)}
+              title={armed === image.id ? "再点一次确认删除" : "删除"}
+              aria-label={armed === image.id ? "确认删除" : "删除"}
+            >
+              {armed === image.id ? "确认删除" : <AppIcon name="trash" size={14} />}
+            </button>
+          </div>
+        )}
         {!inRow && (
           <div className="rd-cap">
             <p>{splitStylePrompt(image.prompt).prompt}</p>
@@ -357,7 +398,9 @@ export default function RedesignStudio({
           <button type="button" className="rd-bb is-visible" onClick={onRetryGenerate}>重试</button>
         )}
         <button type="button" className="rd-bb is-visible" onClick={() => { clearImageTask(); focusPrompt(); }}>返回修改</button>
-        <button type="button" className="rd-x" onClick={clearImageTask} aria-label="关闭">✕</button>
+        <button type="button" className="rd-x" onClick={clearImageTask} aria-label="关闭">
+          <AppIcon name="close" size={14} />
+        </button>
       </section>
     );
   }
@@ -370,43 +413,62 @@ export default function RedesignStudio({
         {!days.length && !isGenerating ? (
           <div className="rd-empty">
             <h1>想画点什么？</h1>
-            <p>写一句描述就能开始，作品会按批次留在这里。</p>
+            <p>
+              输入画面构思即可显影成片
+              <span className="rd-empty__sugg-hint">，也可以挑选下方灵感快速试拍</span>。
+            </p>
             <div className="rd-sugg">
-              {SUGGESTIONS.map((text) => (
-                <button key={text} type="button" onClick={() => { setTextToImageDraft({ prompt: text }); focusPrompt(); }}>{text}</button>
+              {SUGGESTIONS.map((item) => (
+                <button
+                  key={item.prompt}
+                  type="button"
+                  onClick={() => {
+                    setTextToImageDraft({ prompt: item.prompt });
+                    focusPrompt();
+                  }}
+                >
+                  <span className="rd-sugg__tag">
+                    <span>{item.category}</span>
+                    <i aria-hidden="true">→</i>
+                  </span>
+                  <span className="rd-sugg__text">{item.prompt}</span>
+                </button>
               ))}
             </div>
           </div>
         ) : (
-          days.map((day) => (
-            <div key={day.label}>
-              <div className="rd-day"><b>{day.label}</b><span>{day.batches.length} 批 · {day.count} 张</span></div>
-              {day.batches.map((batch) => {
-                const parts = splitStylePrompt(batch.prompt);
-                return (
-                  <section key={batch.key} className="rd-batch">
-                    <header className="rd-bh">
-                      <p className="rd-bp">{parts.prompt || "未命名作品"}</p>
-                      <div className="rd-bm">
-                        <span className="rd-tag">{MODE_LABEL[batch.mode]}</span>
-                        <span>{batch.model}</span>
-                        <span>{sizeAspect(batch.size).label}</span>
-                        <span>× {batch.images.length}</span>
-                        {parts.styleLabel && <span>{parts.styleLabel}</span>}
-                        <span>{clockLabel(batch.createdAt)}</span>
-                        <span className="rd-grow" />
-                        <button type="button" className="rd-bb" onClick={() => reuse(batch)} title="把提示词和参数放回输入框">复用参数</button>
-                        {batch.mode !== "edit" && (
-                          <button type="button" className="rd-bb" onClick={() => again(batch)} disabled={generating}>再来一批</button>
-                        )}
-                      </div>
-                    </header>
-                    <div className="rd-brow">{batch.images.map((image) => renderCard(image, true))}</div>
-                  </section>
-                );
-              })}
-            </div>
-          ))
+          <>
+            {days.map((day) => (
+              <div key={day.label}>
+                <div className="rd-day"><b>{day.label}</b><span>{day.batches.length} 批 · {day.count} 张</span></div>
+                {day.batches.map((batch) => {
+                  const parts = splitStylePrompt(batch.prompt);
+                  return (
+                    <section key={batch.key} className="rd-batch">
+                      <header className="rd-bh">
+                        <p className="rd-bp">{parts.prompt || "未命名作品"}</p>
+                        <div className="rd-bm">
+                          <span className="rd-tag">{MODE_LABEL[batch.mode]}</span>
+                          <span>{batch.model}</span>
+                          <span>{sizeAspect(batch.size).label}</span>
+                          <span>× {batch.images.length}</span>
+                          {parts.styleLabel && <span>{parts.styleLabel}</span>}
+                          <span>{clockLabel(batch.createdAt)}</span>
+                          <span className="rd-grow" />
+                          <button type="button" className="rd-bb" onClick={() => reuse(batch)} title="把提示词和参数放回输入框">复用参数</button>
+                          {batch.mode !== "edit" && (
+                            <button type="button" className="rd-bb" onClick={() => again(batch)} disabled={generating}>再来一批</button>
+                          )}
+                        </div>
+                      </header>
+                      <div className="rd-brow">{batch.images.map((image) => renderCard(image, true))}</div>
+                    </section>
+                  );
+                })}
+              </div>
+            ))}
+            {renderLoadMore()}
+          </>
         )}
       </>
     );
@@ -417,7 +479,10 @@ export default function RedesignStudio({
     return (
       <>
         <div className="rd-gbar">
-          <div><h2>图库</h2><span>{history.length} 张作品</span></div>
+          <div className="rd-gbar__title">
+            <h2>图库</h2>
+            <span>{history.length}{hasMore ? "+" : ""} 张作品</span>
+          </div>
           <span className="rd-grow" />
           <input className="rd-input" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索提示词或模型" aria-label="搜索作品" />
           <div className="rd-seg">
@@ -449,7 +514,14 @@ export default function RedesignStudio({
             <button type="button" className="rd-bb is-visible" onClick={exitSelecting}>完成</button>
           </div>
         )}
-        {list.length ? <div className="rd-grid">{list.map((image) => renderCard(image, false))}</div> : <div className="rd-empty is-small"><p>没有符合条件的作品</p></div>}
+        {list.length ? (
+          <>
+            <div className="rd-grid">{list.map((image) => renderCard(image, false))}</div>
+            {renderLoadMore()}
+          </>
+        ) : (
+          <div className="rd-empty is-small"><p>没有符合条件的作品</p></div>
+        )}
       </>
     );
   }
@@ -487,7 +559,10 @@ export default function RedesignStudio({
               <p>{splitStylePrompt(preview.prompt).prompt}</p>
               <span>{preview.model} · {preview.size} · {dayLabel(preview.createdAt)} {clockLabel(preview.createdAt)}</span>
               <div>
-                <button type="button" className="rd-bb is-visible" onClick={() => continueEditing(preview)}>✎ 继续修改</button>
+                <button type="button" className="rd-bb is-visible" onClick={() => continueEditing(preview)}>
+                  <AppIcon name="edit" size={13} />
+                  继续修改
+                </button>
                 <button
                   type="button"
                   className="rd-bb is-visible"
@@ -495,6 +570,7 @@ export default function RedesignStudio({
                   aria-busy={previewDownload.status === "pending"}
                   onClick={() => void previewDownload.run((signal) => downloadImage(preview, signal), "已发起下载", "下载未完成，请检查网络后重试。")}
                 >
+                  <AppIcon name="download" size={13} />
                   {previewDownload.status === "pending" ? "准备下载…" : previewDownload.status === "success" ? "已发起下载" : "下载原图"}
                 </button>
                 <button
@@ -503,9 +579,13 @@ export default function RedesignStudio({
                   disabled={previewCopy.status === "pending"}
                   onClick={() => void previewCopy.run(() => copyText(preview.prompt), "提示词已复制")}
                 >
+                  <AppIcon name="copy" size={13} />
                   {previewCopy.status === "pending" ? "正在复制…" : previewCopy.status === "success" ? "已复制" : "复制提示词"}
                 </button>
-                <button type="button" className="rd-bb is-visible is-danger" onClick={() => void deleteFromPreview(preview)}>删除</button>
+                <button type="button" className="rd-bb is-visible is-danger" onClick={() => void deleteFromPreview(preview)}>
+                  <AppIcon name="trash" size={13} />
+                  删除
+                </button>
                 <button type="button" className="rd-bb is-visible" onClick={() => setPreview(null)}>关闭</button>
               </div>
             </figcaption>
@@ -650,8 +730,17 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
 
   function token(key: PopKey, label: string, value: string) {
     return (
-      <button type="button" className={`rd-tok${key === "mode" ? " is-mode" : ""}${pop === key ? " is-open" : ""}`} aria-haspopup="menu" aria-expanded={pop === key} onClick={() => setPop(pop === key ? null : key)}>
-        <span className="rd-tok__lbl">{label}</span><b>{value}</b>
+      <button
+        type="button"
+        className={`rd-tok${key === "mode" ? " is-mode" : ""}${pop === key ? " is-open" : ""}`}
+        aria-haspopup="menu"
+        aria-expanded={pop === key}
+        title={`${label}：${value}`}
+        onClick={() => setPop(pop === key ? null : key)}
+      >
+        <span className="rd-tok__lbl">{label}</span>
+        <b>{value}</b>
+        <AppIcon name="chevron-down" size={11} className="rd-tok__chev" />
       </button>
     );
   }
@@ -659,7 +748,9 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
   function option(key: string, label: string, selected: boolean, onPick: () => void, hint?: string) {
     return (
       <button key={key} type="button" role="menuitemradio" aria-checked={selected} className={selected ? "is-on" : ""} onClick={() => { onPick(); setPop(null); }}>
-        <span>{label}</span>{hint && <small>{hint}</small>}<i aria-hidden="true">{selected ? "✓" : ""}</i>
+        <span>{label}</span>
+        {hint && <small>{hint}</small>}
+        <i aria-hidden="true">{selected ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
       </button>
     );
   }
@@ -684,7 +775,9 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
           {modeToken}
           <span className="rd-sheet__hint">{CREATION_MODES.find(([id]) => id === mode)?.[2]}</span>
           <span className="rd-grow" />
-          <button type="button" className="rd-x" onClick={() => setMode("text")} aria-label="回到文生图" title="回到文生图">✕</button>
+          <button type="button" className="rd-x" onClick={() => setMode("text")} aria-label="回到文生图" title="回到文生图">
+            <AppIcon name="close" size={15} />
+          </button>
         </div>
         <div className="rd-sheet__body">
           {mode === "edit" ? (
@@ -742,11 +835,24 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
         }}
         aria-label="提示词"
       />
-      {(notice || !available) && <p className="rd-warn">{notice || (!activeModel ? (isAdmin ? "尚未配置生图模型，请到管理控制台添加" : "尚未配置生图模型，暂时无法生成") : isAdmin ? "未配置生图服务，请到管理控制台设置" : "生图服务暂未开放")}</p>}
+      {(notice || !available || prompt.length >= 500) && (
+        <div className="rd-meta-row">
+          {(notice || !available) && (
+            <p className="rd-warn">
+              {notice || (!activeModel ? (isAdmin ? "尚未配置生图模型，请到模型配置添加" : "尚未配置生图模型，暂时无法生成") : isAdmin ? "未配置生图服务，请打开模型配置设置" : "生图服务暂未开放")}
+            </p>
+          )}
+          {prompt.length >= 500 && (
+            <span className={`rd-count${prompt.length > 12000 ? " is-over" : ""}`}>
+              {prompt.length.toLocaleString()} / 12,000
+            </span>
+          )}
+        </div>
+      )}
       <div className="rd-tools">
         {modeToken}
         <span className="rd-sep" aria-hidden="true" />
-        <div className="rd-popwrap">
+        <div className="rd-popwrap is-model">
           {token("model", "模型", activeModel || "未配置")}
           {pop === "model" && (
             <div className="rd-pop" role="menu">
@@ -765,10 +871,10 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
                 <>
                   <div className="rd-pop__sep" aria-hidden="true" />
                   <button type="button" role="menuitemradio" aria-checked={ratioCustomOn} className={ratioCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("ratio")}>
-                    <span>自定义比例</span><small>按宽高比</small><i aria-hidden="true">{ratioCustomOn ? "✓" : ""}</i>
+                    <span>自定义比例</span><small>按宽高比</small><i aria-hidden="true">{ratioCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
                   </button>
                   <button type="button" role="menuitemradio" aria-checked={pixelCustomOn} className={pixelCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("pixel")}>
-                    <span>像素设置</span><small>256–2048</small><i aria-hidden="true">{pixelCustomOn ? "✓" : ""}</i>
+                    <span>像素设置</span><small>256–2048</small><i aria-hidden="true">{pixelCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
                   </button>
                   {ratioCustomOn && (
                     <div className="rd-pop__editor">
@@ -798,20 +904,34 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
           {token("style", "风格", styleLabel)}
           {pop === "style" && (
             <div className="rd-pop" role="menu">
-              <h6>常用风格</h6>
-              {IMAGE_STYLE_PRESETS.map((preset) => option(preset.label, preset.label, preset.prompt === draft.stylePrompt, () => setDraft({ stylePrompt: preset.prompt })))}
+              <h6>风格预设</h6>
+              {IMAGE_STYLE_PRESETS.map((preset) =>
+                option(
+                  preset.label,
+                  preset.label,
+                  draft.stylePrompt === preset.prompt,
+                  () => setDraft({ stylePrompt: preset.prompt }),
+                  preset.prompt ? undefined : "按原始提示词",
+                ),
+              )}
             </div>
           )}
         </div>
-        <span className="rd-grow" />
-        <span className="rd-count">{prompt.length.toLocaleString()} / 12,000</span>
-        <button type="button" className="rd-polish" onClick={() => void polish()} disabled={!prompt.trim() || polishing || generating}>
-          {polishing ? "润色中…" : "✦ 润色"}<span>{isAdmin ? "免费" : POLISH_PROMPT_CREDIT_COST}</span>
-        </button>
-        <button type="button" className="rd-go" onClick={submit} disabled={!canSubmit}>
-          <span>{generating ? "生成中" : "生成"}</span>
-          <span className="rd-go__cost"><i aria-hidden="true" />{isAdmin ? "免费" : cost}</span>
-        </button>
+        <div className="rd-actions">
+          <button type="button" className="rd-polish" disabled={!prompt.trim() || polishing || generating} onClick={() => void polish()}>
+            <AppIcon name="sparkles" size={13} />
+            {polishing ? "润色中…" : "润色"}
+            <span>{isAdmin ? "免费" : POLISH_PROMPT_CREDIT_COST}</span>
+          </button>
+          {generating ? (
+            <button type="button" className="rd-go" onClick={onStop}>停止</button>
+          ) : (
+            <button type="button" className="rd-go" disabled={!canSubmit} onClick={submit}>
+              <span>生成</span>
+              <span className="rd-go__cost">{isAdmin ? "免费" : cost}</span>
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );

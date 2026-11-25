@@ -2,6 +2,7 @@
 
 import Dialog from "@/components/ui/Dialog";
 import Button from "@/components/ui/Button";
+import { AppIcon } from "@/components/ui/icons";
 
 import { useState, useEffect } from "react";
 import { useDeepRoastStore } from "@/lib/store";
@@ -177,27 +178,29 @@ export default function CreditWalletModal({
               size="icon"
               aria-label="关闭钱包"
               onClick={onClose}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-sm transition-all duration-150 hover:scale-110"
+              className="rounded-full flex items-center justify-center transition-all duration-150 hover:scale-105"
               style={{
                 background: "var(--bg-root)",
                 color: "var(--text-muted)",
               }}
             >
-              ✕
+              <AppIcon name="close" size={14} />
             </Button>
           </div>
 
           <div
             className="mx-5 mt-4 rounded-xl p-4 shrink-0"
             style={{
-              background: "linear-gradient(135deg, #1677FF 0%, #0958d9 100%)",
-              color: "#fff",
+              background: "linear-gradient(135deg, #241f1b 0%, #161310 100%)",
+              color: "#f7efe6",
+              border: "1px solid rgba(217, 137, 72, 0.28)",
+              boxShadow: "0 14px 30px -16px rgba(20, 16, 12, 0.5)",
             }}
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs opacity-80">当前余额</p>
-                <p className="text-3xl font-bold mt-1">{credits}</p>
+                <p className="text-xs opacity-75">当前余额</p>
+                <p className="text-3xl font-bold mt-1 tabular-nums">{credits}</p>
                 <p className="text-xs mt-0.5 opacity-70">
                   {role === "admin"
                     ? "管理员生图不扣积分"
@@ -210,8 +213,13 @@ export default function CreditWalletModal({
                   disabled={todayChecked || checkinLoading}
                   className="px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100 shrink-0"
                   style={{
-                    background: "rgba(255,255,255,0.2)",
-                    border: "1px solid rgba(255,255,255,0.3)",
+                    background: todayChecked
+                      ? "rgba(255,255,255,0.1)"
+                      : "linear-gradient(135deg, #d98948 0%, #b4621f 100%)",
+                    border: todayChecked
+                      ? "1px solid rgba(255,255,255,0.18)"
+                      : "1px solid rgba(255,255,255,0.24)",
+                    color: "#fff",
                   }}
                 >
                   {checkinLoading
@@ -362,13 +370,14 @@ export default function CreditWalletModal({
                 onClick={() => setDonationOpen(true)}
                 className="w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold mb-3 transition-all duration-150 hover:scale-[1.01] active:scale-[0.99]"
                 style={{
-                  background:
-                    "linear-gradient(135deg, #ffb347 0%, #ff8c42 100%)",
-                  color: "#4a2800",
-                  boxShadow: "0 2px 10px rgba(255,140,66,0.3)",
+                  background: "var(--accent-surface)",
+                  color: "var(--accent)",
+                  border:
+                    "1px solid color-mix(in srgb, var(--accent) 28%, transparent)",
                 }}
               >
-                💝 打赏支持
+                <AppIcon name="heart" size={14} />
+                打赏支持
               </button>
             )}
 
@@ -410,7 +419,7 @@ export default function CreditWalletModal({
                         <span
                           className="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0"
                           style={{
-                            background: typeInfo.color + "20",
+                            background: `color-mix(in srgb, ${typeInfo.color} 14%, transparent)`,
                             color: typeInfo.color,
                           }}
                         >

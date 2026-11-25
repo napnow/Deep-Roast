@@ -12,9 +12,18 @@ import "./redesign-shell.css";
 import "./unify.css";
 
 export const metadata: Metadata = {
-  title: "深焙",
-  description: "深焙 — 深度思考，慢工出好答案",
+  title: "深焙 Deep Roast",
+  description: "深焙 — 慢工细作，让灵感显影为好作品",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon-32.png?v=puppy", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-64.png?v=puppy", sizes: "64x64", type: "image/png" },
+      { url: "/icon-192.png?v=puppy", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: "/favicon-64.png?v=puppy",
+    apple: "/brand-mark.png?v=puppy",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -26,53 +35,37 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#e6e2d9",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f7f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#141210" },
+  ],
   viewportFit: "cover",
 };
 
 const suppressTransitionWarning = `
   (() => {
     const origWarn = console.warn;
-    const origError = console.error;
-
     console.warn = (...args) => {
       const msg = args[0];
       if (typeof msg === 'string' && msg.includes('Transition was skipped')) return;
       origWarn.apply(console, args);
     };
-
-    // 也吞掉 ViewTransition 被 abort 产生的 Runtime AbortError（这是正常现象）
-    console.error = (...args) => {
-      const first = args[0];
-      if (first instanceof Error) {
-        if (first.name === 'AbortError' || first.message?.includes('Transition')) return;
-      }
-      if (typeof first === 'string') {
-        if (first.includes('AbortError') || first.includes('Transition was skipped')) return;
-      }
-      origError.apply(console, args);
-    };
-
-    // 全局捕获未处理的 transition abort promise rejection
     window.addEventListener('unhandledrejection', (e) => {
       const reason = e.reason;
-      if (reason && (reason.name === 'AbortError' || reason.message?.includes('Transition'))) {
+      if (reason && typeof reason.message === 'string' && reason.message.includes('Transition')) {
         e.preventDefault();
       }
     });
   })();
 `;
+
 const themeScript = `
   (() => {
     const t = localStorage.getItem('theme');
-    if (t === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (t === 'light') {
-      /* 明确选了浅色，不加 dark */
-    } else if (matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    }
-    /* 无偏好时默认浅色，避免主页过黑 */
+    const isDark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', isDark ? '#141210' : '#f8f7f4');
   })();
 `;
 
@@ -90,9 +83,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: suppressTransitionWarning }} />
       </head>
-      <body
-        className="dr-fonts h-full antialiased"
-      >
+      <body className="dr-fonts h-full antialiased">
         <ToastProvider>
           <AuthProvider>
             <ConfirmProvider>

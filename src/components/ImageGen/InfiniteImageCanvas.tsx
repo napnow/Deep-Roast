@@ -33,8 +33,6 @@ type ImageNodeData = {
   onClosePrompt: () => void;
   onStartManualConnection: (event: React.PointerEvent, nodeId: string, handleType: HandleType, handleId: string | null) => void;
   onStartKeyboardConnection: (nodeId: string, handleType: HandleType) => void;
-  openLibrarySignal: number;
-  promptInsertSignal?: { value: string; nonce: number };
   isSelected: boolean;
   isPromptOpen: boolean;
   generationTask?: CanvasGenerationTask;
@@ -55,8 +53,6 @@ type TextNodeData = {
   defaultImageModel: string;
   promptSettings?: Partial<CanvasPromptPanelSettings>;
   onClosePrompt: () => void;
-  openLibrarySignal: number;
-  promptInsertSignal?: { value: string; nonce: number };
   isPromptOpen: boolean;
   generationTask?: CanvasGenerationTask;
   onCancelGeneration?: (nodeId: string) => void;
@@ -243,7 +239,7 @@ const ImageCanvasNode = memo(function ImageCanvasNode({ id, data, selected }: No
       </div>
       {data.generationTask && data.onCancelGeneration && data.onRetryGeneration && data.onDismissGeneration && <CanvasGenerationStatus task={data.generationTask} promptSummary={image.prompt} onCancel={() => data.onCancelGeneration?.(id)} onRetry={() => data.onRetryGeneration?.(id)} onDismiss={() => data.onDismissGeneration?.(id)} />}
       <div className="canvas-connection-hitbox canvas-connection-hitbox--source" data-nodeid={id} data-handletype="source" role="button" tabIndex={0} aria-label="选择右侧连线端点" onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); data.onStartKeyboardConnection(id, "source"); } }} onPointerDownCapture={event => data.onStartManualConnection(event, id, "source", null)}><Handle type="source" position={Position.Right} isConnectable /></div>
-      {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={image.prompt} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} openLibrarySignal={data.openLibrarySignal} promptInsertSignal={data.promptInsertSignal} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
+      {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={image.prompt} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
     </article>
   );
 });
@@ -260,7 +256,7 @@ const TextCanvasNode = memo(function TextCanvasNode({ id, data, selected }: Node
       <textarea className="nodrag" value={data.text} onChange={event => data.onChange(id, event.target.value)} aria-label="文本节点内容" maxLength={12000} placeholder="输入提示词" />
       {data.generationTask && data.onCancelGeneration && data.onRetryGeneration && data.onDismissGeneration && <CanvasGenerationStatus task={data.generationTask} promptSummary={data.text || "文本节点"} onCancel={() => data.onCancelGeneration?.(id)} onRetry={() => data.onRetryGeneration?.(id)} onDismiss={() => data.onDismissGeneration?.(id)} />}
       <div className="canvas-connection-hitbox canvas-connection-hitbox--source" data-nodeid={id} data-handletype="source" role="button" tabIndex={0} aria-label="选择右侧连线端点" onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); data.onStartKeyboardConnection(id, "source"); } }} onPointerDownCapture={event => data.onStartManualConnection(event, id, "source", null)}><Handle type="source" position={Position.Right} isConnectable /></div>
-      {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={data.text} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} openLibrarySignal={data.openLibrarySignal} promptInsertSignal={data.promptInsertSignal} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
+      {data.isPromptOpen && data.onGenerate && <CanvasPromptPanel nodeId={id} initialPrompt={data.text} candidates={data.promptCandidates} initialSettings={data.promptSettings} models={data.imageModels} defaultModel={data.defaultImageModel} onGenerate={data.onGenerate} onClose={data.onClosePrompt} />}
     </article>
   );
 });
@@ -286,8 +282,6 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
   const [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [promptNodeId, setPromptNodeId] = useState<string | null>(null);
-  const [openLibrarySignal, setOpenLibrarySignal] = useState(0);
-  const [promptInsertSignal, setPromptInsertSignal] = useState<{ value: string; nonce: number }>();
   const [manualEdges, setManualEdges] = useState<Edge[]>([]);
   const [pendingConnectionCreate, setPendingConnectionCreate] = useState<PendingConnectionCreate | null>(null);
   const [keyboardConnection, setKeyboardConnection] = useState<KeyboardConnection | null>(null);
@@ -586,14 +580,14 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       type: "text",
       position: position ?? { x: center.x - 140, y: center.y - 90 },
       dragHandle: ".infinite-text-node__handle",
-      data: { text, onChange: updateText, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
+      data: { text, onChange: updateText, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
     };
     nodesRef.current = [...nodesRef.current, node];
     setNodes(nodesRef.current);
     setSelectedNodeId(id);
     changed();
     return id;
-  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, defaultImageModel, dismissGeneration, generateForNode, imageModels, openLibrarySignal, promptInsertSignal, ready, remove, retryGeneration, setNodes, updateText]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, defaultImageModel, dismissGeneration, generateForNode, imageModels, ready, remove, retryGeneration, setNodes, updateText]);
   const addEmptyImageNode = useCallback((position?: { x: number; y: number }) => {
     if (!ready || nodesRef.current.length >= 500) return null;
     const center = flowRef.current?.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }) ?? { x: 120, y: 120 };
@@ -603,7 +597,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       type: "image",
       position: position ?? { x: center.x - 160, y: center.y - 160 },
       dragHandle: ".infinite-image-node__handle",
-      data: { image: emptyImageRecord(id), isEmpty: true, onPreview: preview, onEdit: edit, onContinueEditing: continueEditing, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), openLibrarySignal, promptInsertSignal, isSelected: true, isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
+      data: { image: emptyImageRecord(id), isEmpty: true, onPreview: preview, onEdit: edit, onContinueEditing: continueEditing, onRemove: remove, onStartManualConnection: beginManualConnection, onStartKeyboardConnection: beginKeyboardConnection, promptCandidates: [], onGenerate: generateForNode, imageModels, defaultImageModel, promptSettings: { model: defaultImageModel }, onClosePrompt: () => setPromptNodeId(null), isSelected: true, isPromptOpen: true, generationTask: generationTasksRef.current.find(task => task.nodeId === id), onCancelGeneration: cancelGeneration, onRetryGeneration: retryGeneration, onDismissGeneration: dismissGeneration },
     };
     nodesRef.current = [...nodesRef.current, node];
     setNodes(nodesRef.current);
@@ -611,7 +605,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     setPromptNodeId(id);
     changed();
     return id;
-  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, ready, remove, retryGeneration, setNodes]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, changed, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, preview, ready, remove, retryGeneration, setNodes]);
   const connectCreatedNode = useCallback((newNodeId: string, pending: PendingConnectionCreate) => {
     const connection = pending.handleType === "source"
       ? { source: pending.fromNodeId, target: newNodeId, sourceHandle: pending.fromHandleId, targetHandle: null }
@@ -704,8 +698,6 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
               setPromptNodeId(null);
               setNodes(previous => previous.map(node => ({ ...node, selected: false })));
             },
-            openLibrarySignal,
-            promptInsertSignal,
             isPromptOpen: position.id === promptNodeId,
             generationTask: generationTasksRef.current.find(task => task.nodeId === position.id),
             onCancelGeneration: cancelGeneration,
@@ -731,8 +723,6 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
           onStartKeyboardConnection: beginKeyboardConnection,
           isSelected: position.id === selectedNodeId,
           isPromptOpen: position.id === promptNodeId,
-          openLibrarySignal,
-          promptInsertSignal,
           promptCandidates,
           onGenerate: generateForNode,
           imageModels,
@@ -752,7 +742,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
         },
       }] : [];
     });
-  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, openLibrarySignal, preview, promptInsertSignal, promptNodeId, remove, retryGeneration, selectedNodeId, setNodes, updateText]);
+  }, [beginKeyboardConnection, beginManualConnection, cancelGeneration, continueEditing, defaultImageModel, dismissGeneration, edit, generateForNode, imageModels, preview, promptNodeId, remove, retryGeneration, selectedNodeId, setNodes, updateText]);
 
   // A returned record is authoritative; local history may be stale after deletion on another device.
   const resolveImages = useCallback(async (ids: string[]) => {
@@ -1063,13 +1053,6 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       onSelect(node.data.image);
     }
   }, [onSelect]);
-  const openPromptLibrary = useCallback(() => {
-    const selectedNode = selectedNodeId && nodesRef.current.find(node => node.id === selectedNodeId);
-    if (!selectedNode || !onGenerate) return;
-    setPromptNodeId(selectedNode.id);
-    setPromptInsertSignal({ value: selectedNode.type === "image" ? selectedNode.data.image.prompt : selectedNode.data.text, nonce: Date.now() });
-    setOpenLibrarySignal(signal => signal + 1);
-  }, [onGenerate, selectedNodeId]);
   const edges = useMemo<Edge[]>(() => dedupeCanvasEdges([
     ...manualEdges,
     ...canvasEdges(nodes.filter((node): node is ImageNode => node.type === "image").map(node => node.data.image)),
@@ -1150,7 +1133,6 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       }} onCancel={cancelGeneration} onRetry={retryGeneration} />
       <div className="infinite-image-canvas__topline">
         <div className="infinite-image-canvas__title">
-          <strong>作品画布</strong>
           <span className={`infinite-image-canvas__status is-${status}`} role="status" aria-live="polite"><i aria-hidden="true" />{statusLabel}</span>
         </div>
         <div className="infinite-image-canvas__node-actions">
@@ -1191,24 +1173,12 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
         <div role="group" aria-label="画布选择">
           <button type="button" className={`canvas-dock-button${canvasTool === "pan" ? " is-active" : ""}`} onClick={() => setCanvasTool("pan")} aria-label="平移画布" aria-pressed={canvasTool === "pan"} title="平移画布"><CanvasIcon name="hand" /></button>
           <button type="button" className={`canvas-dock-button${canvasTool === "select" ? " is-active" : ""}`} onClick={() => setCanvasTool("select")} aria-label="选择节点" aria-pressed={canvasTool === "select"} title="选择节点"><CanvasIcon name="pointer" /></button>
-        </div>
-        <span className="canvas-tool-dock__divider" role="separator" aria-orientation="vertical" />
-        <div role="group" aria-label="历史操作">
-          <button type="button" className="canvas-dock-button" disabled aria-label="撤销" title="撤销"><CanvasIcon name="undo" /></button>
-          <button type="button" className="canvas-dock-button" disabled aria-label="重做" title="重做"><CanvasIcon name="redo" /></button>
           <button type="button" className="canvas-dock-button" onClick={focusSelected} disabled={!selectedNodeId} aria-label="聚焦选中的节点" title="聚焦选中的节点"><CanvasIcon name="focus" /></button>
         </div>
         <span className="canvas-tool-dock__divider" role="separator" aria-orientation="vertical" />
         <div role="group" aria-label="创建与生成">
           <button type="button" className="canvas-dock-button" onClick={() => addTextNode()} disabled={nodes.length >= 500} aria-label="添加文本节点" title="添加文本节点"><CanvasIcon name="text" /></button>
           <button type="button" className="canvas-dock-button" onClick={() => addEmptyImageNode()} disabled={nodes.length >= 500} aria-label="添加图片节点" title="添加图片节点"><CanvasIcon name="image" /></button>
-          <button type="button" className="canvas-dock-button" onClick={openPromptLibrary} disabled={!selectedNodeId || !onGenerate} aria-label="打开提示词库" title="打开提示词库"><CanvasIcon name="settings" /></button>
-        </div>
-        <span className="canvas-tool-dock__divider" role="separator" aria-orientation="vertical" />
-        <div role="group" aria-label="画布视图">
-          <button type="button" className="canvas-dock-button" onClick={fitCanvas} aria-label="适应视图" title="适应视图"><CanvasIcon name="fit" /></button>
-          <button type="button" className="canvas-dock-button" disabled aria-label="导出画布" title="导出画布"><CanvasIcon name="export" /></button>
-          <button type="button" className="canvas-dock-button" disabled aria-label="画布主题" title="画布主题"><CanvasIcon name="palette" /></button>
         </div>
         <span className="canvas-tool-dock__divider" role="separator" aria-orientation="vertical" />
         <div role="group" aria-label="删除">

@@ -7,10 +7,12 @@ import AppShell from "@/components/Workspace/AppShell";
 import InfiniteImageCanvas from "@/components/ImageGen/InfiniteImageCanvas";
 import CanvasAssetPanel from "@/components/ImageGen/CanvasAssetPanel";
 import ImagePreviewModal from "@/components/ImageGen/ImagePreviewModal";
+import { AppIcon } from "@/components/ui/icons";
 import { ApiError, apiJson } from "@/lib/client-api";
 import { settleCanvasVariantRequests, type CanvasGenerateContext } from "@/lib/canvas-generation";
 import type { CanvasPromptPanelSettings } from "@/components/ImageGen/CanvasPromptPanel";
 import { resolvePromptTextReferences, type CanvasPromptReference } from "@/components/ImageGen/canvas-prompt";
+import { createImageContinuationDraft } from "@/lib/image-continuation";
 import { useDeepRoastStore } from "@/lib/store";
 import type { ImageRecord } from "@/types";
 
@@ -23,10 +25,13 @@ function encodeCanvasBody(value: unknown): { body: string } {
 
 export default function CanvasStudioPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const configuredImageModels = useDeepRoastStore(state => state.imageModels);
   const selectedImageModel = useDeepRoastStore(state => state.selectedImageModel);
   const defaultImageModel = useDeepRoastStore(state => state.config.imageModel);
+  const credits = useDeepRoastStore(state => state.credits);
+  const setImageToImageDraft = useDeepRoastStore(state => state.setImageToImageDraft);
+  const setImageCreationMode = useDeepRoastStore(state => state.setImageCreationMode);
   const imageModels = useMemo(() => configuredImageModels.map(model => model.id), [configuredImageModels]);
   const canvasDefaultModel = imageModels.includes(selectedImageModel)
     ? selectedImageModel
@@ -222,14 +227,35 @@ export default function CanvasStudioPage() {
         <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M14 9l-3 3 3 3" /></svg>
       </button>
       <button type="button" className="canvas-page-topbar__brand" onClick={() => router.push("/")} aria-label="返回深焙生图">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand-mark.png" alt="" width={28} height={28} className="canvas-brand-mark" draggable={false} />
         <strong>深焙</strong><span>Deep Roast</span>
       </button>
       <span className="canvas-page-topbar__divider" aria-hidden="true" />
       <span className="canvas-page-topbar__workspace">作品画布</span>
     </div>
     <div className="canvas-page-topbar__actions">
-      <button type="button" onClick={() => router.push("/")}>返回单图</button>
-      <button type="button" onClick={() => void logout()}>退出登录</button>
+      <span className="canvas-topbar-credit" title="当前账户积分">
+        <i aria-hidden="true" />
+        <span>{user.role === "admin" ? "管理员" : `${credits.toLocaleString()} 积分`}</span>
+      </span>
+      <button
+        type="button"
+        className="canvas-topbar-icon-btn"
+        onClick={() => {
+          const nextDark = !document.documentElement.classList.contains("dark");
+          document.documentElement.classList.toggle("dark", nextDark);
+          window.localStorage.setItem("theme", nextDark ? "dark" : "light");
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", nextDark ? "#141210" : "#f8f7f4");
+        }}
+        title="切换深浅色主题"
+        aria-label="切换深浅色主题"
+      >
+        <AppIcon name="sun" size={14} className="canvas-theme-icon canvas-theme-icon--sun" />
+        <AppIcon name="moon" size={14} className="canvas-theme-icon canvas-theme-icon--moon" />
+      </button>
+      <button type="button" onClick={() => router.push("/")}>← 返回创作</button>
     </div>
   </header>;
 
@@ -242,7 +268,18 @@ export default function CanvasStudioPage() {
           {generationStatus && <div className="canvas-page-generation-status" role="status" aria-live="polite">{generationStatus}</div>}
         </div>
       </div>
-      <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} onContinueEditing={() => router.push("/")} onDelete={handleDelete} />
+      <ImagePreviewModal
+        image={previewImage}
+        onClose={() => setPreviewImage(null)}
+        onContinueEditing={() => {
+          if (previewImage?.imageUrl) {
+            setImageToImageDraft(createImageContinuationDraft(previewImage));
+            setImageCreationMode("edit");
+          }
+          router.push("/");
+        }}
+        onDelete={handleDelete}
+      />
     </div>
   </AppShell>;
 }

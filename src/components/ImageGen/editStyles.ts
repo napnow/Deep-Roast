@@ -44,6 +44,7 @@ export function friendlyStyleColor(c: string): string {
     .replace("golden ", "")
     .replace("emerald ", "")
     .replace("hot ", "")
+    .replace("pear-green", "梨绿")
     .replace("pear-", "梨")
     .replace("magenta-pink", "品红")
     .replace("cobalt-blue", "钴蓝")

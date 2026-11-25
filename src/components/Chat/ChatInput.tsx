@@ -90,10 +90,12 @@ export default function ChatInput({
           placeholder={
             unavailable
               ? "管理员暂未启用对话模型"
-              : "输入消息…"
+              : disabled
+                ? "等待回复中，可先起草下一条消息…"
+                : "输入消息…"
           }
           rows={1}
-          disabled={disabled || unavailable}
+          disabled={unavailable}
           className="flex-1 rounded-xl px-3 py-2.5 text-sm resize-none transition-all duration-200 disabled:opacity-40 outline-none bg-transparent"
           style={{
             color: "var(--text-primary)",

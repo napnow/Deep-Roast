@@ -15,7 +15,7 @@ interface MobileWorkspaceNavProps {
 const WORKSPACE_ICONS: Record<MobilePrimaryWorkspace, AppIconName> = {
   generate: "image",
   chat: "chat",
-  gallery: "history",
+  gallery: "gallery",
   account: "user",
 };
 

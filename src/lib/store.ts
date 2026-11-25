@@ -65,11 +65,14 @@ export interface DeepRoastState {
 
   // image
   imageHistory: ImageRecord[];
+  imageHistoryHasMore: boolean;
+  loadingMoreImages: boolean;
   generating: boolean;
   imageTask: ImageTaskState;
 
   // credits / check-in
   credits: number;
+  creditsHydrated: boolean;
   checkinReward: number;
   checkinEligible: boolean;
   todayChecked: boolean;
@@ -105,6 +108,8 @@ export interface DeepRoastState {
   setStreaming: (streaming: boolean) => void;
   setStreamingText: (text: string) => void;
   setImageHistory: (history: Updater<ImageRecord[]>) => void;
+  setImageHistoryHasMore: (hasMore: boolean) => void;
+  setLoadingMoreImages: (loading: boolean) => void;
   setGenerating: (generating: boolean) => void;
   startImageTask: (request: ImageTaskRequest) => void;
   finishImageTask: (resultIds: string[]) => void;
@@ -172,9 +177,12 @@ function createInitialUserState() {
     streaming: false,
     streamingText: "",
     imageHistory: [],
+    imageHistoryHasMore: false,
+    loadingMoreImages: false,
     generating: false,
     imageTask: { ...INITIAL_IMAGE_TASK, resultIds: [] },
     credits: 0,
+    creditsHydrated: false,
     checkinReward: 50,
     checkinEligible: false,
     todayChecked: false,
@@ -253,6 +261,10 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
   setStreamingText: (text) => set({ streamingText: text }),
   setImageHistory: (history) =>
     set((s) => ({ imageHistory: applyUpdater(s.imageHistory, history) })),
+  setImageHistoryHasMore: (imageHistoryHasMore) =>
+    set({ imageHistoryHasMore }),
+  setLoadingMoreImages: (loadingMoreImages) =>
+    set({ loadingMoreImages }),
   setGenerating: (generating) => set({ generating }),
   startImageTask: (request) =>
     set({ imageTask: createImageTaskState(request) }),
@@ -280,6 +292,7 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
     set((state) => ({
       credits:
         typeof credits === "function" ? credits(state.credits) : credits,
+      creditsHydrated: true,
     })),
   setCheckinStatus: (status) =>
     set((s) => ({

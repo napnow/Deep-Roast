@@ -92,19 +92,7 @@ const SUPPORTED_IMAGE_MIME = new Set([
   "image/webp",
 ]);
 
-/**
- * gpt-image-2 等 OpenAI 兼容模型的原生支持尺寸。
- * 标准比例（9:16 等）用最近原生尺寸生成，再由 sharp 精确裁切。
- */
-const NATIVE_SIZES = [
-  "1024x1024",
-  "1024x1536",
-  "1536x1024",
-  "1024x1792",
-  "1792x1024",
-];
-
-/** 需要走「原生尺寸 + 精确裁切」的模型（其他模型直接用请求 size） */
+/** 不支持任意尺寸的模型只能使用这三档标准尺寸 */
 const STANDARD_IMAGE_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024"]);
 
 class RetryableImageUpstreamError extends Error {}
@@ -113,7 +101,7 @@ export function assertImageSize(size: string, model: string): string {
   const normalized = size.trim();
   const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
 
-  // CROP_MODELS（如 gpt-image-2）：前端传任意合法 WxH，后端 nearestNativeSize 映射 + sharp 裁切
+  // gpt-image 系列：上游按提示词里的尺寸原生出对应比例，落盘前再等比缩放到目标像素
   // grok-imagine：上游只认比例（aspect_ratio），像素值仅用于展示与存档，同样按合法 WxH 校验
   if (isGptImageModel(model) || isGrokImageModel(model)) {
     if (!dimensions) {
@@ -158,29 +146,7 @@ function parseSize(size: string): { w: number; h: number } | null {
   return { w: parseInt(m[1], 10), h: parseInt(m[2], 10) };
 }
 
-/** 取最接近目标比例的原生请求尺寸（优先同方向且面积接近） */
-function nearestNativeSize(target: string): string {
-  const t = parseSize(target);
-  if (!t) return "1024x1024";
-  const targetRatio = t.w / t.h;
-  let best = NATIVE_SIZES[0]!;
-  let bestScore = Infinity;
-  for (const s of NATIVE_SIZES) {
-    const ns = parseSize(s)!;
-    const ratio = ns.w / ns.h;
-    // 比例接近度优先，其次面积差异小
-    const score =
-      Math.abs(ratio - targetRatio) * 10 +
-      Math.abs(Math.log(ns.w * ns.h) - Math.log(t.w * t.h));
-    if (score < bestScore) {
-      bestScore = score;
-      best = s;
-    }
-  }
-  return best;
-}
-
-/** 把生成的 buffer 精确裁切到目标尺寸（fit cover 居中），返回新 buffer */
+/** 把生成的 buffer 缩放到目标尺寸（fit cover 居中；上游比例一致时只缩放不裁切） */
 async function cropToSize(
   buffer: Buffer,
   target: string,
@@ -189,6 +155,8 @@ async function cropToSize(
   if (!t) return { buffer, size: target };
   try {
     const { default: sharp } = await import("sharp");
+    sharp.cache(false);
+    sharp.concurrency(1);
     const out = await sharp(buffer)
       .resize(t.w, t.h, { fit: "cover", position: "centre" })
       .toBuffer();
@@ -201,9 +169,9 @@ async function cropToSize(
 export async function preserveOrCropImage(
   buffer: Buffer,
   target: string,
-  needsCrop: boolean,
+  needsResize: boolean,
 ): Promise<Buffer> {
-  if (!needsCrop) return buffer;
+  if (!needsResize) return buffer;
   return (await cropToSize(buffer, target)).buffer;
 }
 
@@ -672,10 +640,9 @@ async function generateImageImpl(opts: {
     throw new ApiError("未配置 API Base URL", 400);
   }
 
-  // 仅 gpt-image-2：标准比例映射到最近原生尺寸生成，落盘前精确裁切；
-  // 其他模型（seedream/grok 等）直接用请求 size，不裁切
-  const needsCrop = isGptImageModel(model);
-  const requestSize = needsCrop ? nearestNativeSize(size) : size;
+  // gpt-image 系列：上游按请求尺寸原生出对应比例，落盘前等比缩放到目标像素；
+  // 其他模型（seedream/grok 等）直接落盘上游输出
+  const needsResize = isGptImageModel(model);
   let reservation: CreditReservation | null = null;
   let lastError: unknown;
   if (userId && chargeCredits) {
@@ -719,7 +686,7 @@ async function generateImageImpl(opts: {
                 model,
                 prompt: finalPrompt,
                 n: 1,
-                size: requestSize,
+                size,
                 quality: "high",
               },
         ),
@@ -748,8 +715,8 @@ async function generateImageImpl(opts: {
 
       let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl, opts.signal));
 
-      // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
+      // 缩放到目标像素（fit cover 居中，无变形）；gpt-image 系列
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsResize));
 
       const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
@@ -918,9 +885,8 @@ async function editImageOnceImpl(opts: {
   if (!apiKey) throw new ApiError("请先在设置中配置 API Key", 400);
   if (!baseUrl) throw new ApiError("未配置 API Base URL", 400);
 
-  // 仅 gpt-image-2：标准比例映射到最近原生尺寸，落盘前精确裁切
-  const needsCrop = isGptImageModel(model);
-  const requestSize = needsCrop ? nearestNativeSize(size) : size;
+  // gpt-image 系列：上游按请求尺寸原生出图，落盘前等比缩放到目标像素
+  const needsResize = isGptImageModel(model);
   // grok2api /v1/images/edits 要求 image 为 {url: dataURL} 对象（不接受裸字符串/URL），
   // 且当前 grok 代理不支持多参考图 → 多图时明确报错
   const isGrok = isGrokImageModel(model);
@@ -950,7 +916,7 @@ async function editImageOnceImpl(opts: {
     : {
         model,
         prompt,
-        size: requestSize,
+        size,
         n: 1,
         quality: "high",
         // chatgpt2api /v1/images/edits 支持 JSON 单图或多图引用。
@@ -1004,8 +970,8 @@ async function editImageOnceImpl(opts: {
 
       let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl));
 
-      // 精确裁切到目标比例（fit cover 居中，无变形）；仅 gpt-image-2
-      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsCrop));
+      // 缩放到目标像素（fit cover 居中，无变形）；gpt-image 系列
+      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsResize));
 
       const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);

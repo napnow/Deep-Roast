@@ -8,6 +8,7 @@ import type { ImageRecord } from "@/types";
 import { downloadImage } from "./imageUtils";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Dialog from "@/components/ui/Dialog";
+import { AppIcon } from "@/components/ui/icons";
 import SmartResultImage from "./SmartResultImage";
 
 interface ImagePreviewModalProps {
@@ -45,7 +46,7 @@ export default function ImagePreviewModal({
           className="mobile-image-preview-close flex md:hidden"
           aria-label="关闭大图预览"
         >
-          ✕
+          <AppIcon name="close" size={16} />
         </button>
 
         {/* 顶部操作条 */}
@@ -65,11 +66,11 @@ export default function ImagePreviewModal({
           <button
             type="button"
             onClick={onClose}
-            className="hidden md:flex w-11 h-11 rounded-full items-center justify-center shrink-0 transition-all duration-150 hover:scale-110"
+            className="hidden md:flex w-10 h-10 rounded-full items-center justify-center shrink-0 transition-all duration-150 hover:bg-white/10"
             style={{ color: "#f5e6d3" }}
             aria-label="关闭大图预览"
           >
-            ✕
+            <AppIcon name="close" size={16} />
           </button>
         </div>
 

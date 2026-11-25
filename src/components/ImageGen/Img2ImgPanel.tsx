@@ -4,6 +4,7 @@ import ImageRatioPicker from "./ImageRatioPicker";
 import { normalizeImageSizeSelection, imageSizeLabel } from "@/lib/custom-image-ratio";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { formatTime, compressImageFile } from "./imageUtils";
 import { lockPageScroll, unlockPageScroll } from "@/lib/scroll-lock";
 import { apiJson, ApiError } from "@/lib/client-api";
@@ -122,7 +123,13 @@ export default function Img2ImgPanel({
   const abortRef = useRef<AbortController | null>(null);
   const polishRef = useRef(false);
   const [polishRequests] = useState(createClientSessionLifecycle);
-  const { credits, setCredits, setWalletOpen } = useDeepRoastStore();
+  const { credits, setCredits, setWalletOpen } = useDeepRoastStore(
+    useShallow((state) => ({
+      credits: state.credits,
+      setCredits: state.setCredits,
+      setWalletOpen: state.setWalletOpen,
+    })),
+  );
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genRef = useRef(false);
   const uploadEpochRef = useRef(0);
@@ -937,7 +944,7 @@ export default function Img2ImgPanel({
         <summary>
           <span className="creation-step-card__summary">
             <span className="creation-step-card__number" aria-hidden="true">
-              03
+              {refs.length > 0 ? "03" : "02"}
             </span>
             <span>
               <span className="creation-settings__title">更多设置</span>

@@ -15,6 +15,7 @@ export interface RequestUser {
   userId: string;
   username: string;
   role: string;
+  status?: string;
   apiKeyId?: string;
 }
 
@@ -34,14 +35,22 @@ export async function resolveUserFromRequest(
   const payload = await verifyToken(token);
   if (!payload) return null;
 
-  const [row] = await db.select({ password: users.password }).from(users)
-    .where(eq(users.id, payload.userId)).limit(1);
+  const [row] = await db
+    .select({
+      password: users.password,
+      status: users.status,
+      role: users.role,
+    })
+    .from(users)
+    .where(eq(users.id, payload.userId))
+    .limit(1);
   if (!row || !sessionMatchesPassword(payload, row.password)) return null;
 
   return {
     userId: payload.userId as string,
     username: payload.username as string,
-    role: payload.role as string,
+    role: row.role || (payload.role as string),
+    ...(row.status !== undefined ? { status: row.status } : {}),
   };
 }
 
@@ -67,6 +76,17 @@ export async function requireActiveUser(req: Request): Promise<RequestUser> {
   const user = await resolveUserFromRequest(req);
   if (!user) throw new ApiError("未登录", 401);
 
+  if (user.status !== undefined) {
+    if (user.status === "banned") {
+      throw new ApiError("账号已被封禁，请联系管理员", 403);
+    }
+    return {
+      userId: user.userId,
+      username: user.username,
+      role: user.role,
+    };
+  }
+
   const [row] = await db
     .select({ status: users.status, role: users.role })
     .from(users)
@@ -76,7 +96,11 @@ export async function requireActiveUser(req: Request): Promise<RequestUser> {
   if (row.status === "banned") {
     throw new ApiError("账号已被封禁，请联系管理员", 403);
   }
-  return { ...user, role: row.role || user.role };
+  return {
+    userId: user.userId,
+    username: user.username,
+    role: row.role || user.role,
+  };
 }
 
 /** 管理员校验（route 内部用） */

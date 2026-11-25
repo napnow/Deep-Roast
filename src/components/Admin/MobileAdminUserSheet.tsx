@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AdminUser } from "@/types";
 import { relativeTime } from "@/types";
 import { AppIcon } from "@/components/ui/icons";
@@ -39,6 +39,15 @@ export default function MobileAdminUserSheet({
         : users,
     [normalizedQuery, users],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   if (!open) return null;
 

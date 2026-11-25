@@ -402,6 +402,30 @@ export default function AdminSiteSettingsCard() {
           </p>
         ) : (
           <>
+            {msg && (
+              <div
+                role="status"
+                className="rounded-[var(--radius)] px-3.5 py-2.5 text-xs font-medium animate-fade-in"
+                style={{
+                  background: /失败|错误/.test(msg)
+                    ? "var(--danger-surface)"
+                    : "var(--accent-surface)",
+                  color: /失败|错误/.test(msg)
+                    ? "var(--danger)"
+                    : "var(--accent)",
+                  border: `1px solid ${
+                    /失败|错误/.test(msg)
+                      ? "color-mix(in srgb, var(--danger) 30%, transparent)"
+                      : "color-mix(in srgb, var(--accent) 30%, transparent)"
+                  }`,
+                }}
+              >
+                {msg}
+              </div>
+            )}
+
+            <p className="admin-kicker pt-1">基础访问开关</p>
+
             <div
               className="flex items-center justify-between gap-3 rounded-[var(--radius)] px-3.5 py-3"
               style={{
@@ -520,6 +544,10 @@ export default function AdminSiteSettingsCard() {
                 />
                 {imageGenerationEnabled ? "开放中" : "已关闭"}
               </button>
+            </div>
+
+            <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+              <p className="admin-kicker">防刷与风控策略</p>
             </div>
 
             <div
@@ -701,6 +729,10 @@ export default function AdminSiteSettingsCard() {
               </div>
             </div>
 
+            <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+              <p className="admin-kicker">积分与邀请激励</p>
+            </div>
+
             <div
               className="rounded-[var(--radius)] px-3.5 py-3 space-y-3"
               style={{
@@ -835,11 +867,12 @@ export default function AdminSiteSettingsCard() {
               </div>
             </div>
 
-            <div>
+            <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+              <p className="admin-kicker mb-2.5">登录页联系方式</p>
               <p
                 className="text-[11px] font-semibold mb-2 text-[var(--text-secondary)]"
               >
-                联系管理员
+                联系管理员文案
               </p>
               <textarea
                 value={text}

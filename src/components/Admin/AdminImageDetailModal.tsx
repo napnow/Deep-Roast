@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ImageRecord } from "@/types";
 
 interface AdminImageDetailModalProps {
@@ -15,6 +15,14 @@ export default function AdminImageDetailModal({
   const [failedImageKey, setFailedImageKey] = useState<string | null>(null);
   const imageKey = `${image.id}:${image.imageUrl}`;
   const imageFailed = failedImageKey === imageKey;
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 animate-fade-in">

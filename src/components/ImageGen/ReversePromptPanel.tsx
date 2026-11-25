@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionFeedback } from "@/hooks/useActionFeedback";
+import { AppIcon } from "@/components/ui/icons";
 import { copyText } from "@/lib/browser-actions";
 import { useState, useEffect, useRef } from "react";
 import { useDeepRoastStore } from "@/lib/store";
@@ -26,7 +27,6 @@ export default function ReversePromptPanel({
   const [prompting, setPrompting] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
-  // 反推结果：面板内展示，可编辑后回填文生图
   const [result, setResult] = useState("");
   const copy = useActionFeedback(result);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -47,7 +47,6 @@ export default function ReversePromptPanel({
     return () => requests.dispose();
   }, [requests, userSessionVersion]);
 
-  // 分析完成：自动滚动到结果卡片（面板内可能被折叠在下方）
   useEffect(() => {
     if (result && !prompting) {
       resultRef.current?.scrollIntoView({
@@ -155,18 +154,16 @@ export default function ReversePromptPanel({
   }
 
   return (
-    <div className="reverse-prompt-panel max-w-2xl space-y-3">
-      <div className="flex items-center gap-2">
-        <span
-          className="text-[11px] font-semibold tracking-widest uppercase text-[var(--text-muted)]"
-        >
+    <div className="reverse-prompt-panel max-w-2xl space-y-3 py-1">
+      <div className="reverse-prompt-panel__heading flex items-center gap-2">
+        <span className="text-[11px] font-semibold tracking-widest uppercase text-[var(--text-muted)]">
           图片反推提示词
         </span>
         {reverseModel ? (
           <span
-            className="text-[10px] px-1.5 py-0.5 rounded-md font-medium font-mono max-w-[14rem] truncate"
+            className="text-[10px] px-2 py-0.5 rounded-full font-medium font-mono max-w-[14rem] truncate"
             style={{
-              background: "var(--bg-root)",
+              background: "var(--bg-elevated)",
               color: "var(--text-muted)",
               border: "1px solid var(--border)",
             }}
@@ -177,7 +174,7 @@ export default function ReversePromptPanel({
         ) : null}
       </div>
 
-      <div className="reverse-mobile-upload-card flex items-center gap-2.5">
+      <div className="reverse-mobile-upload-card flex flex-wrap items-center gap-3 rounded-2xl border p-3" style={{ background: "var(--bg-root)", borderColor: "var(--border)" }}>
         <input
           ref={fileRef}
           type="file"
@@ -185,34 +182,6 @@ export default function ReversePromptPanel({
           onChange={handleFileSelect}
           className="hidden"
         />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled || prompting}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:scale-100"
-          style={{
-            background: "var(--accent-surface)",
-            border: "1px solid var(--accent)",
-            color: "var(--accent)",
-          }}
-        >
-          {preview ? "更换图片" : "选择图片"}
-        </button>
-
-        {!preview && <span className="reverse-upload-hint">上传图片后分析画面，生成的提示词可以继续编辑使用</span>}
-
-        {preview && !prompting && (
-          <button
-            onClick={handleReverse}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 hover:scale-[1.02] active:scale-95"
-            style={{
-              background: "var(--bg-root)",
-              border: "1px solid var(--border)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            🔍 分析图片
-          </button>
-        )}
 
         {preview && (
           <div className="relative shrink-0">
@@ -220,33 +189,66 @@ export default function ReversePromptPanel({
             <img
               src={preview}
               alt="上传的图片"
-              className="w-20 h-20 rounded-lg object-cover border"
-              style={{ borderColor: "var(--border)" }}
+              className="w-16 h-16 rounded-xl object-cover border"
+              style={{ borderColor: "var(--border-strong)" }}
             />
             {!prompting && (
               <button
+                type="button"
                 onClick={clearUpload}
-                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] hover:scale-110 transition-transform"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-transform hover:scale-105"
                 style={{ background: "var(--danger)", color: "#fff" }}
                 title="清除"
+                aria-label="清除上传图片"
               >
-                ✕
+                <AppIcon name="close" size={11} strokeWidth={2.4} />
               </button>
             )}
           </div>
         )}
 
-        {preview && !prompting && !error && (
-          <p
-            className="text-[11px] truncate text-[var(--text-muted)]"
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled || prompting}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-40"
+            style={{
+              background: preview ? "var(--bg-surface)" : "var(--text-primary)",
+              border: `1px solid ${preview ? "var(--border-strong)" : "var(--text-primary)"}`,
+              color: preview ? "var(--text-primary)" : "var(--bg-surface)",
+            }}
           >
-            点击「分析图片」提取提示词
-          </p>
+            <AppIcon name="image" size={14} />
+            {preview ? "更换图片" : "选择图片"}
+          </button>
+
+          {preview && !prompting && (
+            <button
+              type="button"
+              onClick={handleReverse}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-150 active:scale-95"
+              style={{
+                background: "var(--text-primary)",
+                border: "1px solid var(--text-primary)",
+                color: "var(--bg-surface)",
+              }}
+            >
+              <AppIcon name="sparkles" size={14} />
+              分析图片
+            </button>
+          )}
+        </div>
+
+        {!preview && (
+          <span className="reverse-upload-hint text-xs text-[var(--text-muted)]">
+            上传一张参考图，自动解析构图、光影与风格描述词
+          </span>
         )}
       </div>
 
       {prompting && preview && (
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 px-1">
           <span className="flex gap-1">
             {[0, 120, 240].map((delay) => (
               <span
@@ -259,15 +261,16 @@ export default function ReversePromptPanel({
               />
             ))}
           </span>
-          <span className="text-[11px] text-[var(--accent)]">
+          <span className="text-xs text-[var(--accent)]">
             正在分析图片… {formatTime(elapsed)}
           </span>
           <button
+            type="button"
             onClick={handleStop}
-            className="px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 hover:scale-105"
+            className="px-3 py-1 rounded-full text-[11px] font-medium transition-colors"
             style={{
               background: "var(--danger-surface)",
-              border: "1px solid var(--danger)",
+              border: "1px solid color-mix(in srgb, var(--danger) 35%, transparent)",
               color: "var(--danger)",
             }}
           >
@@ -277,42 +280,37 @@ export default function ReversePromptPanel({
       )}
 
       {error && (
-        <p
-          className="text-[11px] animate-fade-in text-[var(--danger)]"
-        >
-          ✗ {error}
+        <p role="alert" className="text-xs px-1 animate-fade-in text-[var(--danger)]">
+          {error}
         </p>
       )}
 
-      {/* 反推结果：面板内展示，可编辑后一键回填文生图 */}
       {result && !prompting && (
         <div
           ref={resultRef}
-          className="rounded-xl p-3 space-y-2 animate-fade-in"
+          className="rounded-2xl p-3.5 space-y-2.5 animate-fade-in"
           style={{
             background: "var(--bg-root)",
-            border: "1px solid var(--accent)",
+            border: "1px solid var(--border-strong)",
           }}
         >
           <div className="flex items-center justify-between">
-            <span
-              className="text-[10px] font-semibold tracking-widest uppercase text-[var(--accent)]"
-            >
-              反推结果
+            <span className="text-[11px] font-semibold tracking-wider text-[var(--accent)]">
+              反推提示词结果
             </span>
             <button
               type="button"
               onClick={() => setResult("")}
-              className="text-[10px] transition-colors hover:opacity-80 text-[var(--text-muted)]"
+              className="inline-flex items-center gap-1 text-[11px] transition-colors hover:text-[var(--text-primary)] text-[var(--text-muted)]"
             >
-              清除 ✕
+              清除
             </button>
           </div>
           <textarea
             value={result}
             onChange={(e) => setResult(e.target.value)}
             rows={4}
-            className="w-full rounded-lg px-2.5 py-2 text-xs resize-none"
+            className="w-full rounded-xl px-3 py-2 text-xs leading-relaxed resize-none"
             style={{
               background: "var(--bg-surface)",
               border: "1px solid var(--border)",
@@ -326,10 +324,10 @@ export default function ReversePromptPanel({
                 onPrompt(result);
                 onCloseToolbar?.();
               }}
-              className="flex-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150 active:scale-95"
+              className="flex-1 px-4 py-2 rounded-full text-xs font-semibold transition-all duration-150 active:scale-[0.98]"
               style={{
-                background: "var(--accent)",
-                color: "var(--accent-on)",
+                background: "var(--text-primary)",
+                color: "var(--bg-surface)",
               }}
             >
               使用此提示词生成
@@ -341,10 +339,10 @@ export default function ReversePromptPanel({
               onClick={() => {
                 void copy.run(() => copyText(result), "反推提示词已复制");
               }}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95"
+              className="px-4 py-2 rounded-full text-xs font-medium transition-all duration-150 active:scale-[0.98]"
               style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border-strong)",
                 color: "var(--text-secondary)",
               }}
             >
