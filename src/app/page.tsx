@@ -291,10 +291,6 @@ export default function Home() {
     softNavigate(router, "/admin");
   }, [router]);
 
-  const handleOpenCanvas = useCallback(() => {
-    softNavigate(router, "/studio/canvas");
-  }, [router]);
-
   const handleSelectMobileWorkspace = useCallback(
     (workspace: MobilePrimaryWorkspace) => {
       if (workspace === "account") {
@@ -458,7 +454,6 @@ export default function Home() {
           onOpenChatHistory={handleOpenChatHistory}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenAdmin={handleOpenAdmin}
-          onOpenCanvas={handleOpenCanvas}
           onCheckin={handleCheckin}
           onLogout={logout}
           onClose={() => setDrawerOpen(false)}

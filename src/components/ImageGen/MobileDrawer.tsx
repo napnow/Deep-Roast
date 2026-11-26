@@ -29,8 +29,6 @@ interface MobileDrawerProps {
   onOpenSettings: () => void;
   /** 进入既有管理控制台 */
   onOpenAdmin: () => void;
-  /** 进入无限画布工作台 */
-  onOpenCanvas?: () => void;
   /** 复用已有签到流程 */
   onCheckin: () => void;
   /** 复用已有退出登录流程 */
@@ -58,7 +56,6 @@ export default function MobileDrawer({
   onOpenChatHistory,
   onOpenSettings,
   onOpenAdmin,
-  onOpenCanvas,
   onCheckin,
   onLogout,
   onClose,
@@ -112,7 +109,6 @@ export default function MobileDrawer({
   const menuItems: Array<{
     key:
       | "wallet"
-      | "canvas"
       | "password"
       | "api-keys"
       | "donation"
@@ -131,16 +127,6 @@ export default function MobileDrawer({
       icon: "wallet",
       desc: "查看余额、积分明细和邀请链接",
     },
-    ...(onOpenCanvas
-      ? [
-          {
-            key: "canvas" as const,
-            label: "作品画布",
-            icon: "canvas" as AppIconName,
-            desc: "进入无限节点画布串联创作",
-          },
-        ]
-      : []),
     {
       key: "password",
       label: "修改密码",
@@ -200,10 +186,6 @@ export default function MobileDrawer({
     onClose();
     if (key === "wallet") {
       onOpenWallet();
-      return;
-    }
-    if (key === "canvas") {
-      onOpenCanvas?.();
       return;
     }
     if (key === "password") {

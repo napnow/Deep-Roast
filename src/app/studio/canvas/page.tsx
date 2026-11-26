@@ -13,8 +13,12 @@ import { settleCanvasVariantRequests, type CanvasGenerateContext } from "@/lib/c
 import type { CanvasPromptPanelSettings } from "@/components/ImageGen/CanvasPromptPanel";
 import { resolvePromptTextReferences, type CanvasPromptReference } from "@/components/ImageGen/canvas-prompt";
 import { createImageContinuationDraft } from "@/lib/image-continuation";
+import {
+  IMAGE_MODEL_PREFERENCE_STORAGE_KEY,
+  resolveImageModelAfterConfigLoad,
+} from "@/lib/image-model-preferences";
 import { useDeepRoastStore } from "@/lib/store";
-import type { ImageRecord } from "@/types";
+import { DEFAULT_IMAGE_MODELS, type Config, type ImageRecord } from "@/types";
 
 const HISTORY_PAGE_SIZE = 50;
 
@@ -30,8 +34,39 @@ export default function CanvasStudioPage() {
   const selectedImageModel = useDeepRoastStore(state => state.selectedImageModel);
   const defaultImageModel = useDeepRoastStore(state => state.config.imageModel);
   const credits = useDeepRoastStore(state => state.credits);
+  const replaceConfig = useDeepRoastStore(state => state.replaceConfig);
+  const setImageModels = useDeepRoastStore(state => state.setImageModels);
+  const setSelectedImageModel = useDeepRoastStore(state => state.setSelectedImageModel);
   const setImageToImageDraft = useDeepRoastStore(state => state.setImageToImageDraft);
   const setImageCreationMode = useDeepRoastStore(state => state.setImageCreationMode);
+
+  // 直接刷新 /studio/canvas 时同步拉取启用模型配置，避免回退为默认单模型
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    const initialSelected = useDeepRoastStore.getState().selectedImageModel;
+    apiJson<Config>("/api/config")
+      .then((cfg) => {
+        if (!active) return;
+        replaceConfig(cfg);
+        const enabled = cfg.enabledImageModels ?? DEFAULT_IMAGE_MODELS.map((m) => m.id);
+        setImageModels(enabled.map((id) => ({ id })));
+        let storedModel: string | null = null;
+        try {
+          storedModel = window.localStorage.getItem(IMAGE_MODEL_PREFERENCE_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
+        const afterSelected = useDeepRoastStore.getState().selectedImageModel;
+        setSelectedImageModel(
+          resolveImageModelAfterConfigLoad(storedModel, initialSelected, afterSelected, enabled, cfg.imageModel),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [user?.id, replaceConfig, setImageModels, setSelectedImageModel]);
   const imageModels = useMemo(() => configuredImageModels.map(model => model.id), [configuredImageModels]);
   const canvasDefaultModel = imageModels.includes(selectedImageModel)
     ? selectedImageModel
@@ -49,6 +84,19 @@ export default function CanvasStudioPage() {
   const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
   const [generationStatus, setGenerationStatus] = useState("");
   const [assetsOpen, setAssetsOpen] = useState(true);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+  // 无限画布仅面向桌面端；移动端访问直接回到手机创作台
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => {
+      setIsMobileViewport(mq.matches);
+      if (mq.matches) router.replace("/");
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [router]);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -219,7 +267,7 @@ export default function CanvasStudioPage() {
     }
   }, []);
 
-  if (!user) return null;
+  if (!user || isMobileViewport) return null;
 
   const header = <header className="canvas-page-topbar">
     <div className="canvas-page-topbar__left">
