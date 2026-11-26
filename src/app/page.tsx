@@ -291,10 +291,6 @@ export default function Home() {
     softNavigate(router, "/admin");
   }, [router]);
 
-  const handleOpenCanvas = useCallback(() => {
-    softNavigate(router, "/studio/canvas");
-  }, [router]);
-
   const handleSelectMobileWorkspace = useCallback(
     (workspace: MobilePrimaryWorkspace) => {
       if (workspace === "account") {
@@ -315,6 +311,10 @@ export default function Home() {
       softNavigate(router, "/studio/canvas");
       return;
     }
+    if (nav === "wear") {
+      softNavigate(router, "/studio/wear");
+      return;
+    }
     if (nav === "chat") {
       handleModeChange("chat");
       return;
@@ -323,6 +323,17 @@ export default function Home() {
     setRdView(nav);
     handleModeChange("image");
   };
+
+  // 从独立工作台（如穿搭工作台 / 画布）跳回时，按 ?nav= 打开对应标签并清除参数
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const nav = url.searchParams.get("nav");
+    if (nav !== "chat" && nav !== "gallery" && nav !== "create") return;
+    handleRedesignNav(nav);
+    url.searchParams.delete("nav");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const header = (
     <RedesignTopbar
@@ -458,7 +469,6 @@ export default function Home() {
           onOpenChatHistory={handleOpenChatHistory}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenAdmin={handleOpenAdmin}
-          onOpenCanvas={handleOpenCanvas}
           onCheckin={handleCheckin}
           onLogout={logout}
           onClose={() => setDrawerOpen(false)}

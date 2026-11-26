@@ -4,12 +4,13 @@
 import UserMenu from "@/components/Header/UserMenu";
 import AnnouncementBell from "@/components/Header/AnnouncementBell";
 
-export type RedesignNav = "create" | "chat" | "canvas" | "gallery";
+export type RedesignNav = "create" | "chat" | "canvas" | "wear" | "gallery";
 
 const NAV: ReadonlyArray<{ id: RedesignNav; label: string }> = [
   { id: "create", label: "创作" },
   { id: "chat", label: "对话" },
   { id: "canvas", label: "画布" },
+  { id: "wear", label: "穿搭" },
   { id: "gallery", label: "图库" },
 ];
 

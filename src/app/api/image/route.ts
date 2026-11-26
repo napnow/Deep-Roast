@@ -1,6 +1,6 @@
 import { requireActiveUser } from "@/server/auth";
 import { handleRoute, jsonOk, readJson } from "@/server/http";
-import { generateImage } from "@/server/services/image";
+import { generateImage, normalizeImageOrigin } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
 import {
@@ -24,6 +24,7 @@ export const POST = handleRoute(async (req) => {
     prompt?: string;
     model?: string;
     size?: string;
+    origin?: unknown;
   }>(req);
   const claim = await beginRequest(
     user.userId,
@@ -40,6 +41,7 @@ export const POST = handleRoute(async (req) => {
       prompt: body.prompt || "",
       modelOverride: body.model,
       size: body.size,
+      origin: normalizeImageOrigin(body.origin),
       idempotencyKey: claim.id,
       queueSignal: req.signal,
     });

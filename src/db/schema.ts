@@ -381,6 +381,8 @@ export const imageGenerations = pgTable("image_generations", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   size: text("size").notNull().default("1024x1024"),
+  /** 出图来源：create=主创作，wear=服装工作台 */
+  origin: text("origin").notNull().default("create"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userCreatedIdx: index("image_generations_user_created_idx").on(

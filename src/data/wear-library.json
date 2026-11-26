@@ -1,0 +1,50 @@
+[
+  {
+    "id": "portrait:clean-cyclorama-studio",
+    "kind": "portrait",
+    "title": "商业白底无影棚",
+    "prompt": "纯净浅暖灰无影墙商业摄影棚，大型柔光箱均匀立体布光，色彩还原精准无色偏，清晰锐利的电商Lookbook质感",
+    "category": "商业棚拍",
+    "tags": ["无影棚", "标准布光", "零色偏"]
+  },
+  {
+    "id": "portrait:warm-gallery-window",
+    "kind": "portrait",
+    "title": "暖白画廊自然窗光",
+    "prompt": "暖米白石灰肌理极简艺术画廊空间，午后斜射自然窗光与柔和投影，哈苏中画幅80mm镜头，细腻胶片颗粒",
+    "category": "商业棚拍",
+    "tags": ["暖白画廊", "自然窗光", "胶片颗粒"]
+  },
+  {
+    "id": "portrait:morning-street-bokeh",
+    "kind": "portrait",
+    "title": "清晨街角逆光街拍",
+    "prompt": "清晨阳光柔和的米色石材街角虚化背景，温暖发丝逆光，85mm大光圈浅景深街拍氛围",
+    "category": "城市街拍",
+    "tags": ["逆光", "街景虚化", "浅景深"]
+  },
+  {
+    "id": "portrait:concrete-modern",
+    "kind": "portrait",
+    "title": "清水混凝土现代走廊",
+    "prompt": "极简清水混凝土与落地玻璃现代建筑走廊背景，通透漫射自然天光，干净利落的当代都市画报色调",
+    "category": "城市街拍",
+    "tags": ["现代建筑", "漫射光", "冷调高级"]
+  },
+  {
+    "id": "portrait:warm-linen-showroom",
+    "kind": "portrait",
+    "title": "买手店洞石亚麻空间",
+    "prompt": "极简设计师买手店空间，洞石展台、胡桃木与米色亚麻帘幕背景，柔和均匀室内漫射光，静奢型录质感",
+    "category": "生活空间",
+    "tags": ["买手店", "洞石原木", "静奢"]
+  },
+  {
+    "id": "portrait:blue-hour-city",
+    "kind": "portrait",
+    "title": "都市暮色橱窗暖光",
+    "prompt": "傍晚蓝调时刻现代街头，背后橱窗透出温暖琥珀灯光与柔美散景，冷暖交织35mm电影镜头氛围",
+    "category": "胶片氛围",
+    "tags": ["蓝调时刻", "夜景散景", "电影感"]
+  }
+]

@@ -52,6 +52,7 @@ test("mobile drawer leaves primary workspaces to the persistent navigation", () 
   assert.doesNotMatch(drawer, /label: "文生图"/);
   assert.doesNotMatch(drawer, /label: "图库"/);
   assert.doesNotMatch(drawer, /label: "对话"/);
+  assert.doesNotMatch(drawer, /作品画布|穿搭工作台/);
   assert.match(home, /MobileWorkspaceNav/);
 });
 

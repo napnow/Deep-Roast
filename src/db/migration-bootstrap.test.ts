@@ -164,21 +164,22 @@ test("the actual Drizzle adapter keeps all 20 legacy rows when the cursor is cur
 
 test("the actual Drizzle adapter appends only the newer journal migration", async () => {
   // The fixture only applies ledger rows, not historical DDL. Start from the
-  // cursor before the last two entries so both real SQL files are replayed.
-  const pending = journal.entries.slice(-2);
-  const client = new RecordingClient(databaseState(legacySnapshot(journal.entries.at(-3).when)));
+  // cursor before the last three entries so all recent real SQL files are replayed.
+  const pending = journal.entries.slice(-3);
+  const client = new RecordingClient(databaseState(legacySnapshot(journal.entries.at(-4).when)));
   const before = structuredClone(client.state.ledger);
   assert.equal((await subject().migrateDatabase({ client })).mode, "incremental");
-  assert.deepEqual(client.state.ledger.slice(0, -2), before);
-  assert.equal(client.state.ledger.length, before.length + 2);
+  assert.deepEqual(client.state.ledger.slice(0, -3), before);
+  assert.equal(client.state.ledger.length, before.length + 3);
   assert.equal(client.state.ledger.at(-1)?.created_at, String(lastTimestamp));
   assert.deepEqual(
-    client.state.ledger.slice(-2).map((row) => row.created_at),
+    client.state.ledger.slice(-3).map((row) => row.created_at),
     pending.map((item: { when: number }) => String(item.when)),
   );
   assert.ok(client.state.tables.some((t) => t.name === "image_canvas_layouts"));
   assert.ok(client.state.tables.some((t) => t.name === "llm_config"));
   assert.equal(client.calls.some((call) => /ALTER TABLE "image_canvas_layouts" ADD COLUMN "connections"/i.test(call.text)), true);
+  assert.equal(client.calls.some((call) => /ALTER TABLE "image_generations" ADD COLUMN "origin"/i.test(call.text)), true);
   assert.equal(client.calls.some((c) => /^CREATE TABLE "announcements"/i.test(c.text)), false);
 });
 

@@ -579,6 +579,8 @@ async function generateImageImpl(opts: {
   queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
+  /** 出图来源：create=主创作，wear=服装工作台 */
+  origin?: ImageOrigin;
 }, perf: ImagePerformance) {
   const {
     userId,
@@ -727,6 +729,7 @@ async function generateImageImpl(opts: {
         .values({
           id: imageId,
           versionGroupId: imageId,
+          origin: opts.origin ?? "create",
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
@@ -840,6 +843,7 @@ async function editImageOnceImpl(opts: {
   /** 内部批量调用复用同一次请求解析出的费用 */
   creditCostOverride?: number;
   source?: { sourceImageId: string; versionGroupId: string } | null;
+  origin?: ImageOrigin;
 }, perf: ImagePerformance): Promise<EditImageResult> {
   const {
     userId,
@@ -983,6 +987,7 @@ async function editImageOnceImpl(opts: {
           id: imageId,
           sourceImageId: opts.source?.sourceImageId ?? null,
           versionGroupId: opts.source?.versionGroupId ?? imageId,
+          origin: opts.origin ?? "create",
           prompt,
           model,
           imageUrl: artifacts.imageUrl,
@@ -1094,6 +1099,7 @@ export async function runImageEditTasks(opts: {
   count?: number;
   idempotencyKey?: string;
   queueSignal?: AbortSignal;
+  origin?: ImageOrigin;
 }) {
   const {
     userId,
@@ -1157,6 +1163,7 @@ export async function runImageEditTasks(opts: {
         operationIndex: taskIndex * normalizedCount + variantIndex,
         queueSignal: opts.queueSignal,
         creditCostOverride: imageCreditCost,
+        origin: opts.origin,
       }),
     opts.queueSignal,
   );
@@ -1177,11 +1184,20 @@ export async function runImageEditTasks(opts: {
   };
 }
 
-export async function listImageHistory(userId: string, limit = 50, offset = 0) {
+export type ImageOrigin = "create" | "wear";
+
+/** 只接受已知来源，其余一律按主创作处理 */
+export function normalizeImageOrigin(value: unknown): ImageOrigin {
+  return value === "wear" ? "wear" : "create";
+}
+
+export async function listImageHistory(userId: string, limit = 50, offset = 0, origin?: ImageOrigin) {
   const rows = await db
     .select()
     .from(imageGenerations)
-    .where(eq(imageGenerations.userId, userId))
+    .where(origin
+      ? and(eq(imageGenerations.userId, userId), eq(imageGenerations.origin, origin))
+      : eq(imageGenerations.userId, userId))
     .orderBy(desc(imageGenerations.createdAt), desc(imageGenerations.id))
     .offset(offset)
     .limit(limit);

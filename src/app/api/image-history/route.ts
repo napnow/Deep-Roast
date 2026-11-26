@@ -1,6 +1,6 @@
 import { requireActiveUser } from "@/server/auth";
 import { ApiError, handleRoute, jsonOk } from "@/server/http";
-import { listImageHistory } from "@/server/services/image";
+import { listImageHistory, normalizeImageOrigin } from "@/server/services/image";
 
 // GET /api/image-history
 export const GET = handleRoute(async (req) => {
@@ -14,5 +14,7 @@ export const GET = handleRoute(async (req) => {
     || !Number.isInteger(offset) || offset < 0 || offset > 1_000_000) {
     throw new ApiError("作品分页参数无效", 400, "INVALID_IMAGE_HISTORY_PAGE");
   }
-  return jsonOk(await listImageHistory(userId, limit, offset));
+  const rawOrigin = params.get("origin");
+  const origin = rawOrigin === null ? undefined : normalizeImageOrigin(rawOrigin);
+  return jsonOk(await listImageHistory(userId, limit, offset, origin));
 });

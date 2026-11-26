@@ -26,6 +26,9 @@ export type AppIconName =
   | "logout"
   | "sparkles"
   | "canvas"
+  | "hanger"
+  | "upload"
+  | "swap"
   | "user"
   | "refresh"
   | "close"
@@ -199,6 +202,23 @@ export function AppIcon({ name, size = 16, ...props }: AppIconProps) {
       </>
     ),
     check: <path d="m5 12 5 5L20 7" />,
+    hanger: (
+      <>
+        <path d="M12 7a2 2 0 1 0-2-2" />
+        <path d="M12 7v2L3.6 15.1A1.6 1.6 0 0 0 4.5 18h15a1.6 1.6 0 0 0 .9-2.9L12 9" />
+      </>
+    ),
+    upload: (
+      <>
+        <path d="M12 16V4m-4.5 4.5L12 4l4.5 4.5" />
+        <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+      </>
+    ),
+    swap: (
+      <>
+        <path d="M7 10h11l-3-3M17 14H6l3 3" />
+      </>
+    ),
   };
 
   return (

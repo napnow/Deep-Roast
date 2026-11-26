@@ -75,6 +75,7 @@ CREATE TABLE "image_generations" (
 	"version_group_id" uuid,
 	"user_id" uuid NOT NULL,
 	"size" text DEFAULT '1024x1024' NOT NULL,
+	"origin" text DEFAULT 'create' NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	CONSTRAINT "image_generations_source_not_self" CHECK ("image_generations"."source_image_id" is null or "image_generations"."source_image_id" <> "image_generations"."id")
 );

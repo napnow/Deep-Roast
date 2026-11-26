@@ -6,7 +6,7 @@ import {
   jsonOk,
   readJson,
 } from "@/server/http";
-import { runImageEditTasks } from "@/server/services/image";
+import { runImageEditTasks, normalizeImageOrigin } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
@@ -30,7 +30,7 @@ export const POST = handleRoute(async (req) => {
   await enforceRateLimit("image-user", user.userId, IMAGE_LIMIT, IMAGE_WINDOW);
   const releaseAdmission = await imageEditAdmission.acquire(req.signal);
   try {
-  const body = await readJson<ImageEditRequest>(req, {
+  const body = await readJson<ImageEditRequest & { origin?: unknown }>(req, {
     maxBytes: IMAGE_EDIT_JSON_MAX_BYTES,
   });
   const claim = await beginRequest(
@@ -49,6 +49,7 @@ export const POST = handleRoute(async (req) => {
       modelOverride: body.model,
       size: body.size,
       count: 1,
+      origin: normalizeImageOrigin(body.origin),
       idempotencyKey: claim.id,
       queueSignal: req.signal,
     });
