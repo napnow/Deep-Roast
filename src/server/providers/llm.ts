@@ -6,7 +6,10 @@
  * 无内置第三方中转默认地址（开源安全：避免硬编码他人服务）。
  */
 
-import { isGptImageModel } from "@/lib/image-model-capabilities";
+import {
+  isGeminiImageModel,
+  isGptImageModel,
+} from "@/lib/image-model-capabilities";
 
 export type LlmKind = "text" | "image" | "vision";
 
@@ -97,6 +100,23 @@ export function resolveImageEndpoint(
       ),
       baseUrl: firstNonEmpty(
         process.env.GPT_IMAGE_BASE_URL,
+        configBase,
+      ),
+      maxRetries: 1,
+    };
+  }
+
+  if (isGeminiImageModel(model)) {
+    return {
+      apiKey: firstNonEmpty(
+        process.env.GEMINI_IMAGE_KEY,
+        process.env.GEMINI_API_KEY,
+        configKey,
+        process.env.ARK_API_KEY,
+      ),
+      baseUrl: firstNonEmpty(
+        process.env.GEMINI_IMAGE_BASE_URL,
+        process.env.GEMINI_BASE_URL,
         configBase,
       ),
       maxRetries: 1,

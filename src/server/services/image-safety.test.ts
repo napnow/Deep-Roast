@@ -31,6 +31,9 @@ describe("image input safety", () => {
     assert.throws(() => assertImageSize("9999x9999", "gpt-image-2"), /尺寸/);
     assert.equal(MAX_IMAGE_EDGE, 2048);
     assert.equal(MAX_IMAGE_PIXELS, 4_194_304);
+    assert.equal(assertImageSize("768x1376", "gemini-3.1-flash-image-1k"), "768x1376");
+    assert.equal(assertImageSize("2752x1536", "gemini-3.1-flash-image-2k"), "2752x1536");
+    assert.throws(() => assertImageSize("5000x5000", "gemini-3.1-flash-image-2k"), /尺寸/);
   });
 
   it("returns the original non-crop buffer without changing its bytes", async () => {

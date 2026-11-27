@@ -9,10 +9,11 @@ import { useDeepRoastStore } from "@/lib/store";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { AppIcon } from "@/components/ui/icons";
 import { imageSizeLabel, normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
-import { isGptImageModel } from "@/lib/image-model-capabilities";
+import { isGeminiImageModel, isGptImageModel } from "@/lib/image-model-capabilities";
 import { copyText } from "@/lib/browser-actions";
 import { useActionFeedback } from "@/hooks/useActionFeedback";
 import { CustomPixelEditor, CustomRatioEditor } from "@/components/ImageGen/ImageRatioPicker";
+import { resolveMobileComposerDrag } from "@/components/ImageGen/mobile-composer-state";
 import { generationCost } from "@/lib/image-workspace";
 import { canUseImageGeneration } from "@/lib/image-generation-access";
 import { apiJson, ApiError } from "@/lib/client-api";
@@ -71,6 +72,33 @@ function useElapsedSeconds(startedAt: number | null, active: boolean) {
   return Math.max(0, Math.floor((now - startedAt) / 1000));
 }
 
+function useMobileKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  const [visibleHeight, setVisibleHeight] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      if (!window.matchMedia("(max-width: 767px)").matches) {
+        setInset(0);
+        setVisibleHeight(0);
+        return;
+      }
+      const raw = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      setInset(raw > 80 ? raw : 0);
+      setVisibleHeight(Math.round(vv.height));
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+  return { keyboardInset: inset, visibleHeight };
+}
+
 export interface RedesignStudioProps {
   view: RedesignView;
   model: string;
@@ -123,6 +151,7 @@ export default function RedesignStudio({
   const setImageCreationMode = useDeepRoastStore((state) => state.setImageCreationMode);
 
   const [preview, setPreview] = useState<ImageRecord | null>(null);
+  const [mobileComposerExpanded, setMobileComposerExpanded] = useState(false);
   const [armed, setArmed] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "text" | "edit">("all");
@@ -239,13 +268,15 @@ export default function RedesignStudio({
   }
 
   function focusPrompt() {
-    window.setTimeout(() => document.getElementById("rd-prompt")?.focus(), 30);
+    setMobileComposerExpanded(true);
+    window.setTimeout(() => document.getElementById("rd-prompt")?.focus(), 40);
   }
 
   function continueEditing(image: ImageRecord) {
     if (!image.imageUrl) return;
     setImageToImageDraft(createImageContinuationDraft(image));
     setImageCreationMode("edit");
+    setMobileComposerExpanded(true);
     setPreview(null);
     onShowCreate();
   }
@@ -264,6 +295,7 @@ export default function RedesignStudio({
 
   function again(batch: ImageBatch) {
     if (generating) return;
+    setMobileComposerExpanded(false);
     onGenerate(batch.prompt, batch.size, Math.min(5, Math.max(1, batch.images.length)));
   }
 
@@ -527,8 +559,16 @@ export default function RedesignStudio({
   }
 
   return (
-    <div className={`rd-studio is-${view}`}>
-      <div className="rd-stream">
+    <div className={`rd-studio is-${view}${view === "create" && !mobileComposerExpanded ? " is-composer-collapsed" : ""}`}>
+      <div
+        className="rd-stream"
+        onClick={(event) => {
+          if (!mobileComposerExpanded) return;
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("button, a, input, textarea, [role='button'], .rd-error")) return;
+          setMobileComposerExpanded(false);
+        }}
+      >
         <div className="rd-wrap">{view === "gallery" ? renderGallery() : renderCreate()}</div>
       </div>
       {view === "create" && (
@@ -537,6 +577,8 @@ export default function RedesignStudio({
           credits={credits}
           isAdmin={isAdmin}
           generating={generating}
+          mobileExpanded={mobileComposerExpanded}
+          onMobileExpandedChange={setMobileComposerExpanded}
           onGenerate={onGenerate}
           onWalletClick={onWalletClick}
           onStop={onStopGenerate}
@@ -609,6 +651,8 @@ interface ComposerProps {
   credits: number;
   isAdmin: boolean;
   generating: boolean;
+  mobileExpanded: boolean;
+  onMobileExpandedChange: (expanded: boolean) => void;
   onGenerate: (prompt: string, size: string, count?: number) => void;
   onWalletClick: () => void;
   onStop: () => void;
@@ -616,7 +660,19 @@ interface ComposerProps {
   onEditImageBatch: (request: ImageEditRequest, size: string, count: number) => void;
 }
 
-function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onWalletClick, onStop, onEditImage, onEditImageBatch }: ComposerProps) {
+function RedesignComposer({
+  model,
+  credits,
+  isAdmin,
+  generating,
+  mobileExpanded,
+  onMobileExpandedChange,
+  onGenerate,
+  onWalletClick,
+  onStop,
+  onEditImage,
+  onEditImageBatch,
+}: ComposerProps) {
   const draft = useDeepRoastStore((state) => state.textToImageDraft);
   const setDraft = useDeepRoastStore((state) => state.setTextToImageDraft);
   const commitPolishedPrompt = useDeepRoastStore((state) => state.commitPolishedPrompt);
@@ -633,14 +689,23 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
   const [polishing, setPolishing] = useState(false);
   const [notice, setNotice] = useState("");
   const [ratioEditor, setRatioEditor] = useState<"none" | "ratio" | "pixel">("none");
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const { keyboardInset, visibleHeight } = useMobileKeyboardInset();
   const rootRef = useRef<HTMLElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const polishAbort = useRef<AbortController | null>(null);
+  const dragStartRef = useRef<{ y: number; time: number } | null>(null);
+  const dragMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
 
   const sizeOptions = getSizeOptions(model);
   const size = normalizeImageSizeSelection(draft.size, model, sizeOptions);
   const modelIds = imageModels.map((item) => item.id);
   const activeModel = modelIds.includes(selectedImageModel) ? selectedImageModel : model;
+  const nonGeminiModelIds = modelIds.filter((id) => !isGeminiImageModel(id));
+  const editModelIds = nonGeminiModelIds.length > 0 ? nonGeminiModelIds : modelIds;
+  const editActiveModel = editModelIds.includes(activeModel) ? activeModel : (editModelIds[0] ?? activeModel);
   const sizeIsPreset = sizeOptions.some((item) => item.value === size);
   const customSupported = isGptImageModel(activeModel);
   const ratioCustomOn = customSupported && (ratioEditor === "ratio" || (ratioEditor === "none" && !sizeIsPreset));
@@ -653,6 +718,31 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
   const prompt = draft.prompt;
   const styleLabel = IMAGE_STYLE_PRESETS.find((preset) => preset.prompt === draft.stylePrompt)?.label ?? "无预设";
   const canSubmit = Boolean(prompt.trim()) && !generating && !polishing && available && prompt.length <= 12000;
+
+  function collapseMobile() {
+    setPop(null);
+    onMobileExpandedChange(false);
+    taRef.current?.blur();
+  }
+
+  function expandAndFocusPrompt() {
+    onMobileExpandedChange(true);
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => taRef.current?.focus(), 20);
+    });
+  }
+
+  const composerStyle = useMemo(() => {
+    const style: React.CSSProperties & Record<string, string> = {};
+    if (dragOffsetY !== 0) style["--rd-drag-y"] = `${dragOffsetY}px`;
+    if (keyboardInset > 0) {
+      style.bottom = `${keyboardInset + 8}px`;
+      if (visibleHeight > 180) {
+        style.maxHeight = `${Math.max(160, visibleHeight - 20)}px`;
+      }
+    }
+    return style;
+  }, [dragOffsetY, keyboardInset, visibleHeight]);
 
   useEffect(() => {
     if (!pop) return;
@@ -689,6 +779,7 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
     }
     setNotice("");
     const finalPrompt = draft.stylePrompt ? `${draft.stylePrompt}\n\n${value}` : value;
+    collapseMobile();
     onGenerate(finalPrompt, size, draft.count);
   }
 
@@ -768,169 +859,323 @@ function RedesignComposer({ model, credits, isAdmin, generating, onGenerate, onW
     </div>
   );
 
+  const ratioShortLabel = sizeIsPreset ? sizeAspect(size).label : imageSizeLabel(size).split(" ")[0] || size;
+  const compactMetaLabel =
+    mode === "text"
+      ? `${ratioShortLabel}${draft.count > 1 ? ` · ×${draft.count}` : ""}`
+      : modeLabel;
+  const compactPromptText =
+    mode === "text"
+      ? prompt.trim() || "描述你想要的画面……"
+      : `${modeLabel} · 点击展开继续操作`;
+
+  const grabHandle = (
+    <div className="rd-composer__grab">
+      <button
+        type="button"
+        className="rd-composer__handle"
+        aria-expanded={mobileExpanded}
+        aria-controls="rd-composer-body"
+        aria-label={mobileExpanded ? "收起创作面板" : "展开创作面板"}
+        onPointerDown={(event) => {
+          dragStartRef.current = { y: event.clientY, time: event.timeStamp };
+          dragMovedRef.current = false;
+          setDragging(true);
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const start = dragStartRef.current;
+          if (!start) return;
+          const rawDy = event.clientY - start.y;
+          if (Math.abs(rawDy) > 6) dragMovedRef.current = true;
+          const damped = mobileExpanded
+            ? rawDy >= 0 ? Math.min(84, rawDy * 0.65) : Math.max(-18, rawDy * 0.22)
+            : rawDy <= 0 ? Math.max(-36, rawDy * 0.55) : Math.min(14, rawDy * 0.2);
+          setDragOffsetY(Math.round(damped));
+        }}
+        onPointerUp={(event) => {
+          const start = dragStartRef.current;
+          dragStartRef.current = null;
+          setDragging(false);
+          setDragOffsetY(0);
+          if (!start) return;
+          const dy = event.clientY - start.y;
+          const dt = Math.max(1, event.timeStamp - start.time);
+          const velocity = Math.abs(dy) / dt;
+          let next = resolveMobileComposerDrag(start.y, event.clientY, mobileExpanded);
+          if (next === mobileExpanded && Math.abs(dy) >= 18 && velocity > 0.45) {
+            next = dy < 0;
+          }
+          if (dragMovedRef.current) {
+            suppressClickRef.current = true;
+            if (next !== mobileExpanded) {
+              if (!next) collapseMobile();
+              else onMobileExpandedChange(true);
+            }
+          }
+        }}
+        onPointerCancel={() => {
+          dragStartRef.current = null;
+          dragMovedRef.current = false;
+          setDragging(false);
+          setDragOffsetY(0);
+        }}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          if (mobileExpanded) collapseMobile();
+          else onMobileExpandedChange(true);
+        }}
+      >
+        <span className="rd-composer__rail" aria-hidden="true" />
+        {mobileExpanded ? (
+          <span className="rd-composer__fold-tag" aria-hidden="true">
+            收起
+            <AppIcon name="chevron-down" size={11} />
+          </span>
+        ) : null}
+      </button>
+    </div>
+  );
+
+  const compactBar = (
+    <div className="rd-composer__compact">
+      <button
+        type="button"
+        className={`rd-compact-params${mode !== "text" ? " is-mode-active" : ""}`}
+        onClick={() => onMobileExpandedChange(true)}
+        aria-label="展开创作参数"
+        title="展开调整模式、模型与画幅"
+      >
+        <AppIcon name="sliders" size={13} />
+        <span>{compactMetaLabel}</span>
+      </button>
+      <button
+        type="button"
+        className={`rd-compact-prompt${mode === "text" && prompt.trim() ? " has-text" : ""}`}
+        onClick={() => (mode === "text" ? expandAndFocusPrompt() : onMobileExpandedChange(true))}
+        aria-label={mode === "text" ? "展开并输入画面描述" : `展开${modeLabel}面板`}
+      >
+        <span>{compactPromptText}</span>
+      </button>
+      {generating ? (
+        <button type="button" className="rd-go rd-go--compact" onClick={onStop}>停止</button>
+      ) : mode === "text" && prompt.trim() ? (
+        <button type="button" className="rd-go rd-go--compact" disabled={!canSubmit} onClick={submit}>
+          <span>生成</span>
+          <span className="rd-go__cost">{isAdmin ? "免费" : cost}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="rd-compact-expand"
+          onClick={() => onMobileExpandedChange(true)}
+          aria-label="展开创作面板"
+          title="展开"
+        >
+          <AppIcon name="chevron-down" size={14} className="rd-compact-expand__icon" />
+        </button>
+      )}
+    </div>
+  );
+
+  const shellClasses = `rd-composer${mode !== "text" ? " is-sheet" : ""}${mobileExpanded ? " is-expanded" : " is-collapsed"}${dragging ? " is-dragging" : ""}`;
+
   if (mode !== "text") {
     return (
-      <section ref={rootRef} className="rd-composer is-sheet" aria-label={mode === "edit" ? "图生图" : "反推提示词"}>
-        <div className="rd-sheet__head">
-          {modeToken}
-          <span className="rd-sheet__hint">{CREATION_MODES.find(([id]) => id === mode)?.[2]}</span>
-          <span className="rd-grow" />
-          <button type="button" className="rd-x" onClick={() => setMode("text")} aria-label="回到文生图" title="回到文生图">
-            <AppIcon name="close" size={15} />
-          </button>
-        </div>
-        <div className="rd-sheet__body">
-          {mode === "edit" ? (
-            <Img2ImgPanel
-              desktop
-              size={size}
-              imageModel={activeModel}
-              imageModels={modelIds}
-              onImageModelChange={setSelectedImageModel}
-              imageModelCosts={config.imageModelCosts}
-              isAdmin={isAdmin}
-              draft={imageToImageDraft}
-              sizeOptions={sizeOptions}
-              generating={generating}
-              disabled={!available}
-              onGenerate={onGenerate}
-              onEditImage={onEditImage}
-              onEditImageBatch={(request, editSize, count) => {
-                if (count > 1) onEditImageBatch(request, editSize, count);
-                else onEditImage(request, editSize);
-              }}
-              onStopGenerate={onStop}
-            />
-          ) : (
-            <ReversePromptPanel
-              disabled={generating}
-              onPrompt={(value) => {
-                setDraft({ prompt: value });
-                setMode("text");
-                window.setTimeout(() => taRef.current?.focus(), 30);
-              }}
-              onCloseToolbar={() => setMode("text")}
-            />
-          )}
+      <section ref={rootRef} className={shellClasses} style={composerStyle} aria-label={mode === "edit" ? "图生图" : "反推提示词"}>
+        {grabHandle}
+        {compactBar}
+        <div id="rd-composer-body" className="rd-composer__expandable">
+          <div className="rd-composer__expandable-inner rd-sheet__inner">
+            <div className="rd-sheet__head">
+              {modeToken}
+              <span className="rd-sheet__hint">{CREATION_MODES.find(([id]) => id === mode)?.[2]}</span>
+              <span className="rd-grow" />
+              <button type="button" className="rd-x" onClick={() => setMode("text")} aria-label="回到文生图" title="回到文生图">
+                <AppIcon name="close" size={15} />
+              </button>
+            </div>
+            <div className="rd-sheet__body">
+              {mode === "edit" ? (
+                <Img2ImgPanel
+                  desktop
+                  size={size}
+                  imageModel={editActiveModel}
+                  imageModels={editModelIds}
+                  onImageModelChange={setSelectedImageModel}
+                  imageModelCosts={config.imageModelCosts}
+                  isAdmin={isAdmin}
+                  draft={imageToImageDraft}
+                  sizeOptions={getSizeOptions(editActiveModel)}
+                  generating={generating}
+                  disabled={!available}
+                  onGenerate={(genPrompt, genSize) => {
+                    collapseMobile();
+                    onGenerate(genPrompt, genSize);
+                  }}
+                  onEditImage={(request, editSize) => {
+                    collapseMobile();
+                    onEditImage(request, editSize);
+                  }}
+                  onEditImageBatch={(request, editSize, count) => {
+                    collapseMobile();
+                    if (count > 1) onEditImageBatch(request, editSize, count);
+                    else onEditImage(request, editSize);
+                  }}
+                  onStopGenerate={onStop}
+                />
+              ) : (
+                <ReversePromptPanel
+                  disabled={generating}
+                  onPrompt={(value) => {
+                    setDraft({ prompt: value });
+                    setMode("text");
+                    expandAndFocusPrompt();
+                  }}
+                  onCloseToolbar={() => setMode("text")}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </section>
     );
   }
 
   return (
-    <section ref={rootRef} className="rd-composer" aria-label="创作输入框">
-      <textarea
-        id="rd-prompt"
-        ref={taRef}
-        rows={1}
-        value={prompt}
-        maxLength={12000}
-        placeholder="描述你想要的画面……"
-        onChange={(event) => setDraft({ prompt: event.target.value })}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            submit();
-          }
-        }}
-        aria-label="提示词"
-      />
-      {(notice || !available || prompt.length >= 500) && (
-        <div className="rd-meta-row">
-          {(notice || !available) && (
-            <p className="rd-warn">
-              {notice || (!activeModel ? (isAdmin ? "尚未配置生图模型，请到模型配置添加" : "尚未配置生图模型，暂时无法生成") : isAdmin ? "未配置生图服务，请打开模型配置设置" : "生图服务暂未开放")}
-            </p>
-          )}
-          {prompt.length >= 500 && (
-            <span className={`rd-count${prompt.length > 12000 ? " is-over" : ""}`}>
-              {prompt.length.toLocaleString()} / 12,000
-            </span>
-          )}
-        </div>
-      )}
-      <div className="rd-tools">
-        {modeToken}
-        <span className="rd-sep" aria-hidden="true" />
-        <div className="rd-popwrap is-model">
-          {token("model", "模型", activeModel || "未配置")}
-          {pop === "model" && (
-            <div className="rd-pop" role="menu">
-              <h6>生图模型</h6>
-              {imageModels.map((item) => option(item.id, item.id, item.id === activeModel, () => setSelectedImageModel(item.id), `${config.imageModelCosts?.[item.id] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST} 积分/张`))}
-            </div>
-          )}
-        </div>
-        <div className="rd-popwrap">
-          {token("ratio", "画幅", sizeIsPreset ? sizeAspect(size).label : imageSizeLabel(size))}
-          {pop === "ratio" && (
-            <div className="rd-pop is-ratio" role="menu">
-              <h6>画幅</h6>
-              {sizeOptions.map((item) => option(item.value, item.label, item.value === size && !ratioCustomOn && !pixelCustomOn, () => { setRatioEditor("none"); setDraft({ size: item.value }); }))}
-              {customSupported && (
-                <>
-                  <div className="rd-pop__sep" aria-hidden="true" />
-                  <button type="button" role="menuitemradio" aria-checked={ratioCustomOn} className={ratioCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("ratio")}>
-                    <span>自定义比例</span><small>按宽高比</small><i aria-hidden="true">{ratioCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
-                  </button>
-                  <button type="button" role="menuitemradio" aria-checked={pixelCustomOn} className={pixelCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("pixel")}>
-                    <span>像素设置</span><small>256–2048</small><i aria-hidden="true">{pixelCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
-                  </button>
-                  {ratioCustomOn && (
-                    <div className="rd-pop__editor">
-                      <CustomRatioEditor key={`${activeModel}:${size}`} size={size} disabled={generating} onChange={(next) => { setDraft({ size: next }); setPop(null); }} />
-                    </div>
-                  )}
-                  {pixelCustomOn && (
-                    <div className="rd-pop__editor">
-                      <CustomPixelEditor key={`pixel:${activeModel}:${size}`} size={size} disabled={generating} onChange={(next) => { setDraft({ size: next }); setPop(null); }} />
-                    </div>
-                  )}
-                </>
+    <section
+      ref={rootRef}
+      className={shellClasses}
+      style={composerStyle}
+      aria-label="创作输入框"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !pop && mobileExpanded) {
+          collapseMobile();
+        }
+      }}
+    >
+      {grabHandle}
+      {compactBar}
+      <div id="rd-composer-body" className="rd-composer__expandable">
+        <div className="rd-composer__expandable-inner">
+          <textarea
+            id="rd-prompt"
+            ref={taRef}
+            rows={1}
+            value={prompt}
+            maxLength={12000}
+            placeholder="描述你想要的画面……"
+            onFocus={() => onMobileExpandedChange(true)}
+            onChange={(event) => setDraft({ prompt: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                submit();
+              }
+            }}
+            aria-label="提示词"
+          />
+          {(notice || !available || prompt.length >= 500) && (
+            <div className="rd-meta-row">
+              {(notice || !available) && (
+                <p className="rd-warn">
+                  {notice || (!activeModel ? (isAdmin ? "尚未配置生图模型，请到模型配置添加" : "尚未配置生图模型，暂时无法生成") : isAdmin ? "未配置生图服务，请打开模型配置设置" : "生图服务暂未开放")}
+                </p>
+              )}
+              {prompt.length >= 500 && (
+                <span className={`rd-count${prompt.length > 12000 ? " is-over" : ""}`}>
+                  {prompt.length.toLocaleString()} / 12,000
+                </span>
               )}
             </div>
           )}
-        </div>
-        <div className="rd-popwrap">
-          {token("count", "张数", `× ${draft.count}`)}
-          {pop === "count" && (
-            <div className="rd-pop is-narrow" role="menu">
-              <h6>一次生成</h6>
-              {[1, 2, 3, 4, 5].map((n) => option(String(n), `${n} 张`, n === draft.count, () => setDraft({ count: n })))}
-            </div>
-          )}
-        </div>
-        <div className="rd-popwrap">
-          {token("style", "风格", styleLabel)}
-          {pop === "style" && (
-            <div className="rd-pop" role="menu">
-              <h6>风格预设</h6>
-              {IMAGE_STYLE_PRESETS.map((preset) =>
-                option(
-                  preset.label,
-                  preset.label,
-                  draft.stylePrompt === preset.prompt,
-                  () => setDraft({ stylePrompt: preset.prompt }),
-                  preset.prompt ? undefined : "按原始提示词",
-                ),
+          <div className="rd-tools">
+            {modeToken}
+            <span className="rd-sep" aria-hidden="true" />
+            <div className="rd-popwrap is-model">
+              {token("model", "模型", activeModel || "未配置")}
+              {pop === "model" && (
+                <div className="rd-pop" role="menu">
+                  <h6>生图模型</h6>
+                  {imageModels.map((item) => option(item.id, item.id, item.id === activeModel, () => setSelectedImageModel(item.id), `${config.imageModelCosts?.[item.id] ?? DEFAULT_IMAGE_MODEL_CREDIT_COST} 积分/张`))}
+                </div>
               )}
             </div>
-          )}
-        </div>
-        <div className="rd-actions">
-          <button type="button" className="rd-polish" disabled={!prompt.trim() || polishing || generating} onClick={() => void polish()}>
-            <AppIcon name="sparkles" size={13} />
-            {polishing ? "润色中…" : "润色"}
-            <span>{isAdmin ? "免费" : POLISH_PROMPT_CREDIT_COST}</span>
-          </button>
-          {generating ? (
-            <button type="button" className="rd-go" onClick={onStop}>停止</button>
-          ) : (
-            <button type="button" className="rd-go" disabled={!canSubmit} onClick={submit}>
-              <span>生成</span>
-              <span className="rd-go__cost">{isAdmin ? "免费" : cost}</span>
-            </button>
-          )}
+            <div className="rd-popwrap">
+              {token("ratio", "画幅", sizeIsPreset ? sizeAspect(size).label : imageSizeLabel(size))}
+              {pop === "ratio" && (
+                <div className="rd-pop is-ratio" role="menu">
+                  <h6>画幅</h6>
+                  {sizeOptions.map((item) => option(item.value, item.label, item.value === size && !ratioCustomOn && !pixelCustomOn, () => { setRatioEditor("none"); setDraft({ size: item.value }); }))}
+                  {customSupported && (
+                    <>
+                      <div className="rd-pop__sep" aria-hidden="true" />
+                      <button type="button" role="menuitemradio" aria-checked={ratioCustomOn} className={ratioCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("ratio")}>
+                        <span>自定义比例</span><small>按宽高比</small><i aria-hidden="true">{ratioCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
+                      </button>
+                      <button type="button" role="menuitemradio" aria-checked={pixelCustomOn} className={pixelCustomOn ? "is-on" : ""} onClick={() => setRatioEditor("pixel")}>
+                        <span>像素设置</span><small>256–2048</small><i aria-hidden="true">{pixelCustomOn ? <AppIcon name="check" size={12} strokeWidth={2.4} /> : null}</i>
+                      </button>
+                      {ratioCustomOn && (
+                        <div className="rd-pop__editor">
+                          <CustomRatioEditor key={`${activeModel}:${size}`} size={size} disabled={generating} onChange={(next) => { setDraft({ size: next }); setPop(null); }} />
+                        </div>
+                      )}
+                      {pixelCustomOn && (
+                        <div className="rd-pop__editor">
+                          <CustomPixelEditor key={`pixel:${activeModel}:${size}`} size={size} disabled={generating} onChange={(next) => { setDraft({ size: next }); setPop(null); }} />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="rd-popwrap">
+              {token("count", "张数", `× ${draft.count}`)}
+              {pop === "count" && (
+                <div className="rd-pop is-narrow" role="menu">
+                  <h6>一次生成</h6>
+                  {[1, 2, 3, 4, 5].map((n) => option(String(n), `${n} 张`, n === draft.count, () => setDraft({ count: n })))}
+                </div>
+              )}
+            </div>
+            <div className="rd-popwrap">
+              {token("style", "风格", styleLabel)}
+              {pop === "style" && (
+                <div className="rd-pop" role="menu">
+                  <h6>风格预设</h6>
+                  {IMAGE_STYLE_PRESETS.map((preset) =>
+                    option(
+                      preset.label,
+                      preset.label,
+                      draft.stylePrompt === preset.prompt,
+                      () => setDraft({ stylePrompt: preset.prompt }),
+                      preset.prompt ? undefined : "按原始提示词",
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="rd-actions">
+              <button type="button" className="rd-polish" disabled={!prompt.trim() || polishing || generating} onClick={() => void polish()}>
+                <AppIcon name="sparkles" size={13} />
+                {polishing ? "润色中…" : "润色"}
+                <span>{isAdmin ? "免费" : POLISH_PROMPT_CREDIT_COST}</span>
+              </button>
+              {generating ? (
+                <button type="button" className="rd-go" onClick={onStop}>停止</button>
+              ) : (
+                <button type="button" className="rd-go" disabled={!canSubmit} onClick={submit}>
+                  <span>生成</span>
+                  <span className="rd-go__cost">{isAdmin ? "免费" : cost}</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </section>

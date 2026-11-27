@@ -31,10 +31,17 @@ import {
   normalizeImageEditRequest,
 } from "./image-edit-tasks";
 import {
+  geminiAspectRatio,
   grokAspectRatio,
+  isGeminiImageModel,
   isGptImageModel,
   isGrokImageModel,
 } from "@/lib/image-model-capabilities";
+import {
+  buildGeminiImagePayload,
+  geminiGenerateUrl,
+  readGeminiSseImage,
+} from "./gemini-image";
 import { executeImageEditTasks, largeOrUnknownReferences } from "./image-edit-runner";
 import {
   privateImagePath,
@@ -54,6 +61,9 @@ const MAX_PROMPT_LENGTH = 12000;
 
 export const MAX_IMAGE_EDGE = 2048;
 export const MAX_IMAGE_PIXELS = 4_194_304;
+/** Gemini 2K 输出会超过通用上限（如 1536×2752），仅对该模型放行。 */
+export const MAX_GEMINI_IMAGE_EDGE = 4096;
+export const MAX_GEMINI_IMAGE_PIXELS = 12_000_000;
 export const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 export const MAX_REFERENCE_TOTAL_BYTES = 30 * 1024 * 1024;
 export const IMAGE_UPSTREAM_TIMEOUT_MS = 300_000;
@@ -102,21 +112,31 @@ export function assertImageSize(size: string, model: string): string {
   const dimensions = /^(\d+)x(\d+)$/.exec(normalized);
 
   // gpt-image 系列：上游按提示词里的尺寸原生出对应比例，落盘前再等比缩放到目标像素
-  // grok-imagine：上游只认比例（aspect_ratio），像素值仅用于展示与存档，同样按合法 WxH 校验
-  if (isGptImageModel(model) || isGrokImageModel(model)) {
+  // grok-imagine / gemini：上游按比例接口出图，像素值仅用于展示与存档，按合法 WxH 校验
+  if (
+    isGptImageModel(model) ||
+    isGrokImageModel(model) ||
+    isGeminiImageModel(model)
+  ) {
     if (!dimensions) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
     const width = Number(dimensions[1]);
     const height = Number(dimensions[2]);
+    const maxEdge = isGeminiImageModel(model)
+      ? MAX_GEMINI_IMAGE_EDGE
+      : MAX_IMAGE_EDGE;
+    const maxPixels = isGeminiImageModel(model)
+      ? MAX_GEMINI_IMAGE_PIXELS
+      : MAX_IMAGE_PIXELS;
     if (
       !Number.isSafeInteger(width) ||
       !Number.isSafeInteger(height) ||
       width <= 0 ||
       height <= 0 ||
-      width > MAX_IMAGE_EDGE ||
-      height > MAX_IMAGE_EDGE ||
-      width * height > MAX_IMAGE_PIXELS
+      width > maxEdge ||
+      height > maxEdge ||
+      width * height > maxPixels
     ) {
       throw new ApiError("不支持的图片尺寸", 400);
     }
@@ -175,6 +195,22 @@ export async function preserveOrCropImage(
   return (await cropToSize(buffer, target)).buffer;
 }
 
+/** 读取图片真实像素尺寸，用于按比例出图、像素由上游决定的上游（Gemini）。 */
+async function readImageDimensions(buffer: Buffer): Promise<string> {
+  try {
+    const { default: sharp } = await import("sharp");
+    sharp.cache(false);
+    sharp.concurrency(1);
+    const metadata = await sharp(buffer).metadata();
+    if (metadata.width && metadata.height) {
+      return `${metadata.width}x${metadata.height}`;
+    }
+  } catch {
+    /* 读不出尺寸时回退到请求尺寸 */
+  }
+  return "";
+}
+
 function mimeForFormat(format: string | undefined): string | null {
   if (format === "png") return "image/png";
   if (format === "jpeg" || format === "jpg") return "image/jpeg";
@@ -223,10 +259,15 @@ function decodeBase64(value: string): Buffer {
 async function inspectImage(
   buffer: Buffer,
   declaredMime?: string,
+  limits?: { maxEdge: number; maxPixels: number },
 ): Promise<string> {
   assertImageByteLimit(buffer.length);
+  const maxEdge = limits?.maxEdge ?? MAX_IMAGE_EDGE;
+  const maxPixels = limits?.maxPixels ?? MAX_IMAGE_PIXELS;
   try {
     const { default: sharp } = await import("sharp");
+    sharp.cache(false);
+    sharp.concurrency(1);
     const metadata = await sharp(buffer).metadata();
     const mime = mimeForFormat(metadata.format);
     const width = metadata.width || 0;
@@ -236,9 +277,9 @@ async function inspectImage(
       !SUPPORTED_IMAGE_MIME.has(mime) ||
       !width ||
       !height ||
-      width > MAX_IMAGE_EDGE ||
-      height > MAX_IMAGE_EDGE ||
-      width * height > MAX_IMAGE_PIXELS ||
+      width > maxEdge ||
+      height > maxEdge ||
+      width * height > maxPixels ||
       (declaredMime && declaredMime !== mime)
     ) {
       throw new Error("unsupported image");
@@ -626,13 +667,16 @@ async function generateImageImpl(opts: {
 
   if (!apiKey) {
     const isGrok = isGrokImageModel(model);
+    const isGemini = isGeminiImageModel(model);
     const isGpt = isGptImageModel(model);
     throw new ApiError(
       isGrok
         ? "请在 .env.local 中设置 GROK_API_KEY"
-        : isGpt
-          ? "请在 .env.local 中设置 GPT_IMAGE_KEY"
-          : "请先在设置中配置 API Key 或在 .env.local 中设置 ARK_API_KEY",
+        : isGemini
+          ? "请在 .env.local 中设置 GEMINI_API_KEY 或配置模型渠道"
+          : isGpt
+            ? "请在 .env.local 中设置 GPT_IMAGE_KEY"
+            : "请先在设置中配置 API Key 或在 .env.local 中设置 ARK_API_KEY",
       400,
     );
   }
@@ -641,7 +685,7 @@ async function generateImageImpl(opts: {
   }
 
   // gpt-image 系列：上游按请求尺寸原生出对应比例，落盘前等比缩放到目标像素；
-  // 其他模型（seedream/grok 等）直接落盘上游输出
+  // 其他模型（seedream/grok/gemini 等）直接落盘上游输出
   const needsResize = isGptImageModel(model);
   let reservation: CreditReservation | null = null;
   let lastError: unknown;
@@ -656,40 +700,60 @@ async function generateImageImpl(opts: {
     perf.attempt();
     const writtenPaths: string[] = [];
     try {
+      const gemini = isGeminiImageModel(model);
+      const requestUrl = gemini
+        ? geminiGenerateUrl(baseUrl)
+        : `${baseUrl}/images/generations`;
+      const requestHeaders: Record<string, string> = gemini
+        ? {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+            "x-goog-api-key": apiKey,
+          }
+        : {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            ...(opts.idempotencyKey
+              ? {
+                  "Idempotency-Key": providerIdempotencyKey(
+                    "image-generation",
+                    opts.idempotencyKey,
+                    attempt,
+                  ),
+                }
+              : {}),
+          };
+      const requestBody = gemini
+        ? JSON.stringify(
+            buildGeminiImagePayload({
+              prompt: finalPrompt,
+              aspectRatio: geminiAspectRatio(size),
+              model,
+            }),
+          )
+        : JSON.stringify(
+            isGrokImageModel(model)
+              ? {
+                  model,
+                  prompt: finalPrompt,
+                  n: 1,
+                  // grok2api 只接受七种 aspect_ratio，且不认 quality；
+                  // 必须显式要 b64_json，否则返回的是 127.0.0.1 内网图片地址
+                  aspect_ratio: grokAspectRatio(size),
+                  response_format: "b64_json",
+                }
+              : {
+                  model,
+                  prompt: finalPrompt,
+                  n: 1,
+                  size,
+                  quality: "high",
+                },
+          );
       const res = await perf.measure("upstream", () => postJsonUpstream(
-        `${baseUrl}/images/generations`,
-        {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          ...(opts.idempotencyKey
-            ? {
-                "Idempotency-Key": providerIdempotencyKey(
-                  "image-generation",
-                  opts.idempotencyKey,
-                  attempt,
-                ),
-              }
-            : {}),
-        },
-        JSON.stringify(
-          isGrokImageModel(model)
-            ? {
-                model,
-                prompt: finalPrompt,
-                n: 1,
-                // grok2api 只接受七种 aspect_ratio，且不认 quality；
-                // 必须显式要 b64_json，否则返回的是 127.0.0.1 内网图片地址
-                aspect_ratio: grokAspectRatio(size),
-                response_format: "b64_json",
-              }
-            : {
-                model,
-                prompt: finalPrompt,
-                n: 1,
-                size,
-                quality: "high",
-              },
-        ),
+        requestUrl,
+        requestHeaders,
+        requestBody,
         enforcePublicHttps,
         opts.signal,
       ));
@@ -708,15 +772,29 @@ async function generateImageImpl(opts: {
         throw new ApiError("上游图片服务请求失败", 502, "UPSTREAM_IMAGE_ERROR");
       }
 
-      const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
-        data?: Array<{ b64_json?: string; url?: string }>;
-      }>(res));
-      const item = result.data?.[0];
+      let buffer: Buffer;
+      let storedSize = size;
+      if (gemini) {
+        const inline = await perf.measure("upstream", () =>
+          readGeminiSseImage(res.body),
+        );
+        buffer = decodeBase64(inline.data);
+        await inspectImage(buffer, inline.mimeType, {
+          maxEdge: MAX_GEMINI_IMAGE_EDGE,
+          maxPixels: MAX_GEMINI_IMAGE_PIXELS,
+        });
+        storedSize = (await readImageDimensions(buffer)) || size;
+      } else {
+        const result = await perf.measure("upstream", () => readBoundedJsonResponse<{
+          data?: Array<{ b64_json?: string; url?: string }>;
+        }>(res));
+        const item = result.data?.[0];
 
-      let buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl, opts.signal));
+        buffer = await perf.measure("image_load", () => readUpstreamImage(item || {}, baseUrl, opts.signal));
 
-      // 缩放到目标像素（fit cover 居中，无变形）；gpt-image 系列
-      buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsResize));
+        // 缩放到目标像素（fit cover 居中，无变形）；gpt-image 系列
+        buffer = await perf.measure("processing", () => preserveOrCropImage(buffer, size, needsResize));
+      }
 
       const artifacts = await writeImageArtifacts(buffer, perf);
       writtenPaths.push(...artifacts.writtenPaths);
@@ -732,7 +810,7 @@ async function generateImageImpl(opts: {
           imageUrl: artifacts.imageUrl,
           storageKey: artifacts.storageKey,
           thumbStorageKey: artifacts.thumbStorageKey,
-          size,
+          size: storedSize,
           userId,
         })
         .returning({ id: imageGenerations.id }));
@@ -747,7 +825,7 @@ async function generateImageImpl(opts: {
         storageKey: artifacts.storageKey,
         prompt,
         model,
-        size,
+        size: storedSize,
       };
     } catch (err) {
       lastError = err;
@@ -873,6 +951,13 @@ async function editImageOnceImpl(opts: {
   perf.setModel(model);
 
   const size = assertImageSize(requestedSize, model);
+  if (isGeminiImageModel(model)) {
+    throw new ApiError(
+      "gemini-3.1-flash-image 目前只支持文生图，请切换模型后再编辑",
+      400,
+      "MODEL_UNSUPPORTED",
+    );
+  }
   const imageCreditCost =
     opts.creditCostOverride ?? (await getImageModelCreditCost(model));
   const chargeCredits = role !== "admin";
@@ -1110,6 +1195,13 @@ export async function runImageEditTasks(opts: {
     modelOverride || config?.imageModel || "gpt-image-2";
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
+  }
+  if (isGeminiImageModel(model)) {
+    throw new ApiError(
+      "gemini-3.1-flash-image 目前只支持文生图，请切换模型后再编辑",
+      400,
+      "MODEL_UNSUPPORTED",
+    );
   }
 
   const tasks = normalizeImageEditRequest(request, model);
@@ -1364,6 +1456,13 @@ export async function editImageBatch(opts: {
     modelOverride || config?.imageModel || "gpt-image-2";
   if (!(await isConfiguredModelEnabled(config || {}, "image", model))) {
     throw new ApiError("指定的模型不可用", 400);
+  }
+  if (isGeminiImageModel(model)) {
+    throw new ApiError(
+      "gemini-3.1-flash-image 目前只支持文生图，请切换模型后再编辑",
+      400,
+      "MODEL_UNSUPPORTED",
+    );
   }
   const imageCreditCost = await getImageModelCreditCost(model);
   // 预校验总额度（不足直接拒绝，不扣款）：参考图张数 × 每张变体数

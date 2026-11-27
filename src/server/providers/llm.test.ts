@@ -62,6 +62,15 @@ test("provider-specific credentials are not shadowed by admin Ark config", () =>
     });
 
     assert.deepEqual(
+      resolveImageEndpoint("gemini-3.1-flash-image-1k", adminArkConfig),
+      {
+        apiKey: "gemini-env",
+        baseUrl: "https://gemini.example/v1",
+        maxRetries: 1,
+      },
+    );
+
+    assert.deepEqual(
       resolveVisionEndpoint("gemini-2.5-flash", adminArkConfig),
       {
         apiKey: "gemini-env",

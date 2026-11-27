@@ -73,12 +73,25 @@ export function clockLabel(dateStr: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const KNOWN_ASPECT_LABELS: Readonly<Record<string, string>> = {
+  "1376x768": "16:9",
+  "768x1376": "9:16",
+  "1200x896": "4:3",
+  "896x1200": "3:4",
+  "2752x1536": "16:9",
+  "1536x2752": "9:16",
+  "2400x1792": "4:3",
+  "1792x2400": "3:4",
+};
+
 export function sizeAspect(size: string): { w: number; h: number; label: string } {
   const match = /^(\d+)\s*[x×]\s*(\d+)$/.exec((size || "").trim());
   if (!match) return { w: 1, h: 1, label: size || "1:1" };
   const w = Number(match[1]);
   const h = Number(match[2]);
   if (!w || !h) return { w: 1, h: 1, label: size };
+  const presetLabel = KNOWN_ASPECT_LABELS[`${w}x${h}`];
+  if (presetLabel) return { w, h, label: presetLabel };
   const g = greatestCommonDivisor(w, h);
   return { w, h, label: `${w / g}:${h / g}` };
 }

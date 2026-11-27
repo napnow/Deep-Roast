@@ -16,4 +16,8 @@ test("redesign studio keeps feature parity with the classic workspace", () => {
   assert.match(studio, /网络连接中断/);
   assert.match(studio, /尚未配置生图模型/);
   assert.doesNotMatch(studio, /href=\{(image|preview)\.imageUrl\} download/);
+  assert.match(studio, /resolveMobileComposerDrag/);
+  assert.match(studio, /rd-composer__handle/);
+  assert.match(studio, /rd-composer__compact/);
+  assert.match(studio, /is-composer-collapsed/);
 });
