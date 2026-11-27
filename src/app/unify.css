@@ -533,7 +533,8 @@ html.dark .admin-theme-icon--moon { display: none; }
 
 /* ---------- 小屏安卓（≤360px）---------- */
 @media (max-width: 360px) {
-  .rd-composer { width: calc(100% - 12px) !important; padding: 10px 6px 6px 10px !important; }
+  .rd-composer { width: calc(100% - 12px) !important; padding: 0 8px 9px !important; }
+  .rd-composer.is-collapsed { padding: 0 6px 7px 8px !important; }
   .rd-tok__lbl { display: none; }
   .rd-empty h1 { font-size: 24px; }
 }

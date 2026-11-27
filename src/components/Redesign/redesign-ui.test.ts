@@ -39,6 +39,8 @@ describe("redesign labels", () => {
   it("reduces sizes to ratios", () => {
     assert.equal(sizeAspect("1536x1024").label, "3:2");
     assert.equal(sizeAspect("1024x1024").label, "1:1");
+    assert.equal(sizeAspect("1376x768").label, "16:9");
+    assert.equal(sizeAspect("1792x2400").label, "3:4");
     assert.equal(sizeAspect("bad").w, 1);
   });
 
