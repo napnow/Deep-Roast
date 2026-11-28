@@ -7,7 +7,7 @@ import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
 import { canvasEdges, dedupeCanvasEdges, findConnectedPlaceholderIds, findLegacyAutoAddedCanvasIds, mergeCanvasItems, placeCanvasAdditions, replacePlaceholderConnections } from "./canvas-items";
-import { isGeminiImageModel } from "@/lib/image-model-capabilities";
+import { isGeminiImageModel, mapImageSizeToModelOption } from "@/lib/image-model-capabilities";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
@@ -717,6 +717,11 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
       const initialNodeModel = !isEmptyNode && image?.model && isGeminiImageModel(image.model)
         ? fallbackEditModel
         : (image?.model || fallbackEditModel);
+      const initialNodeSize = image?.size
+        ? (!isEmptyNode && initialNodeModel !== image.model
+            ? mapImageSizeToModelOption(image.size, initialNodeModel)
+            : image.size)
+        : undefined;
       return image ? [{
         id: position.id,
         type: "image",
@@ -739,7 +744,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
           defaultImageModel: fallbackEditModel,
           promptSettings: {
             model: initialNodeModel,
-            size: image.size || undefined,
+            size: initialNodeSize,
           },
           generationTask: generationTasksRef.current.find(task => task.nodeId === position.id),
           onCancelGeneration: cancelGeneration,

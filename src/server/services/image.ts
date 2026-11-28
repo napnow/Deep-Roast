@@ -1392,28 +1392,43 @@ export async function deleteImageRecords(userId: string, ids: string[]) {
   };
 }
 
+const VERSION_GROUP_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function countImageVersionGroup(userId: string, versionGroupId: string) {
-  if (!versionGroupId?.trim()) throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
-  const records = await db.select().from(imageGenerations).where(and(
-    eq(imageGenerations.userId, userId),
-    eq(imageGenerations.versionGroupId, versionGroupId),
-  ));
-  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId });
+  const trimmed = versionGroupId?.trim();
+  if (!trimmed || !VERSION_GROUP_UUID_RE.test(trimmed)) {
+    throw new ApiError("版本组无效", 400, "INVALID_VERSION_GROUP");
+  }
+  const records = await db
+    .select({
+      id: imageGenerations.id,
+      userId: imageGenerations.userId,
+      versionGroupId: imageGenerations.versionGroupId,
+    })
+    .from(imageGenerations)
+    .where(and(
+      eq(imageGenerations.userId, userId),
+      eq(imageGenerations.versionGroupId, trimmed),
+    ));
+  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId: trimmed });
   return { count: selected.length };
 }
 
 export async function deleteImageVersionGroup(userId: string, versionGroupId: string) {
-  if (!versionGroupId?.trim()) throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
+  const trimmed = versionGroupId?.trim();
+  if (!trimmed || !VERSION_GROUP_UUID_RE.test(trimmed)) {
+    throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
+  }
   const records = await db.select().from(imageGenerations).where(and(
     eq(imageGenerations.userId, userId),
-    eq(imageGenerations.versionGroupId, versionGroupId),
+    eq(imageGenerations.versionGroupId, trimmed),
   ));
-  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId });
+  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId: trimmed });
   if (!selected.length) throw new ApiError("版本组不存在", 404, "VERSION_GROUP_NOT_FOUND");
   const deletedIds = selected.map((record) => record.id);
   await db.delete(imageGenerations).where(and(
     eq(imageGenerations.userId, userId),
-    eq(imageGenerations.versionGroupId, versionGroupId),
+    eq(imageGenerations.versionGroupId, trimmed),
   ));
   await Promise.all(selected.map((record) => deleteImageArtifacts(record)));
   return { deletedIds, failedIds: [] };

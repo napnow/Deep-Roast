@@ -113,7 +113,10 @@ export interface DeepRoastState {
   setGenerating: (generating: boolean) => void;
   startImageTask: (request: ImageTaskRequest) => void;
   finishImageTask: (resultIds: string[]) => void;
-  failImageTask: (error: ImageTaskError) => void;
+  failImageTask: (
+    error: ImageTaskError,
+    requestPatch?: Partial<ImageTaskRequest>,
+  ) => void;
   clearImageTask: () => void;
   setCredits: (credits: number | ((current: number) => number)) => void;
   setCheckinStatus: (status: {
@@ -278,13 +281,17 @@ export const useDeepRoastStore = create<DeepRoastState>((set) => ({
         error: null,
       },
     })),
-  failImageTask: (error) =>
+  failImageTask: (error, requestPatch) =>
     set((state) => ({
       imageTask: {
         ...state.imageTask,
         status: "error",
         startedAt: null,
         error,
+        request:
+          state.imageTask.request && requestPatch
+            ? { ...state.imageTask.request, ...requestPatch }
+            : state.imageTask.request,
       },
     })),
   clearImageTask: () => set({ imageTask: INITIAL_IMAGE_TASK }),

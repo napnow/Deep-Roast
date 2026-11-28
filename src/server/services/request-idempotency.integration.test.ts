@@ -28,6 +28,7 @@ test("request idempotency replays settled work and fences concurrent or stale cl
       beginRequest,
       completeRequest,
       failRequest,
+      pruneExpiredRequests,
     } = await import("./request-idempotency-store");
 
     const concurrent = await Promise.all([
@@ -54,7 +55,7 @@ test("request idempotency replays settled work and fences concurrent or stale cl
     );
 
     await pool.query(
-      `UPDATE request_idempotency SET expires_at=now()-interval '1 second'
+      `UPDATE request_idempotency SET expires_at=(now() AT TIME ZONE 'UTC')-interval '1 second'
        WHERE user_id=$1 AND scope='integration' AND key IN ('concurrent-key','failed-key')`,
       [userId],
     );
@@ -62,6 +63,17 @@ test("request idempotency replays settled work and fences concurrent or stale cl
     assert.equal(afterSuccessExpiry.kind, "new");
     const afterFailedExpiry = await beginRequest(userId, "integration", "failed-key");
     assert.equal(afterFailedExpiry.kind, "new");
+
+    const pruneClaim = await beginRequest(userId, "integration", "prune-key");
+    assert.ok(pruneClaim.kind === "new");
+    await completeRequest(pruneClaim.id, pruneClaim.leaseToken, 200, { ok: true });
+    await pool.query(
+      `UPDATE request_idempotency SET expires_at=(now() AT TIME ZONE 'UTC')-interval '1 second'
+       WHERE user_id=$1 AND scope='integration' AND key='prune-key'`,
+      [userId],
+    );
+    const prunedCount = await pruneExpiredRequests(new Date());
+    assert.ok(prunedCount >= 1);
 
     const leased = await beginRequest(userId, "integration", "lease-key");
     assert.ok(leased.kind === "new");
@@ -73,7 +85,7 @@ test("request idempotency replays settled work and fences concurrent or stale cl
     const stale = await beginRequest(userId, "integration", "stale-key");
     assert.ok(stale.kind === "new");
     await pool.query(
-      `UPDATE request_idempotency SET expires_at=now()-interval '1 second'
+      `UPDATE request_idempotency SET expires_at=(now() AT TIME ZONE 'UTC')-interval '1 second'
        WHERE user_id=$1 AND scope='integration' AND key='stale-key'`,
       [userId],
     );

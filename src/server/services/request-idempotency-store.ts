@@ -10,6 +10,43 @@ import { normalizeIdempotencyKey } from "./request-idempotency";
 // worker and a replacement can never execute the same key concurrently.
 const PROCESSING_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PRUNE_BATCH_SIZE = 200;
+const PRUNE_INTERVAL_MS = 60_000;
+let lastPruneAt = 0;
+
+export async function pruneExpiredRequests(
+  now = new Date(),
+  limit = PRUNE_BATCH_SIZE,
+): Promise<number> {
+  const expiredIds = db
+    .select({ id: requestIdempotency.id })
+    .from(requestIdempotency)
+    .where(
+      and(
+        inArray(requestIdempotency.status, ["succeeded", "failed"]),
+        lte(requestIdempotency.expiresAt, now),
+      ),
+    )
+    .limit(limit);
+  const deleted = await db
+    .delete(requestIdempotency)
+    .where(
+      and(
+        inArray(requestIdempotency.id, expiredIds),
+        inArray(requestIdempotency.status, ["succeeded", "failed"]),
+        lte(requestIdempotency.expiresAt, now),
+      ),
+    )
+    .returning({ id: requestIdempotency.id });
+  return deleted.length;
+}
+
+function scheduleExpiredRequestPrune(now = new Date()): void {
+  const ts = now.getTime();
+  if (ts - lastPruneAt < PRUNE_INTERVAL_MS) return;
+  lastPruneAt = ts;
+  void pruneExpiredRequests(now).catch(() => undefined);
+}
 
 export type RequestReplay = {
   kind: "replay";
@@ -35,20 +72,6 @@ export async function beginRequest(
   const expiresAt = new Date(now.getTime() + PROCESSING_TIMEOUT_MS);
   const leaseToken = randomUUID();
 
-  // Expired terminal records (>24h) must not replay stale responses; delete any
-  // expired settled entry for this key before attempting a fresh claim.
-  await db
-    .delete(requestIdempotency)
-    .where(
-      and(
-        eq(requestIdempotency.userId, userId),
-        eq(requestIdempotency.scope, scope),
-        eq(requestIdempotency.key, key),
-        inArray(requestIdempotency.status, ["succeeded", "failed"]),
-        lte(requestIdempotency.expiresAt, now),
-      ),
-    );
-
   const [inserted] = await db
     .insert(requestIdempotency)
     .values({
@@ -61,12 +84,24 @@ export async function beginRequest(
       createdAt: now,
       updatedAt: now,
     })
-    .onConflictDoNothing({
+    .onConflictDoUpdate({
       target: [
         requestIdempotency.userId,
         requestIdempotency.scope,
         requestIdempotency.key,
       ],
+      set: {
+        leaseToken,
+        status: "processing",
+        responseStatus: null,
+        responseBody: null,
+        updatedAt: now,
+        expiresAt,
+      },
+      setWhere: and(
+        inArray(requestIdempotency.status, ["succeeded", "failed"]),
+        lte(requestIdempotency.expiresAt, now),
+      ),
     })
     .returning({ id: requestIdempotency.id });
 
@@ -161,6 +196,7 @@ export async function completeRequest(
     )
     .returning({ id: requestIdempotency.id });
   if (!updated) throw inProgressError();
+  if (!tx) scheduleExpiredRequestPrune();
 }
 
 export async function failRequest(
@@ -189,6 +225,7 @@ export async function failRequest(
     )
     .returning({ id: requestIdempotency.id });
   if (!updated) throw inProgressError();
+  if (!tx) scheduleExpiredRequestPrune();
 }
 
 export function inProgressError(): ApiError {

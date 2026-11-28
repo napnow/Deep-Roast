@@ -188,6 +188,7 @@
 .rd-sheet__body .reverse-prompt-panel__heading{display:none !important}
 .rd-sheet__body .creation-step-card__heading,
 .rd-sheet__body .creation-step-card__summary{display:flex;align-items:center;gap:8px;min-width:0}
+.rd-sheet__body .creation-step-card__heading>div,
 .rd-sheet__body .creation-step-card__summary>span:last-child{min-width:0}
 .rd-sheet__body .creation-step-card__number{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--bg-elevated);border:1px solid var(--border);font-family:var(--rd-mono);font-size:10.5px;font-weight:600;color:var(--text-secondary)}
 .rd-sheet__body .creation-step-card__title,
@@ -234,6 +235,7 @@
   .rd-composer.is-sheet.is-expanded .rd-composer__expandable{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
   .rd-composer.is-collapsed .rd-composer__expandable{display:grid;grid-template-rows:0fr;opacity:0;pointer-events:none}
   .rd-composer__expandable-inner{min-height:0;overflow:hidden}
+  .rd-composer.is-sheet.is-expanded .rd-composer__expandable-inner{overflow:visible}
   .rd-composer.is-collapsed .rd-composer__expandable-inner{visibility:hidden}
   .rd-composer textarea{min-height:40px;max-height:132px;padding:2px 4px 0 2px;font-size:15px;line-height:1.56}
   .rd-empty{margin-top:15vh}

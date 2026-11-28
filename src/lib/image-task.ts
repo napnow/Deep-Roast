@@ -7,6 +7,25 @@ export interface ImageTaskError {
   kind: ImageTaskErrorKind;
   message: string;
   code?: string;
+  status?: number;
+  unsettledGateway?: boolean;
+}
+
+export interface ImageTaskSettledSlotImage {
+  id: string;
+  prompt: string;
+  model: string;
+  imageUrl: string;
+  thumbUrl?: string;
+  size: string;
+  createdAt: string;
+  sourceMode: "text";
+}
+
+export interface ImageTaskBatchSlot {
+  key: string;
+  settledImage?: ImageTaskSettledSlotImage;
+  uncertain?: boolean;
 }
 
 export interface ImageTaskRequest {
@@ -14,9 +33,12 @@ export interface ImageTaskRequest {
   prompt: string;
   size: string;
   count: number;
+  model?: string;
   images?: string[];
   editRequest?: ImageEditRequest;
   idempotencyKey?: string;
+  keyUncertain?: boolean;
+  slots?: ImageTaskBatchSlot[];
 }
 
 export interface ImageTaskState {
@@ -54,10 +76,13 @@ export function classifyImageTaskError(error: unknown): ImageTaskError {
   }
 
   if (error instanceof ApiError) {
+    const unsettledGateway = error.raw === null && error.status >= 500;
     return {
       kind: "service",
       message: error.message,
       ...(error.code ? { code: error.code } : {}),
+      ...(error.status ? { status: error.status } : {}),
+      ...(unsettledGateway ? { unsettledGateway: true } : {}),
     };
   }
 
@@ -69,8 +94,20 @@ export function classifyImageTaskError(error: unknown): ImageTaskError {
 
 export function shouldReuseIdempotencyKey(
   error: ImageTaskError | null | undefined,
+  previousUncertain = false,
 ): boolean {
-  return (
-    error?.kind === "network" || error?.code === "IDEMPOTENCY_IN_PROGRESS"
-  );
+  if (!error) return false;
+  if (
+    error.kind === "network" ||
+    error.code === "IDEMPOTENCY_IN_PROGRESS" ||
+    error.code === "RATE_LIMITED" ||
+    error.status === 429 ||
+    error.unsettledGateway === true
+  ) {
+    return true;
+  }
+  if (previousUncertain && error.code === "IMAGE_QUEUE_FULL") {
+    return true;
+  }
+  return false;
 }

@@ -14,6 +14,10 @@ import type { CanvasPromptPanelSettings } from "@/components/ImageGen/CanvasProm
 import { resolvePromptTextReferences, type CanvasPromptReference } from "@/components/ImageGen/canvas-prompt";
 import { createImageContinuationDraft } from "@/lib/image-continuation";
 import {
+  isGeminiImageModel,
+  mapImageSizeToModelOption,
+} from "@/lib/image-model-capabilities";
+import {
   IMAGE_MODEL_PREFERENCE_STORAGE_KEY,
   resolveImageModelAfterConfigLoad,
 } from "@/lib/image-model-preferences";
@@ -24,6 +28,20 @@ const HISTORY_PAGE_SIZE = 50;
 
 function encodeCanvasBody(value: unknown): { body: string } {
   return { body: JSON.stringify(value) };
+}
+
+function resolveCanvasEditModel(
+  requestedModel: string,
+  allModels: string[],
+  fallbackDefault: string,
+): string {
+  if (!isGeminiImageModel(requestedModel)) return requestedModel;
+  const nonGemini = allModels.find((id) => !isGeminiImageModel(id));
+  if (nonGemini) return nonGemini;
+  if (fallbackDefault && !isGeminiImageModel(fallbackDefault)) {
+    return fallbackDefault;
+  }
+  return requestedModel;
 }
 
 
@@ -153,6 +171,10 @@ export default function CanvasStudioPage() {
         const sourceReference = references.find(reference => reference.kind === "image" && reference.id !== nodeId);
         let results: ImageRecord[];
         if (sourceReference && (sourceReference.imageUrl || sourceReference.previewUrl)) {
+          const editModel = resolveCanvasEditModel(settings.model, imageModels, defaultImageModel);
+          const editSize = editModel !== settings.model
+            ? mapImageSizeToModelOption(settings.size, editModel)
+            : settings.size;
           const response = await apiJson<{ images: ImageRecord[] }>(settings.count > 1 ? "/api/image-edit/batch" : "/api/image-edit", {
             method: "POST",
             headers: { "Idempotency-Key": crypto.randomUUID() },
@@ -164,8 +186,8 @@ export default function CanvasStudioPage() {
               sourceImageId: sourceReference.id,
               referenceImages,
               prompt: resolvedPrompt,
-              model: settings.model,
-              size: settings.size,
+              model: editModel,
+              size: editSize,
               count: settings.count,
             } : {
               mode: "reference",
@@ -174,8 +196,8 @@ export default function CanvasStudioPage() {
               sourceImageId: sourceReference.id,
               referenceImages,
               prompt: resolvedPrompt,
-              model: settings.model,
-              size: settings.size,
+              model: editModel,
+              size: editSize,
             }),
           });
           results = response.images ?? [];
@@ -210,6 +232,10 @@ export default function CanvasStudioPage() {
         return [];
       }
     }
+    const editModel = resolveCanvasEditModel(settings.model, imageModels, defaultImageModel);
+    const editSize = editModel !== settings.model
+      ? mapImageSizeToModelOption(settings.size, editModel)
+      : settings.size;
     const editBody = referenceImages.length
       ? {
           mode: "reference",
@@ -218,16 +244,16 @@ export default function CanvasStudioPage() {
           sourceImageId: target.id,
           referenceImages,
           prompt: resolvedPrompt,
-          model: settings.model,
-          size: settings.size,
+          model: editModel,
+          size: editSize,
           count: settings.count,
         }
       : {
           mode: "per-image",
           items: [{ image: target.imageUrl, prompt: resolvedPrompt, sourceImageId: target.id, targetIndex: 0 }],
           prompt: resolvedPrompt,
-          model: settings.model,
-          size: settings.size,
+          model: editModel,
+          size: editSize,
           count: settings.count,
         };
     const endpoint = settings.count > 1 ? "/api/image-edit/batch" : "/api/image-edit";
@@ -252,7 +278,7 @@ export default function CanvasStudioPage() {
       setGenerationStatus(error instanceof ApiError ? error.message : "生成失败，请稍后重试。");
       return [];
     }
-  }, [images]);
+  }, [defaultImageModel, imageModels, images]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {

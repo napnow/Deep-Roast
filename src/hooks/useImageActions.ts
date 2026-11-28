@@ -12,16 +12,28 @@ import { isGeminiImageModel } from "@/lib/image-model-capabilities";
 import {
   classifyImageTaskError,
   shouldReuseIdempotencyKey,
+  type ImageTaskBatchSlot,
 } from "@/lib/image-task";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
+import type { ImageRecord } from "@/types";
 
 /** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400；图生图自动避开仅支持文生图的 Gemini 模型 */
-function resolveRequestModel(mode: "text" | "edit" = "text"): string {
+function resolveRequestModel(
+  mode: "text" | "edit" = "text",
+  explicitModel?: string,
+): string {
   const { config, selectedImageModel } = useDeepRoastStore.getState();
   const enabled = config.enabledImageModels;
   const compatible = (id: string) => mode !== "edit" || !isGeminiImageModel(id);
 
   if (enabled !== undefined) {
+    if (
+      explicitModel &&
+      enabled.includes(explicitModel) &&
+      compatible(explicitModel)
+    ) {
+      return explicitModel;
+    }
     if (
       selectedImageModel &&
       enabled.includes(selectedImageModel) &&
@@ -40,6 +52,9 @@ function resolveRequestModel(mode: "text" | "edit" = "text"): string {
       const fallbackEdit = enabled.find((id) => !isGeminiImageModel(id));
       if (fallbackEdit) return fallbackEdit;
     }
+    if (explicitModel && enabled.includes(explicitModel)) {
+      return explicitModel;
+    }
     if (selectedImageModel && enabled.includes(selectedImageModel)) {
       return selectedImageModel;
     }
@@ -48,12 +63,32 @@ function resolveRequestModel(mode: "text" | "edit" = "text"): string {
     }
     throw new ApiError("管理员暂未启用图片模型", 503, "MODEL_UNAVAILABLE");
   }
-  if (mode === "edit" && selectedImageModel && isGeminiImageModel(selectedImageModel)) {
+  if (explicitModel && compatible(explicitModel)) {
+    return explicitModel;
+  }
+  const preferred = explicitModel || selectedImageModel;
+  if (mode === "edit" && preferred && isGeminiImageModel(preferred)) {
     if (config.imageModel && !isGeminiImageModel(config.imageModel)) {
       return config.imageModel;
     }
   }
-  return selectedImageModel || config.imageModel;
+  return preferred || config.imageModel;
+}
+
+function prependUniqueImages(
+  previous: ImageRecord[],
+  incoming: ImageRecord[],
+): ImageRecord[] {
+  if (!incoming.length) return previous;
+  const seen = new Set(incoming.map((item) => item.id));
+  return [...incoming, ...previous.filter((item) => !seen.has(item.id))];
+}
+
+interface RetryBatchOptions {
+  idempotencyKey?: string;
+  model?: string;
+  keyUncertain?: boolean;
+  slots?: ImageTaskBatchSlot[];
 }
 
 function idempotencyHeaders(key = crypto.randomUUID()): HeadersInit {
@@ -109,13 +144,28 @@ export function useImageActions(loadCredits: () => Promise<void>) {
   }, [requests, setGenerating, clearImageTask]);
 
   const handleGenerateImage = useCallback(
-    async (prompt: string, size: string, retryKey?: string) => {
+    async (
+      prompt: string,
+      size: string,
+      retryKey?: string,
+      retryModel?: string,
+      previousUncertain = false,
+    ) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
       const idempotencyKey = retryKey ?? crypto.randomUUID();
       setGenerating(true);
-      startImageTask({ mode: "text", prompt, size, count: 1, idempotencyKey });
+      startImageTask({
+        mode: "text",
+        prompt,
+        size,
+        count: 1,
+        model: retryModel,
+        idempotencyKey,
+        keyUncertain: previousUncertain,
+      });
       try {
+        const resolvedModel = resolveRequestModel("text", retryModel);
         const data = await apiJson<{
           id: string;
           prompt: string;
@@ -128,24 +178,25 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           ...jsonBody({
             prompt,
             size,
-            model: resolveRequestModel(),
+            model: resolvedModel,
           }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
         if (!generation.isCurrent()) return;
-        setImageHistory((prev) => [
-          {
-            id: data.id,
-            prompt: data.prompt,
-            model: data.model,
-            imageUrl: data.imageUrl,
-            thumbUrl: data.thumbUrl,
-            size: data.size,
-            createdAt: new Date().toISOString(),
-            sourceMode: "text",
-          },
-          ...prev,
-        ]);
+        setImageHistory((prev) =>
+          prependUniqueImages(prev, [
+            {
+              id: data.id,
+              prompt: data.prompt,
+              model: data.model,
+              imageUrl: data.imageUrl,
+              thumbUrl: data.thumbUrl,
+              size: data.size,
+              createdAt: new Date().toISOString(),
+              sourceMode: "text",
+            },
+          ]),
+        );
         finishImageTask([data.id]);
         setActiveImageId(data.id);
         toast("图片生成成功", "success");
@@ -155,7 +206,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (err instanceof Error && err.name === "AbortError") {
           clearImageTask();
         } else if (err instanceof ApiError) {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, {
+            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+          });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
             setWalletOpen(true);
@@ -163,7 +217,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             toast(err.message || "图片生成失败", "error");
           }
         } else {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, { keyUncertain: true });
           toast("网络错误", "error");
         }
       } finally {
@@ -175,19 +230,56 @@ export function useImageActions(loadCredits: () => Promise<void>) {
   );
 
   const handleGenerateImageBatch = useCallback(
-    async (prompt: string, size: string, requestedCount = 1, retryKey?: string) => {
+    async (
+      prompt: string,
+      size: string,
+      requestedCount = 1,
+      retryKeyOrOptions?: string | RetryBatchOptions,
+    ) => {
+      const retryOpts: RetryBatchOptions =
+        typeof retryKeyOrOptions === "string"
+          ? { idempotencyKey: retryKeyOrOptions }
+          : retryKeyOrOptions ?? {};
       const count = Math.min(Math.max(Math.floor(requestedCount) || 1, 1), 5);
       if (count === 1) {
-        await handleGenerateImage(prompt, size, retryKey);
+        await handleGenerateImage(
+          prompt,
+          size,
+          retryOpts.idempotencyKey,
+          retryOpts.model,
+          Boolean(retryOpts.keyUncertain),
+        );
         return;
       }
 
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
       const batchGeneration = generation;
-      const idempotencyKey = retryKey ?? crypto.randomUUID();
+      const freshPrefix = retryOpts.idempotencyKey ?? crypto.randomUUID();
+      const initialSlots: ImageTaskBatchSlot[] =
+        retryOpts.slots && retryOpts.slots.length === count
+          ? retryOpts.slots.map((slot, index) =>
+              slot.settledImage || slot.uncertain
+                ? { ...slot }
+                : { key: `${freshPrefix}:${index}` },
+            )
+          : Array.from({ length: count }, (_, index) => ({
+              key: `${freshPrefix}:${index}`,
+            }));
+      const nextSlots: ImageTaskBatchSlot[] = initialSlots.map((slot) => ({
+        ...slot,
+        uncertain: slot.settledImage ? false : true,
+      }));
       setGenerating(true);
-      startImageTask({ mode: "text", prompt, size, count, idempotencyKey });
+      startImageTask({
+        mode: "text",
+        prompt,
+        size,
+        count,
+        model: retryOpts.model,
+        idempotencyKey: initialSlots[0]?.key,
+        slots: initialSlots,
+      });
       const results: {
         id: string;
         prompt: string;
@@ -205,12 +297,14 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (!generation.isCurrent() || published || results.length === 0) return false;
         published = true;
         const ordered = [...results].sort((a, b) => a.batchIndex - b.batchIndex);
-        setImageHistory((previous) => [
-          // The key is intentionally omitted from the persisted history item.
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          ...ordered.map(({ batchIndex: _index, ...item }) => item),
-          ...previous,
-        ]);
+        setImageHistory((previous) =>
+          prependUniqueImages(
+            previous,
+            // The key is intentionally omitted from the persisted history item.
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            ordered.map(({ batchIndex: _index, ...item }) => item),
+          ),
+        );
         setActiveImageId(ordered[0].id);
         toast(`生成成功 ${results.length} 张`, "success");
         return true;
@@ -224,30 +318,49 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
       try {
         try {
+          const resolvedModel = resolveRequestModel("text", retryOpts.model);
           let nextIndex = 0;
           async function worker() {
             while (nextIndex < count && !failure && batchGeneration.isCurrent()) {
               const index = nextIndex++;
+              if (nextSlots[index]?.settledImage) continue;
+              const slotKey = nextSlots[index]!.key;
+              const wasUncertain = Boolean(initialSlots[index]?.uncertain);
               try {
                 const data = await apiJson<{
-              id: string;
-              prompt: string;
-              model: string;
-              imageUrl: string;
-              thumbUrl?: string;
-              size: string;
+                  id: string;
+                  prompt: string;
+                  model: string;
+                  imageUrl: string;
+                  thumbUrl?: string;
+                  size: string;
                 }>("/api/image", {
-              method: "POST",
-              ...jsonBody(
-                { prompt, size, model: resolveRequestModel() },
-                idempotencyHeaders(`${idempotencyKey}:${index}`),
-              ),
-              signal: batchGeneration.signal,
-            });
+                  method: "POST",
+                  ...jsonBody(
+                    { prompt, size, model: resolvedModel },
+                    idempotencyHeaders(slotKey),
+                  ),
+                  signal: batchGeneration.signal,
+                });
                 if (!batchGeneration.isCurrent()) return;
-                results.push({ ...data, createdAt: new Date().toISOString(), sourceMode: "text", batchIndex: index });
+                const settledImage = {
+                  ...data,
+                  createdAt: new Date().toISOString(),
+                  sourceMode: "text" as const,
+                };
+                nextSlots[index] = {
+                  key: slotKey,
+                  settledImage,
+                  uncertain: false,
+                };
+                results.push({ ...settledImage, batchIndex: index });
               } catch (error: unknown) {
                 if (!batchGeneration.isCurrent()) return;
+                const classified = classifyImageTaskError(error);
+                nextSlots[index] = {
+                  key: slotKey,
+                  uncertain: shouldReuseIdempotencyKey(classified, wasUncertain),
+                };
                 const priority = (value: unknown) => value instanceof ApiError
                   ? value.code === "CREDIT_REFUND_PENDING"
                     ? 5
@@ -255,7 +368,9 @@ export function useImageActions(loadCredits: () => Promise<void>) {
                       ? 4
                       : value.code === "INSUFFICIENT_CREDITS"
                         ? 3
-                        : value.code === "IDEMPOTENCY_IN_PROGRESS"
+                        : value.code === "IDEMPOTENCY_IN_PROGRESS" ||
+                            value.code === "RATE_LIMITED" ||
+                            value.status === 429
                           ? 2
                           : 1
                   : 2;
@@ -271,14 +386,21 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
         // Never publish a cancelled batch's buffered images into another task/session.
         if (!generation.isCurrent()) return;
+        const allSettled = nextSlots.every((slot) => Boolean(slot.settledImage));
         if (publishCompleted()) {
-          finishImageTask([...results].sort((a, b) => a.batchIndex - b.batchIndex).map((item) => item.id));
+          if (allSettled) {
+            finishImageTask(nextSlots.map((slot) => slot.settledImage!.id));
+          }
           await loadCredits();
           if (!generation.isCurrent()) return;
+        } else if (allSettled) {
+          finishImageTask(nextSlots.map((slot) => slot.settledImage!.id));
         }
 
         if (failure && !(failure instanceof Error && failure.name === "AbortError")) {
-          if (results.length === 0) failImageTask(classifyImageTaskError(failure));
+          if (!allSettled) {
+            failImageTask(classifyImageTaskError(failure), { slots: nextSlots });
+          }
           if (failure instanceof ApiError && failure.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，批量生成已停止", "error");
             setWalletOpen(true);
@@ -322,7 +444,12 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
   /** 图生图：提交逐图或目标/参考结构化任务 */
   const handleEditImage = useCallback(
-    async (request: ImageEditRequest, size: string, retryKey?: string) => {
+    async (
+      request: ImageEditRequest,
+      size: string,
+      retryKey?: string,
+      previousUncertain = false,
+    ) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
       const idempotencyKey = retryKey ?? crypto.randomUUID();
@@ -340,11 +467,14 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         prompt,
         size,
         count: 1,
+        model: request.model,
         images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
         editRequest: request,
         idempotencyKey,
+        keyUncertain: previousUncertain,
       });
       try {
+        const resolvedModel = resolveRequestModel("edit", request.model);
         const data = await apiJson<{
           images: {
             id: string;
@@ -364,7 +494,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             ...request,
             prompt,
             size,
-            model: resolveRequestModel("edit"),
+            model: resolvedModel,
           }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
@@ -381,7 +511,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           createdAt: new Date().toISOString(),
           sourceMode: "edit" as const,
         }));
-        setImageHistory((prev) => [...list, ...prev]);
+        setImageHistory((prev) => prependUniqueImages(prev, list));
         finishImageTask(list.map((item) => item.id));
         if (list[0]) setActiveImageId(list[0].id);
         const refundNotice = getRefundPendingNotice(data);
@@ -401,7 +531,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (err instanceof Error && err.name === "AbortError") {
           clearImageTask();
         } else if (err instanceof ApiError) {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, {
+            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+          });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
             setWalletOpen(true);
@@ -409,7 +542,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             toast(err.message || "图生图失败", "error");
           }
         } else {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, { keyUncertain: true });
           toast("网络错误", "error");
         }
       } finally {
@@ -422,7 +556,13 @@ export function useImageActions(loadCredits: () => Promise<void>) {
 
   /** 图生图批量：按结构化任务生成 N 张变体（最多 5） */
   const handleEditImageBatch = useCallback(
-    async (request: ImageEditRequest, size: string, count: number, retryKey?: string) => {
+    async (
+      request: ImageEditRequest,
+      size: string,
+      count: number,
+      retryKey?: string,
+      previousUncertain = false,
+    ) => {
       const generation = requests.start("generation", userSessionVersion);
       if (!generation) return;
       const idempotencyKey = retryKey ?? crypto.randomUUID();
@@ -440,11 +580,14 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         prompt,
         size,
         count,
+        model: request.model,
         idempotencyKey,
+        keyUncertain: previousUncertain,
         images: Array.isArray(legacyImages) ? legacyImages : [legacyImages],
         editRequest: request,
       });
       try {
+        const resolvedModel = resolveRequestModel("edit", request.model);
         const data = await apiJson<{
           images: {
             id: string;
@@ -469,7 +612,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             count,
-            model: resolveRequestModel("edit"),
+            model: resolvedModel,
           }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
@@ -486,12 +629,15 @@ export function useImageActions(loadCredits: () => Promise<void>) {
           createdAt: new Date().toISOString(),
           sourceMode: "edit" as const,
         }));
-        setImageHistory((prev) => [...list, ...prev]);
+        setImageHistory((prev) => prependUniqueImages(prev, list));
         if (list.length > 0) {
           finishImageTask(list.map((item) => item.id));
           setActiveImageId(list[0].id);
         } else {
-          failImageTask({ kind: "service", message: data.lastError || "批量生成失败" });
+          failImageTask(
+            { kind: "service", message: data.lastError || "批量生成失败" },
+            { keyUncertain: false },
+          );
         }
         const refundNotice = getRefundPendingNotice(data);
         if (refundNotice) {
@@ -514,7 +660,10 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         if (err instanceof Error && err.name === "AbortError") {
           clearImageTask();
         } else if (err instanceof ApiError) {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, {
+            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+          });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
             setWalletOpen(true);
@@ -522,7 +671,8 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             toast(err.message || "批量生成失败", "error");
           }
         } else {
-          failImageTask(classifyImageTaskError(err));
+          const classified = classifyImageTaskError(err);
+          failImageTask(classified, { keyUncertain: true });
           toast("网络错误", "error");
         }
       } finally {
@@ -537,43 +687,52 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     if (!requests.isActive(userSessionVersion)) return;
     const { request, error } = useDeepRoastStore.getState().imageTask;
     if (!request) return;
-    // Reuse the previous key when the client never received a definitive
-    // outcome (network drop or server still processing the same key). Once the
-    // server persisted a terminal failed status, mint a new key on retry.
-    const retryKey = shouldReuseIdempotencyKey(error)
-      ? request.idempotencyKey
-      : undefined;
+    const keepKey = shouldReuseIdempotencyKey(error, Boolean(request.keyUncertain));
+    const retryKey = keepKey ? request.idempotencyKey : undefined;
     if (request.mode === "text") {
-      await handleGenerateImageBatch(request.prompt, request.size, request.count, retryKey);
+      await handleGenerateImageBatch(request.prompt, request.size, request.count, {
+        idempotencyKey: retryKey,
+        model: request.model,
+        keyUncertain: keepKey,
+        slots: request.slots,
+      });
     } else if (request.editRequest) {
+      const editPayload = request.model
+        ? { ...request.editRequest, model: request.model }
+        : request.editRequest;
       if (request.count > 1) {
         await handleEditImageBatch(
-          request.editRequest,
+          editPayload,
           request.size,
           request.count,
           retryKey,
+          keepKey,
         );
       } else {
-        await handleEditImage(request.editRequest, request.size, retryKey);
+        await handleEditImage(editPayload, request.size, retryKey, keepKey);
       }
     } else if (request.count > 1) {
       await handleEditImageBatch(
         {
           image: request.images || [],
           prompt: request.prompt,
+          ...(request.model ? { model: request.model } : {}),
         },
         request.size,
         request.count,
         retryKey,
+        keepKey,
       );
     } else {
       await handleEditImage(
         {
           image: request.images || [],
           prompt: request.prompt,
+          ...(request.model ? { model: request.model } : {}),
         },
         request.size,
         retryKey,
+        keepKey,
       );
     }
   }, [requests, userSessionVersion, handleEditImage, handleEditImageBatch, handleGenerateImageBatch]);

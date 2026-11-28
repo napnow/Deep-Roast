@@ -20,11 +20,18 @@ test("redesign studio keeps feature parity with the classic workspace", () => {
   assert.match(studio, /rd-composer__handle/);
   assert.match(studio, /rd-composer__compact/);
   assert.match(studio, /is-composer-collapsed/);
-  assert.match(studio, /setSelectedImageModel\(editActiveModel\)/);
+  assert.match(studio, /onImageModelChange=\{setEditSelectedModel\}/);
+  assert.match(studio, /model:\s*editActiveModel/);
+  assert.match(studio, /deleteBusyRef/);
 
   const shellCss = readFileSync("src/app/redesign-shell.css", "utf8");
   assert.match(
     shellCss,
     /\.rd-composer\.is-sheet \.rd-composer__expandable\{display:flex;flex-direction:column;flex:1 1 auto;min-height:0\}/,
   );
+  const groupRoute = readFileSync(
+    "src/app/api/image-history/version-group/[groupId]/route.ts",
+    "utf8",
+  );
+  assert.match(groupRoute, /privateNoStore\(/);
 });

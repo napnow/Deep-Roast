@@ -7,6 +7,10 @@ import CanvasPromptChipInput from "./CanvasPromptChipInput";
 import { getSizeOptions } from "./imageUtils";
 import { getImageModelLabel } from "./image-model-presentation";
 import { normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
+import {
+  isGeminiImageModel,
+  mapImageSizeToModelOption,
+} from "@/lib/image-model-capabilities";
 
 export type CanvasPromptPanelSettings = {
   model: string;
@@ -59,8 +63,14 @@ export default function CanvasPromptPanel({
   const [busy, setBusy] = useState(false);
   const [inputMode, setInputMode] = useState<"text" | "image">("text");
   const selected = useMemo(() => candidates.filter(candidate => prompt.includes(candidate.label)), [candidates, prompt]);
+  const hasImageReference = useMemo(() => selected.some(item => item.kind === "image"), [selected]);
   const tokens = useMemo(() => parsePromptReferences(prompt, candidates), [candidates, prompt]);
-  const availableModels = useMemo(() => models.filter(Boolean), [models]);
+  const availableModels = useMemo(() => {
+    const all = models.filter(Boolean);
+    if (!hasImageReference && inputMode !== "image") return all;
+    const editCapable = all.filter(id => !isGeminiImageModel(id));
+    return editCapable.length > 0 ? editCapable : all;
+  }, [hasImageReference, inputMode, models]);
   const modelOptions = useMemo(() => {
     const ids = availableModels.length ? availableModels : [settings.model];
     return ids.map(model => ({ value: model, label: getImageModelLabel(model) }));
@@ -79,7 +89,10 @@ export default function CanvasPromptPanel({
         ? (availableModels.includes(requestedModel) ? requestedModel : availableModels[0]!)
         : requestedModel;
       const options = getSizeOptions(nextModel);
-      const nextSize = normalizeImageSizeSelection(current.size, nextModel, options);
+      const mappedSize = nextModel !== current.model
+        ? mapImageSizeToModelOption(current.size, nextModel)
+        : current.size;
+      const nextSize = normalizeImageSizeSelection(mappedSize, nextModel, options);
       return nextModel === current.model && nextSize === current.size
         ? current
         : { ...current, model: nextModel, size: nextSize };

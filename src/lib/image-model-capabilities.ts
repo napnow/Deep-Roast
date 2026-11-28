@@ -148,3 +148,35 @@ export function getImageSizeOptions(model: string): ImageSizeOption[] {
   }
   return GPT_IMAGE_SIZE_OPTIONS;
 }
+
+/**
+ * 跨模型切换（如从 Gemini 1K/2K 切换到 GPT / Grok 图生图）时，若源尺寸不在目标模型预设列表内，
+ * 按对数宽高比匹配最接近的目标模型预设尺寸（约 4% 比例误差内视为同一标准画幅）。
+ */
+export function mapImageSizeToModelOption(
+  size: string,
+  targetModel: string,
+): string {
+  const options = getImageSizeOptions(targetModel);
+  if (options.some((opt) => opt.value === size)) return size;
+  const match = /^(\d+)x(\d+)$/.exec(size.trim());
+  const width = match ? Number(match[1]) : 0;
+  const height = match ? Number(match[2]) : 0;
+  if (!width || !height) return options[0]?.value ?? "1024x1024";
+  const target = Math.log(width / height);
+  let best: ImageSizeOption | null = null;
+  let bestDelta = Infinity;
+  for (const opt of options) {
+    const m = /^(\d+)x(\d+)$/.exec(opt.value);
+    if (!m) continue;
+    const delta = Math.abs(Math.log(Number(m[1]) / Number(m[2])) - target);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = opt;
+    }
+  }
+  if (best && (bestDelta <= 0.04 || !isGptImageModel(targetModel))) {
+    return best.value;
+  }
+  return size;
+}

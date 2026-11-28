@@ -9,7 +9,11 @@ import { useDeepRoastStore } from "@/lib/store";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { AppIcon } from "@/components/ui/icons";
 import { imageSizeLabel, normalizeImageSizeSelection } from "@/lib/custom-image-ratio";
-import { isGeminiImageModel, isGptImageModel } from "@/lib/image-model-capabilities";
+import {
+  isGeminiImageModel,
+  isGptImageModel,
+  mapImageSizeToModelOption,
+} from "@/lib/image-model-capabilities";
 import { copyText } from "@/lib/browser-actions";
 import { useActionFeedback } from "@/hooks/useActionFeedback";
 import { CustomPixelEditor, CustomRatioEditor } from "@/components/ImageGen/ImageRatioPicker";
@@ -145,7 +149,6 @@ export default function RedesignStudio({
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
   const imageModels = useDeepRoastStore((state) => state.imageModels);
-  const selectedImageModel = useDeepRoastStore((state) => state.selectedImageModel);
   const setSelectedImageModel = useDeepRoastStore((state) => state.setSelectedImageModel);
   const setTextToImageDraft = useDeepRoastStore((state) => state.setTextToImageDraft);
   const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
@@ -159,6 +162,8 @@ export default function RedesignStudio({
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [deleting, setDeleting] = useState(false);
+  const deleteBusyRef = useRef(false);
+  const selectionEpochRef = useRef(0);
   const confirm = useConfirm();
   const previewDownload = useActionFeedback(`${preview?.id || ""}:download`);
   const previewCopy = useActionFeedback(`${preview?.id || ""}:copy`);
@@ -225,6 +230,7 @@ export default function RedesignStudio({
   }
 
   function toggleSelected(id: string) {
+    selectionEpochRef.current += 1;
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -234,47 +240,59 @@ export default function RedesignStudio({
   }
 
   function exitSelecting() {
+    selectionEpochRef.current += 1;
     setSelecting(false);
     setSelectedIds(new Set());
   }
 
   async function batchDelete(mode: "selected" | "version-group") {
-    if (deleting) return;
+    if (deleting || deleteBusyRef.current) return;
     const group = mode === "version-group";
     if (group ? !selectedGroupId : !selectedImages.length) return;
-    let totalGroupSize = selectedGroupSize;
-    if (group && selectedGroupId && hasMore) {
-      try {
-        const res = await apiJson<{ count?: number }>(
-          `/api/image-history/version-group/${encodeURIComponent(selectedGroupId)}`,
-        );
-        if (typeof res.count === "number" && res.count > totalGroupSize) {
-          totalGroupSize = res.count;
-        }
-      } catch {
-        /* 统计查询失败时回退为已加载数量提示 */
-      }
-    }
-    const unloadedCount = Math.max(0, totalGroupSize - selectedGroupSize);
-    const ok = await confirm({
-      title: group ? "删除整个版本组" : "删除选中作品",
-      message: group
-        ? unloadedCount > 0
-          ? `将删除该版本组的全部图片（共 ${totalGroupSize} 张，含未加载页面的 ${unloadedCount} 张），此操作不可撤销。`
-          : hasMore
-            ? `将删除该版本组的全部图片（当前已加载 ${totalGroupSize} 张，含同组未加载版本），此操作不可撤销。`
-            : `将删除该版本组的全部图片（共 ${totalGroupSize} 张），此操作不可撤销。`
-        : `将删除已选中的 ${selectedImages.length} 张图片，其他版本不会受影响。此操作不可撤销。`,
-      confirmText: "确认删除",
-    });
-    if (!ok) return;
+    const targetGroupId = selectedGroupId;
+    const targetIds = selectedImages.map((image) => image.id);
+    const loadedGroupCount = selectedGroupSize;
+    const epoch = selectionEpochRef.current;
+
+    deleteBusyRef.current = true;
     setDeleting(true);
     try {
-      const ids = group ? [selectedGroupId!] : selectedImages.map((image) => image.id);
+      let totalGroupSize = loadedGroupCount;
+      let countVerified = !hasMore;
+      if (group && targetGroupId && hasMore) {
+        try {
+          const res = await apiJson<{ count?: number }>(
+            `/api/image-history/version-group/${encodeURIComponent(targetGroupId)}`,
+            { cache: "no-store" },
+          );
+          if (typeof res.count === "number" && res.count >= 0) {
+            totalGroupSize = Math.max(loadedGroupCount, res.count);
+            countVerified = true;
+          }
+        } catch {
+          /* 统计查询失败时回退为已加载数量提示 */
+        }
+      }
+      if (selectionEpochRef.current !== epoch) return;
+      const unloadedCount = Math.max(0, totalGroupSize - loadedGroupCount);
+      const ok = await confirm({
+        title: group ? "删除整个版本组" : "删除选中作品",
+        message: group
+          ? unloadedCount > 0
+            ? `将删除该版本组的全部图片（共 ${totalGroupSize} 张，含未加载页面的 ${unloadedCount} 张），此操作不可撤销。`
+            : countVerified
+              ? `将删除该版本组的全部图片（共 ${totalGroupSize} 张），此操作不可撤销。`
+              : `将删除该版本组的全部图片（当前已加载 ${totalGroupSize} 张，若有未加载的同组版本也将一并删除），此操作不可撤销。`
+          : `将删除已选中的 ${targetIds.length} 张图片，其他版本不会受影响。此操作不可撤销。`,
+        confirmText: "确认删除",
+      });
+      if (!ok || selectionEpochRef.current !== epoch) return;
+      const ids = group ? [targetGroupId!] : targetIds;
       const deletedIds = await onBatchDeleteImages(ids, mode);
       if (preview && deletedIds.includes(preview.id)) setPreview(null);
       if (deletedIds.length) exitSelecting();
     } finally {
+      deleteBusyRef.current = false;
       setDeleting(false);
     }
   }
@@ -293,11 +311,6 @@ export default function RedesignStudio({
 
   function continueEditing(image: ImageRecord) {
     if (!image.imageUrl) return;
-    const currentModel = selectedImageModel || model;
-    if (isGeminiImageModel(currentModel)) {
-      const fallbackEdit = imageModels.find((item) => !isGeminiImageModel(item.id));
-      if (fallbackEdit) setSelectedImageModel(fallbackEdit.id);
-    }
     setImageToImageDraft(createImageContinuationDraft(image));
     setImageCreationMode("edit");
     setMobileComposerExpanded(true);
@@ -436,6 +449,8 @@ export default function RedesignStudio({
   function renderError() {
     if (imageTask.status !== "error" || !imageTask.error) return null;
     const inProgress = imageTask.error.code === "IDEMPOTENCY_IN_PROGRESS";
+    const rateLimited =
+      imageTask.error.code === "RATE_LIMITED" || imageTask.error.status === 429;
     return (
       <section className="rd-error" role="alert">
         <div>
@@ -446,7 +461,9 @@ export default function RedesignStudio({
                 ? "网络连接中断"
                 : inProgress
                   ? "上一笔请求仍在生成中"
-                  : "服务暂时没有完成生成"}
+                  : rateLimited
+                    ? "操作过于频繁"
+                    : "服务暂时没有完成生成"}
           </b>
           <p>
             {imageTask.error.kind === "credits"
@@ -455,9 +472,11 @@ export default function RedesignStudio({
                 ? "请先检查网络，描述和参数已保留，可返回修改或手动重试。"
                 : inProgress
                   ? "原请求仍在后台处理，稍等几秒再点重试即可取回结果，不会重复扣费。"
-                  : "可以稍后重试或返回调整参数，不会自动再次提交。"}
+                  : rateLimited
+                    ? "原请求状态已安全保留，稍等片刻再点重试即可，不会重复扣费。"
+                    : "可以稍后重试或返回调整参数，不会自动再次提交。"}
           </p>
-          {imageTask.error.kind === "service" && !inProgress && imageTask.error.message && <p className="rd-err-msg">{imageTask.error.message}</p>}
+          {imageTask.error.kind === "service" && !inProgress && !rateLimited && imageTask.error.message && <p className="rd-err-msg">{imageTask.error.message}</p>}
         </div>
         {imageTask.error.kind === "credits" ? (
           <button type="button" className="rd-bb is-visible" onClick={onWalletClick}>去钱包</button>
@@ -727,6 +746,7 @@ function RedesignComposer({
   const imageToImageDraft = useDeepRoastStore((state) => state.imageToImageDraft);
 
   const [pop, setPop] = useState<PopKey | null>(null);
+  const [editSelectedModel, setEditSelectedModel] = useState("");
   const [polishing, setPolishing] = useState(false);
   const [notice, setNotice] = useState("");
   const [ratioEditor, setRatioEditor] = useState<"none" | "ratio" | "pixel">("none");
@@ -745,8 +765,22 @@ function RedesignComposer({
   const modelIds = imageModels.map((item) => item.id);
   const activeModel = modelIds.includes(selectedImageModel) ? selectedImageModel : model;
   const nonGeminiModelIds = modelIds.filter((id) => !isGeminiImageModel(id));
-  const editModelIds = nonGeminiModelIds.length > 0 ? nonGeminiModelIds : modelIds;
-  const editActiveModel = editModelIds.includes(activeModel) ? activeModel : (editModelIds[0] ?? activeModel);
+  const editModelIds = nonGeminiModelIds;
+  const defaultEditFallback =
+    config.imageModel && editModelIds.includes(config.imageModel)
+      ? config.imageModel
+      : editModelIds[0] ?? "";
+  const editActiveModel = editSelectedModel && editModelIds.includes(editSelectedModel)
+    ? editSelectedModel
+    : editModelIds.includes(activeModel)
+      ? activeModel
+      : defaultEditFallback;
+  const editSizeOptions = getSizeOptions(editActiveModel || "gpt-image-2");
+  const editInitialSize = normalizeImageSizeSelection(
+    mapImageSizeToModelOption(draft.size, editActiveModel || "gpt-image-2"),
+    editActiveModel || "gpt-image-2",
+    editSizeOptions,
+  );
   const sizeIsPreset = sizeOptions.some((item) => item.value === size);
   const customSupported = isGptImageModel(activeModel);
   const ratioCustomOn = customSupported && (ratioEditor === "ratio" || (ratioEditor === "none" && !sizeIsPreset));
@@ -887,12 +921,6 @@ function RedesignComposer({
     );
   }
 
-  useEffect(() => {
-    if (mode === "edit" && selectedImageModel !== editActiveModel && editModelIds.includes(editActiveModel)) {
-      setSelectedImageModel(editActiveModel);
-    }
-  }, [mode, selectedImageModel, editActiveModel, editModelIds, setSelectedImageModel]);
-
   const modeLabel = CREATION_MODES.find(([id]) => id === mode)?.[1] ?? "文生图";
   const modeToken = (
     <div className="rd-popwrap">
@@ -900,20 +928,7 @@ function RedesignComposer({
       {pop === "mode" && (
         <div className="rd-pop" role="menu">
           <h6>创作模式</h6>
-          {CREATION_MODES.map(([id, label, hint]) =>
-            option(
-              id,
-              label,
-              id === mode,
-              () => {
-                if (id === "edit" && selectedImageModel !== editActiveModel && editModelIds.includes(editActiveModel)) {
-                  setSelectedImageModel(editActiveModel);
-                }
-                setMode(id);
-              },
-              hint,
-            ),
-          )}
+          {CREATION_MODES.map(([id, label, hint]) => option(id, label, id === mode, () => setMode(id), hint))}
         </div>
       )}
     </div>
@@ -1062,28 +1077,34 @@ function RedesignComposer({
               {mode === "edit" ? (
                 <Img2ImgPanel
                   desktop
-                  size={size}
+                  size={editInitialSize}
                   imageModel={editActiveModel}
                   imageModels={editModelIds}
-                  onImageModelChange={setSelectedImageModel}
+                  onImageModelChange={setEditSelectedModel}
                   imageModelCosts={config.imageModelCosts}
                   isAdmin={isAdmin}
                   draft={imageToImageDraft}
-                  sizeOptions={getSizeOptions(editActiveModel)}
+                  sizeOptions={editSizeOptions}
                   generating={generating}
-                  disabled={!available}
+                  disabled={!available || editModelIds.length === 0}
                   onGenerate={(genPrompt, genSize) => {
                     collapseMobile();
                     onGenerate(genPrompt, genSize);
                   }}
                   onEditImage={(request, editSize) => {
                     collapseMobile();
-                    onEditImage(request, editSize);
+                    onEditImage(
+                      editActiveModel ? { ...request, model: editActiveModel } : request,
+                      editSize,
+                    );
                   }}
                   onEditImageBatch={(request, editSize, count) => {
                     collapseMobile();
-                    if (count > 1) onEditImageBatch(request, editSize, count);
-                    else onEditImage(request, editSize);
+                    const payload = editActiveModel
+                      ? { ...request, model: editActiveModel }
+                      : request;
+                    if (count > 1) onEditImageBatch(payload, editSize, count);
+                    else onEditImage(payload, editSize);
                   }}
                   onStopGenerate={onStop}
                 />

@@ -278,9 +278,67 @@ test("retry issues a fresh Idempotency-Key after a 502 error while preserving it
   await env.flush();
   const fourthKey = new Headers(env.requests[3].init?.headers).get("Idempotency-Key");
   assert.equal(fourthKey, secondKey, "409 IDEMPOTENCY_IN_PROGRESS must keep reusing the same Idempotency-Key");
-  respond(env.requests[3], image("recovered"));
+  respond(
+    env.requests[3],
+    { error: "请求过于频繁，请稍后再试", code: "RATE_LIMITED" },
+    429,
+  );
+  await env.flush();
+
+  images.value.handleRetryImageTask();
+  await env.flush();
+  const fifthKey = new Headers(env.requests[4].init?.headers).get("Idempotency-Key");
+  assert.equal(fifthKey, secondKey, "429 RATE_LIMITED after 409 must still keep reusing the same Idempotency-Key");
+  respond(env.requests[4], image("recovered"));
   await env.flush();
   assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["recovered"]);
+});
+
+test("batch retry tracks per-slot Idempotency-Key across mixed 409 in-progress, 400 policy failure, partial 200, and 429", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+
+  // Initial count=2 batch: slot 0 -> 409 in_progress, slot 1 -> 400 content policy
+  const run1 = images.value.handleGenerateImageBatch("mixed-batch", size, 2);
+  await env.flush();
+  assert.equal(env.requests.length, 2);
+  const slot0Key1 = new Headers(env.requests[0].init?.headers).get("Idempotency-Key");
+  const slot1Key1 = new Headers(env.requests[1].init?.headers).get("Idempotency-Key");
+  respond(env.requests[0], { error: "仍在处理中", code: "IDEMPOTENCY_IN_PROGRESS" }, 409);
+  respond(env.requests[1], { error: "内容不合规", code: "IMAGE_CONTENT_POLICY" }, 400);
+  await run1; await env.flush();
+  assert.equal(env.store.getState().imageTask.status, "error");
+
+  // Retry #1: slot 0 MUST keep slot0Key1; slot 1 MUST get a fresh key!
+  const run2 = images.value.handleRetryImageTask();
+  await env.flush();
+  assert.equal(env.requests.length, 4);
+  const slot0Key2 = new Headers(env.requests[2].init?.headers).get("Idempotency-Key");
+  const slot1Key2 = new Headers(env.requests[3].init?.headers).get("Idempotency-Key");
+  assert.equal(slot0Key2, slot0Key1, "in-progress slot 0 must reuse its original Idempotency-Key");
+  assert.notEqual(slot1Key2, slot1Key1, "terminal 400 slot 1 must mint a fresh Idempotency-Key");
+
+  // On Retry #1: slot 0 settles with 200, slot 1 hits 429 rate limit!
+  respond(env.requests[2], image("batch-img-0"));
+  respond(env.requests[3], { error: "请求过于频繁", code: "RATE_LIMITED" }, 429);
+  await run2; await env.flush();
+  assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["batch-img-0"]);
+  assert.equal(env.store.getState().imageTask.status, "error", "retry banner stays active for unsettled slot 1");
+
+  // Retry #2: slot 0 is already settled (skipped!), only slot 1 fires and reuses slot1Key2!
+  const run3 = images.value.handleRetryImageTask();
+  await env.flush();
+  assert.equal(env.requests.length, 5, "already settled slot 0 must not send another HTTP request");
+  const slot1Key3 = new Headers(env.requests[4].init?.headers).get("Idempotency-Key");
+  assert.equal(slot1Key3, slot1Key2, "429 slot 1 must reuse slot1Key2");
+  respond(env.requests[4], image("batch-img-1"));
+  await run3; await env.flush();
+  assert.equal(env.store.getState().imageTask.status, "success");
+  assert.deepEqual(
+    plain(env.store.getState().imageHistory.map((item) => item.id)),
+    ["batch-img-1", "batch-img-0"],
+  );
 });
 
 test("image edit automatically avoids text-only Gemini models when an edit-capable model is enabled", async (t) => {
