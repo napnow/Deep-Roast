@@ -208,7 +208,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         } else if (err instanceof ApiError) {
           const classified = classifyImageTaskError(err);
           failImageTask(classified, {
-            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+            keyUncertain: shouldReuseIdempotencyKey(classified),
           });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
@@ -325,7 +325,6 @@ export function useImageActions(loadCredits: () => Promise<void>) {
               const index = nextIndex++;
               if (nextSlots[index]?.settledImage) continue;
               const slotKey = nextSlots[index]!.key;
-              const wasUncertain = Boolean(initialSlots[index]?.uncertain);
               try {
                 const data = await apiJson<{
                   id: string;
@@ -359,7 +358,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
                 const classified = classifyImageTaskError(error);
                 nextSlots[index] = {
                   key: slotKey,
-                  uncertain: shouldReuseIdempotencyKey(classified, wasUncertain),
+                  uncertain: shouldReuseIdempotencyKey(classified),
                 };
                 const priority = (value: unknown) => value instanceof ApiError
                   ? value.code === "CREDIT_REFUND_PENDING"
@@ -533,7 +532,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         } else if (err instanceof ApiError) {
           const classified = classifyImageTaskError(err);
           failImageTask(classified, {
-            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+            keyUncertain: shouldReuseIdempotencyKey(classified),
           });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
@@ -662,7 +661,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
         } else if (err instanceof ApiError) {
           const classified = classifyImageTaskError(err);
           failImageTask(classified, {
-            keyUncertain: shouldReuseIdempotencyKey(classified, previousUncertain),
+            keyUncertain: shouldReuseIdempotencyKey(classified),
           });
           if (err.code === "INSUFFICIENT_CREDITS") {
             toast("积分不足，请先签到或联系管理员", "error");
@@ -687,7 +686,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     if (!requests.isActive(userSessionVersion)) return;
     const { request, error } = useDeepRoastStore.getState().imageTask;
     if (!request) return;
-    const keepKey = shouldReuseIdempotencyKey(error, Boolean(request.keyUncertain));
+    const keepKey = shouldReuseIdempotencyKey(error);
     const retryKey = keepKey ? request.idempotencyKey : undefined;
     if (request.mode === "text") {
       await handleGenerateImageBatch(request.prompt, request.size, request.count, {

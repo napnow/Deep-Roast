@@ -94,20 +94,13 @@ export function classifyImageTaskError(error: unknown): ImageTaskError {
 
 export function shouldReuseIdempotencyKey(
   error: ImageTaskError | null | undefined,
-  previousUncertain = false,
 ): boolean {
   if (!error) return false;
-  if (
+  return (
     error.kind === "network" ||
     error.code === "IDEMPOTENCY_IN_PROGRESS" ||
     error.code === "RATE_LIMITED" ||
     error.status === 429 ||
     error.unsettledGateway === true
-  ) {
-    return true;
-  }
-  if (previousUncertain && error.code === "IMAGE_QUEUE_FULL") {
-    return true;
-  }
-  return false;
+  );
 }

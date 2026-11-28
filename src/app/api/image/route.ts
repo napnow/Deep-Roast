@@ -1,5 +1,5 @@
 import { requireActiveUser } from "@/server/auth";
-import { handleRoute, jsonOk, readJson } from "@/server/http";
+import { ApiError, handleRoute, jsonOk, readJson } from "@/server/http";
 import { generateImage } from "@/server/services/image";
 import { enforceRateLimit } from "@/server/rate-limit";
 import { readIdempotencyKey } from "@/server/services/request-idempotency";
@@ -8,6 +8,7 @@ import {
   completeRequest,
   failRequest,
   inProgressError,
+  releaseRequestClaim,
   requestErrorBody,
   requestErrorStatus,
 } from "@/server/services/request-idempotency-store";
@@ -46,6 +47,13 @@ export const POST = handleRoute(async (req) => {
     await completeRequest(claim.id, claim.leaseToken, 200, result);
     return jsonOk(result);
   } catch (error) {
+    if (error instanceof ApiError && error.code === "IMAGE_QUEUE_FULL") {
+      await releaseRequestClaim(claim.id, claim.leaseToken).catch(
+        (releaseError) =>
+          console.error("Failed to release queued image claim", releaseError),
+      );
+      throw error;
+    }
     await failRequest(
       claim.id,
       claim.leaseToken,

@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { users, creditTransactions } from "@/db/schema";
+import { users, creditTransactions, requestIdempotency } from "@/db/schema";
 import { eq, desc, sql, and, type SQL } from "drizzle-orm";
 import { CREDIT_PER_IMAGE, CHECKIN_REWARD } from "@/types";
 import { ApiError } from "@/server/http";
@@ -43,13 +43,25 @@ export function assertCreditAmount(amount: number): void {
 }
 
 const REFUND_ALREADY_APPLIED = Symbol("refund-already-applied");
+const REQUEST_UUID_PREFIX_RE =
+  /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?::|$)/i;
+
+export function extractIdempotencyRequestId(
+  value?: string,
+): string | undefined {
+  if (!value) return undefined;
+  const match = REQUEST_UUID_PREFIX_RE.exec(value.trim());
+  return match ? match[1] : undefined;
+}
 
 async function consumeCreditOperation(
   userId: string,
   amount: number,
   note: string,
+  requestId?: string,
 ): Promise<{ balance: number; transactionId: string }> {
   assertCreditAmount(amount);
+  const validRequestId = extractIdempotencyRequestId(requestId);
   return db.transaction(async (tx) => {
     // 原子扣减：UPDATE ... SET credits = credits - amount WHERE credits >= amount。
     // 避免并发请求 check-then-act 绕过余额限制（超扣 / 负余额）。
@@ -82,6 +94,31 @@ async function consumeCreditOperation(
       })
       .returning({ id: creditTransactions.id });
     if (!transaction) throw new ApiError("积分流水写入失败", 500);
+
+    if (validRequestId) {
+      await tx
+        .update(requestIdempotency)
+        .set({
+          responseBody: sql`jsonb_set(
+            coalesce(${requestIdempotency.responseBody}, '{}'::jsonb),
+            '{pendingReservations}',
+            coalesce(${requestIdempotency.responseBody}->'pendingReservations', '[]'::jsonb)
+              || jsonb_build_array(jsonb_build_object(
+                   'txId', ${transaction.id}::text,
+                   'amount', ${amount}::int,
+                   'settled', false
+                 ))
+          )`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(requestIdempotency.id, validRequestId),
+            eq(requestIdempotency.userId, userId),
+            eq(requestIdempotency.status, "processing"),
+          ),
+        );
+    }
 
     return { balance: row.credits, transactionId: transaction.id };
   });
@@ -141,8 +178,15 @@ export async function refundCredits(
   }
 }
 
+type CreditDbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export interface CreditReservation {
   refund(note: string): Promise<void>;
+  settle?(tx?: CreditDbTransaction): Promise<void>;
+}
+
+export interface ReserveCreditsOptions {
+  requestId?: string;
 }
 
 export function createCreditReservation(
@@ -175,13 +219,51 @@ export async function reserveCredits(
   userId: string,
   amount: number,
   debitNote: string,
+  options?: ReserveCreditsOptions,
 ): Promise<CreditReservation> {
-  const debit = await consumeCreditOperation(userId, amount, debitNote);
-  return createCreditReservation((note) =>
+  const validRequestId = extractIdempotencyRequestId(options?.requestId);
+  const debit = await consumeCreditOperation(
+    userId,
+    amount,
+    debitNote,
+    validRequestId,
+  );
+  const base = createCreditReservation((note) =>
     refundCredits(userId, amount, note, debit.transactionId).then(
       () => undefined,
     ),
   );
+  return {
+    ...base,
+    async settle(tx?: CreditDbTransaction) {
+      if (!validRequestId) return;
+      const executor = tx ?? db;
+      await executor
+        .update(requestIdempotency)
+        .set({
+          responseBody: sql`jsonb_set(
+            coalesce(${requestIdempotency.responseBody}, '{}'::jsonb),
+            '{pendingReservations}',
+            coalesce(
+              (
+                SELECT jsonb_agg(elem)
+                FROM jsonb_array_elements(coalesce(${requestIdempotency.responseBody}->'pendingReservations', '[]'::jsonb)) AS elem
+                WHERE elem->>'txId' <> ${debit.transactionId}::text
+              ),
+              '[]'::jsonb
+            )
+          )`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(requestIdempotency.id, validRequestId),
+            eq(requestIdempotency.userId, userId),
+            eq(requestIdempotency.status, "processing"),
+          ),
+        );
+    },
+  };
 }
 
 /** 每日签到：仅普通用户，Asia/Shanghai 自然日一次 +动态签到奖励（原子防并发双签） */

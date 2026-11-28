@@ -21,7 +21,7 @@ test("request idempotency replays settled work and fences concurrent or stale cl
   const userId = randomUUID();
   try {
     await pool.query(
-      "INSERT INTO users(id,username,password) VALUES ($1,$2,'not-a-real-login')",
+      "INSERT INTO users(id,username,password,credits) VALUES ($1,$2,'not-a-real-login',10)",
       [userId, `idempotency-${userId}`],
     );
     const {
@@ -30,6 +30,7 @@ test("request idempotency replays settled work and fences concurrent or stale cl
       failRequest,
       pruneExpiredRequests,
     } = await import("./request-idempotency-store");
+    const { getUserCredits, reserveCredits } = await import("./credits");
 
     const concurrent = await Promise.all([
       beginRequest(userId, "integration", "concurrent-key"),
@@ -84,6 +85,8 @@ test("request idempotency replays settled work and fences concurrent or stale cl
 
     const stale = await beginRequest(userId, "integration", "stale-key");
     assert.ok(stale.kind === "new");
+    await reserveCredits(userId, 5, "预扣中断测试", { requestId: stale.id });
+    assert.equal(await getUserCredits(userId), 5);
     await pool.query(
       `UPDATE request_idempotency SET expires_at=(now() AT TIME ZONE 'UTC')-interval '1 second'
        WHERE user_id=$1 AND scope='integration' AND key='stale-key'`,
@@ -100,6 +103,22 @@ test("request idempotency replays settled work and fences concurrent or stale cl
         },
       },
     );
+    assert.equal(await getUserCredits(userId), 10, "interrupted reservation must auto-refund on stale timeout");
+
+    const settledBeforeCrash = await beginRequest(userId, "integration", "settled-before-crash");
+    assert.ok(settledBeforeCrash.kind === "new");
+    const settledReservation = await reserveCredits(userId, 4, "已出图预扣测试", {
+      requestId: settledBeforeCrash.id,
+    });
+    await settledReservation.settle?.();
+    assert.equal(await getUserCredits(userId), 6);
+    await pool.query(
+      `UPDATE request_idempotency SET expires_at=(now() AT TIME ZONE 'UTC')-interval '1 second'
+       WHERE user_id=$1 AND scope='integration' AND key='settled-before-crash'`,
+      [userId],
+    );
+    await beginRequest(userId, "integration", "settled-before-crash");
+    assert.equal(await getUserCredits(userId), 6, "settled image reservation must not refund");
   } finally {
     await pool.query("DELETE FROM users WHERE id=$1", [userId]);
     await pool.end();

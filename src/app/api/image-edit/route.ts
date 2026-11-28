@@ -16,6 +16,8 @@ import {
   completeRequest,
   failRequest,
   inProgressError,
+  peekRequestClaim,
+  releaseRequestClaim,
   requestErrorBody,
   requestErrorStatus,
 } from "@/server/services/request-idempotency-store";
@@ -28,6 +30,11 @@ const IMAGE_WINDOW = 60;
 export const POST = handleRoute(async (req) => {
   const user = await requireActiveUser(req);
   await enforceRateLimit("image-user", user.userId, IMAGE_LIMIT, IMAGE_WINDOW);
+  const idempotencyKey = readIdempotencyKey(req);
+  const prior = await peekRequestClaim(user.userId, "image-edit", idempotencyKey);
+  if (prior?.kind === "replay") return jsonOk(prior.body, prior.status);
+  if (prior?.kind === "in_progress") throw inProgressError();
+
   const releaseAdmission = await imageEditAdmission.acquire(req.signal);
   try {
   const body = await readJson<ImageEditRequest>(req, {
@@ -36,7 +43,7 @@ export const POST = handleRoute(async (req) => {
   const claim = await beginRequest(
     user.userId,
     "image-edit",
-    readIdempotencyKey(req),
+    idempotencyKey,
   );
   if (claim.kind === "replay") return jsonOk(claim.body, claim.status);
   if (claim.kind === "in_progress") throw inProgressError();
@@ -62,6 +69,13 @@ export const POST = handleRoute(async (req) => {
     await completeRequest(claim.id, claim.leaseToken, 200, result);
     return jsonOk(result);
   } catch (error) {
+    if (error instanceof ApiError && error.code === "IMAGE_QUEUE_FULL") {
+      await releaseRequestClaim(claim.id, claim.leaseToken).catch(
+        (releaseError) =>
+          console.error("Failed to release image edit claim", releaseError),
+      );
+      throw error;
+    }
     await failRequest(
       claim.id,
       claim.leaseToken,

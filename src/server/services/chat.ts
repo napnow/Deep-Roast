@@ -134,6 +134,7 @@ function createImageChatStream(
           idempotencyKey: options.idempotencyKey
             ? providerIdempotencyKey("chat-image", options.idempotencyKey)
             : undefined,
+          requestId: options.requestId,
           signal: operationSignal,
         });
         assistantMessage = createAssistantImageMessage(image);
@@ -302,6 +303,7 @@ export async function createChatStream(
           userId,
           CREDIT_PER_CHAT,
           `对话: ${message.slice(0, 50)}`,
+          { requestId: options.requestId },
         )
       : null;
   const chargeState = createChatChargeState(reservation);

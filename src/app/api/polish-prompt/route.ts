@@ -56,6 +56,7 @@ export const POST = handleRoute(async (req) => {
           user.userId,
           POLISH_PROMPT_CREDIT_COST,
           `提示词润色: ${prompt.slice(0, 50)}`,
+          { requestId: claim.id },
         )
       : null;
 

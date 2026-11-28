@@ -341,6 +341,32 @@ test("batch retry tracks per-slot Idempotency-Key across mixed 409 in-progress, 
   );
 });
 
+test("network drop followed by 503 IMAGE_QUEUE_FULL mints a fresh Idempotency-Key on the next retry instead of getting stuck", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A"); configure(env);
+  const images = env.mountImages(async () => {});
+
+  const attempt1 = images.value.handleGenerateImage("queue-full-repro", size);
+  const key1 = new Headers(env.requests[0].init?.headers).get("Idempotency-Key");
+  env.requests[0].reject(new Error("TypeError: Failed to fetch"));
+  await attempt1; await env.flush();
+
+  const attempt2 = images.value.handleRetryImageTask();
+  await env.flush();
+  const key2 = new Headers(env.requests[1].init?.headers).get("Idempotency-Key");
+  assert.equal(key2, key1, "first retry after network drop probes original key");
+  respond(env.requests[1], { error: "生图任务较多，请稍后重试", code: "IMAGE_QUEUE_FULL" }, 503);
+  await attempt2; await env.flush();
+
+  const attempt3 = images.value.handleRetryImageTask();
+  await env.flush();
+  const key3 = new Headers(env.requests[2].init?.headers).get("Idempotency-Key");
+  assert.notEqual(key3, key1, "once IMAGE_QUEUE_FULL is returned, next retry must mint a fresh key");
+  respond(env.requests[2], image("queued-ok"));
+  await attempt3; await env.flush();
+  assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["queued-ok"]);
+});
+
 test("image edit automatically avoids text-only Gemini models when an edit-capable model is enabled", async (t) => {
   const env = sessionFixture(); t.after(() => env.dispose());
   env.store.getState().setUserSession("A");

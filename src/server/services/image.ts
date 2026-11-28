@@ -616,6 +616,7 @@ async function generateImageImpl(opts: {
   modelOverride?: string;
   size?: string;
   idempotencyKey?: string;
+  requestId?: string;
   signal?: AbortSignal;
   queueSignal?: AbortSignal;
   /** 内部批量调用复用同一次请求解析出的费用 */
@@ -694,6 +695,7 @@ async function generateImageImpl(opts: {
       userId,
       imageCreditCost,
       `预扣生成图片: ${prompt.slice(0, 50)}`,
+      { requestId: opts.requestId ?? opts.idempotencyKey },
     );
   }
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -800,20 +802,26 @@ async function generateImageImpl(opts: {
       writtenPaths.push(...artifacts.writtenPaths);
 
       const imageId = crypto.randomUUID();
-      const [row] = await perf.measure("database", () => db
-        .insert(imageGenerations)
-        .values({
-          id: imageId,
-          versionGroupId: imageId,
-          prompt,
-          model,
-          imageUrl: artifacts.imageUrl,
-          storageKey: artifacts.storageKey,
-          thumbStorageKey: artifacts.thumbStorageKey,
-          size: storedSize,
-          userId,
-        })
-        .returning({ id: imageGenerations.id }));
+      const [row] = await perf.measure("database", () =>
+        db.transaction(async (tx) => {
+          const inserted = await tx
+            .insert(imageGenerations)
+            .values({
+              id: imageId,
+              versionGroupId: imageId,
+              prompt,
+              model,
+              imageUrl: artifacts.imageUrl,
+              storageKey: artifacts.storageKey,
+              thumbStorageKey: artifacts.thumbStorageKey,
+              size: storedSize,
+              userId,
+            })
+            .returning({ id: imageGenerations.id });
+          await reservation?.settle?.(tx);
+          return inserted;
+        }),
+      );
 
       console.log(
         `Image gen success (attempt ${attempt}/${maxRetries}): ${model}`,
@@ -985,6 +993,7 @@ async function editImageOnceImpl(opts: {
       userId,
       imageCreditCost,
       `预扣图生图: ${prompt.slice(0, 50)}`,
+      { requestId: opts.idempotencyKey },
     );
   }
 
@@ -1062,21 +1071,27 @@ async function editImageOnceImpl(opts: {
       writtenPaths.push(...artifacts.writtenPaths);
 
       const imageId = crypto.randomUUID();
-      const [row] = await perf.measure("database", () => db
-        .insert(imageGenerations)
-        .values({
-          id: imageId,
-          sourceImageId: opts.source?.sourceImageId ?? null,
-          versionGroupId: opts.source?.versionGroupId ?? imageId,
-          prompt,
-          model,
-          imageUrl: artifacts.imageUrl,
-          storageKey: artifacts.storageKey,
-          thumbStorageKey: artifacts.thumbStorageKey,
-          size,
-          userId,
-        })
-        .returning({ id: imageGenerations.id }));
+      const [row] = await perf.measure("database", () =>
+        db.transaction(async (tx) => {
+          const inserted = await tx
+            .insert(imageGenerations)
+            .values({
+              id: imageId,
+              sourceImageId: opts.source?.sourceImageId ?? null,
+              versionGroupId: opts.source?.versionGroupId ?? imageId,
+              prompt,
+              model,
+              imageUrl: artifacts.imageUrl,
+              storageKey: artifacts.storageKey,
+              thumbStorageKey: artifacts.thumbStorageKey,
+              size,
+              userId,
+            })
+            .returning({ id: imageGenerations.id });
+          await reservation?.settle?.(tx);
+          return inserted;
+        }),
+      );
 
       console.log(
         `Image edit success (attempt ${attempt}/${maxRetries}): ${model}`,

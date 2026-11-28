@@ -1,8 +1,9 @@
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { requestIdempotency } from "@/db/schema";
 import { ApiError } from "@/server/http";
+import { refundCredits } from "@/server/services/credits";
 import { normalizeIdempotencyKey } from "./request-idempotency";
 
 // Covers the longest supported batch (five sequential image edits with
@@ -11,13 +12,120 @@ import { normalizeIdempotencyKey } from "./request-idempotency";
 const PROCESSING_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PRUNE_BATCH_SIZE = 200;
+const STALE_SWEEP_BATCH_SIZE = 50;
 const PRUNE_INTERVAL_MS = 60_000;
+const RESERVATION_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 let lastPruneAt = 0;
+
+export interface PendingCreditReservationRecord {
+  txId: string;
+  amount: number;
+}
+
+export function parsePendingReservations(
+  body: unknown,
+): PendingCreditReservationRecord[] {
+  if (!body || typeof body !== "object") return [];
+  const rawList = (body as { pendingReservations?: unknown }).pendingReservations;
+  if (!Array.isArray(rawList)) return [];
+  const out: PendingCreditReservationRecord[] = [];
+  for (const item of rawList) {
+    if (!item || typeof item !== "object") continue;
+    const candidate = item as {
+      txId?: unknown;
+      amount?: unknown;
+      settled?: unknown;
+    };
+    if (candidate.settled === true) continue;
+    if (
+      typeof candidate.txId === "string" &&
+      RESERVATION_UUID_RE.test(candidate.txId) &&
+      typeof candidate.amount === "number" &&
+      Number.isSafeInteger(candidate.amount) &&
+      candidate.amount > 0
+    ) {
+      out.push({ txId: candidate.txId, amount: candidate.amount });
+    }
+  }
+  return out;
+}
+
+async function expireStaleProcessingRow(
+  existing: {
+    id: string;
+    userId: string;
+    responseBody: Record<string, unknown> | null;
+  },
+  now: Date,
+): Promise<{
+  expired: boolean;
+  body: { error: string; code: string };
+}> {
+  const pending = parsePendingReservations(existing.responseBody);
+  for (const item of pending) {
+    await refundCredits(
+      existing.userId,
+      item.amount,
+      "超时中断任务自动退回预扣积分",
+      item.txId,
+    );
+  }
+  const staleBody = {
+    error: "先前的同 ID 请求已超时，请使用新的请求 ID 重试",
+    code: "IDEMPOTENCY_STALE_REQUEST",
+  };
+  const [expired] = await db
+    .update(requestIdempotency)
+    .set({
+      status: "failed",
+      responseStatus: 409,
+      responseBody: staleBody,
+      updatedAt: now,
+      expiresAt: new Date(now.getTime() + COMPLETED_RETENTION_MS),
+    })
+    .where(
+      and(
+        eq(requestIdempotency.id, existing.id),
+        eq(requestIdempotency.status, "processing"),
+        lte(requestIdempotency.expiresAt, now),
+      ),
+    )
+    .returning({ id: requestIdempotency.id });
+  return { expired: Boolean(expired), body: staleBody };
+}
+
+export async function recoverStaleProcessingRequests(
+  now = new Date(),
+  limit = STALE_SWEEP_BATCH_SIZE,
+): Promise<number> {
+  const staleRows = await db
+    .select({
+      id: requestIdempotency.id,
+      userId: requestIdempotency.userId,
+      responseBody: requestIdempotency.responseBody,
+    })
+    .from(requestIdempotency)
+    .where(
+      and(
+        eq(requestIdempotency.status, "processing"),
+        lte(requestIdempotency.expiresAt, now),
+      ),
+    )
+    .limit(limit);
+  let count = 0;
+  for (const row of staleRows) {
+    const result = await expireStaleProcessingRow(row, now);
+    if (result.expired) count += 1;
+  }
+  return count;
+}
 
 export async function pruneExpiredRequests(
   now = new Date(),
   limit = PRUNE_BATCH_SIZE,
 ): Promise<number> {
+  await recoverStaleProcessingRequests(now);
   const expiredIds = db
     .select({ id: requestIdempotency.id })
     .from(requestIdempotency)
@@ -110,6 +218,7 @@ export async function beginRequest(
   const [existing] = await db
     .select({
       id: requestIdempotency.id,
+      userId: requestIdempotency.userId,
       status: requestIdempotency.status,
       responseStatus: requestIdempotency.responseStatus,
       responseBody: requestIdempotency.responseBody,
@@ -143,31 +252,78 @@ export async function beginRequest(
   }
 
   if (existing.status === "processing" && existing.expiresAt <= now) {
-    const staleBody = {
-      error: "先前的同 ID 请求已超时，请使用新的请求 ID 重试",
-      code: "IDEMPOTENCY_STALE_REQUEST",
-    };
-    const [expired] = await db
-      .update(requestIdempotency)
-      .set({
-        status: "failed",
-        responseStatus: 409,
-        responseBody: staleBody,
-        updatedAt: now,
-        expiresAt: new Date(now.getTime() + COMPLETED_RETENTION_MS),
-      })
-      .where(
-        and(
-          eq(requestIdempotency.id, existing.id),
-          eq(requestIdempotency.status, "processing"),
-          lte(requestIdempotency.expiresAt, now),
-        ),
-      )
-      .returning({ id: requestIdempotency.id });
-    if (expired) return { kind: "replay", status: 409, body: staleBody };
+    const { expired, body } = await expireStaleProcessingRow(existing, now);
+    if (expired) return { kind: "replay", status: 409, body };
   }
 
   return { kind: "in_progress" };
+}
+
+export async function peekRequestClaim(
+  userId: string,
+  scope: string,
+  rawKey: unknown,
+): Promise<RequestReplay | { kind: "in_progress" } | null> {
+  const key = normalizeIdempotencyKey(rawKey);
+  const now = new Date();
+  const [existing] = await db
+    .select({
+      id: requestIdempotency.id,
+      userId: requestIdempotency.userId,
+      status: requestIdempotency.status,
+      responseStatus: requestIdempotency.responseStatus,
+      responseBody: requestIdempotency.responseBody,
+      expiresAt: requestIdempotency.expiresAt,
+    })
+    .from(requestIdempotency)
+    .where(
+      and(
+        eq(requestIdempotency.userId, userId),
+        eq(requestIdempotency.scope, scope),
+        eq(requestIdempotency.key, key),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) return null;
+
+  if (existing.status === "succeeded" || existing.status === "failed") {
+    if (
+      existing.expiresAt > now &&
+      existing.responseStatus &&
+      existing.responseBody
+    ) {
+      return {
+        kind: "replay",
+        status: existing.responseStatus,
+        body: existing.responseBody,
+      };
+    }
+    return null;
+  }
+
+  if (existing.status === "processing" && existing.expiresAt <= now) {
+    const { expired, body } = await expireStaleProcessingRow(existing, now);
+    if (expired) return { kind: "replay", status: 409, body };
+  }
+
+  return { kind: "in_progress" };
+}
+
+export async function releaseRequestClaim(
+  id: string,
+  leaseToken: string,
+): Promise<void> {
+  await db
+    .delete(requestIdempotency)
+    .where(
+      and(
+        eq(requestIdempotency.id, id),
+        eq(requestIdempotency.leaseToken, leaseToken),
+        eq(requestIdempotency.status, "processing"),
+        isNull(requestIdempotency.responseBody),
+      ),
+    );
 }
 
 export async function completeRequest(
