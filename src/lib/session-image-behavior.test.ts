@@ -267,6 +267,47 @@ test("retry issues a fresh Idempotency-Key after a 502 error while preserving it
   await env.flush();
   const thirdKey = new Headers(env.requests[2].init?.headers).get("Idempotency-Key");
   assert.equal(thirdKey, secondKey, "network failure must reuse Idempotency-Key to avoid double charge");
-  respond(env.requests[2], image("recovered"));
+  respond(
+    env.requests[2],
+    { error: "相同幂等请求正在处理中，请稍后重试", code: "IDEMPOTENCY_IN_PROGRESS" },
+    409,
+  );
   await env.flush();
+
+  images.value.handleRetryImageTask();
+  await env.flush();
+  const fourthKey = new Headers(env.requests[3].init?.headers).get("Idempotency-Key");
+  assert.equal(fourthKey, secondKey, "409 IDEMPOTENCY_IN_PROGRESS must keep reusing the same Idempotency-Key");
+  respond(env.requests[3], image("recovered"));
+  await env.flush();
+  assert.deepEqual(plain(env.store.getState().imageHistory.map((item) => item.id)), ["recovered"]);
+});
+
+test("image edit automatically avoids text-only Gemini models when an edit-capable model is enabled", async (t) => {
+  const env = sessionFixture(); t.after(() => env.dispose());
+  env.store.getState().setUserSession("A");
+  env.store.getState().setConfig({
+    imageModel: "gemini-3.1-flash-image-1k",
+    enabledImageModels: ["gemini-3.1-flash-image-1k", "gpt-image-2"],
+  });
+  env.store.getState().setSelectedImageModel("gemini-3.1-flash-image-1k");
+  const images = env.mountImages(async () => {});
+
+  const textPending = images.value.handleGenerateImage("text prompt", size);
+  const textBody = JSON.parse(String(env.requests[0].init?.body ?? "{}"));
+  assert.equal(textBody.model, "gemini-3.1-flash-image-1k");
+  respond(env.requests[0], image("text-ok"));
+  await textPending; await env.flush();
+
+  const editPending = images.value.handleEditImage(edit("edit prompt"), size);
+  const editBody = JSON.parse(String(env.requests[1].init?.body ?? "{}"));
+  assert.equal(editBody.model, "gpt-image-2");
+  respond(env.requests[1], { images: [image("edit-ok")] });
+  await editPending; await env.flush();
+
+  const batchPending = images.value.handleEditImageBatch(edit("batch edit prompt"), size, 2);
+  const batchBody = JSON.parse(String(env.requests[2].init?.body ?? "{}"));
+  assert.equal(batchBody.model, "gpt-image-2");
+  respond(env.requests[2], { images: [image("batch-ok")], total: 2, succeeded: 1, failed: 0 });
+  await batchPending; await env.flush();
 });

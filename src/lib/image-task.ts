@@ -6,6 +6,7 @@ export type ImageTaskErrorKind = "credits" | "network" | "service";
 export interface ImageTaskError {
   kind: ImageTaskErrorKind;
   message: string;
+  code?: string;
 }
 
 export interface ImageTaskRequest {
@@ -53,11 +54,23 @@ export function classifyImageTaskError(error: unknown): ImageTaskError {
   }
 
   if (error instanceof ApiError) {
-    return { kind: "service", message: error.message };
+    return {
+      kind: "service",
+      message: error.message,
+      ...(error.code ? { code: error.code } : {}),
+    };
   }
 
   return {
     kind: "network",
     message: error instanceof Error ? error.message : "网络连接失败，请稍后重试",
   };
+}
+
+export function shouldReuseIdempotencyKey(
+  error: ImageTaskError | null | undefined,
+): boolean {
+  return (
+    error?.kind === "network" || error?.code === "IDEMPOTENCY_IN_PROGRESS"
+  );
 }

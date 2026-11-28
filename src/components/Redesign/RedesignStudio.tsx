@@ -145,6 +145,7 @@ export default function RedesignStudio({
   const imageTask = useDeepRoastStore((state) => state.imageTask);
   const clearImageTask = useDeepRoastStore((state) => state.clearImageTask);
   const imageModels = useDeepRoastStore((state) => state.imageModels);
+  const selectedImageModel = useDeepRoastStore((state) => state.selectedImageModel);
   const setSelectedImageModel = useDeepRoastStore((state) => state.setSelectedImageModel);
   const setTextToImageDraft = useDeepRoastStore((state) => state.setTextToImageDraft);
   const setImageToImageDraft = useDeepRoastStore((state) => state.setImageToImageDraft);
@@ -241,10 +242,28 @@ export default function RedesignStudio({
     if (deleting) return;
     const group = mode === "version-group";
     if (group ? !selectedGroupId : !selectedImages.length) return;
+    let totalGroupSize = selectedGroupSize;
+    if (group && selectedGroupId && hasMore) {
+      try {
+        const res = await apiJson<{ count?: number }>(
+          `/api/image-history/version-group/${encodeURIComponent(selectedGroupId)}`,
+        );
+        if (typeof res.count === "number" && res.count > totalGroupSize) {
+          totalGroupSize = res.count;
+        }
+      } catch {
+        /* 统计查询失败时回退为已加载数量提示 */
+      }
+    }
+    const unloadedCount = Math.max(0, totalGroupSize - selectedGroupSize);
     const ok = await confirm({
       title: group ? "删除整个版本组" : "删除选中作品",
       message: group
-        ? `将删除该版本组的全部图片（共 ${selectedGroupSize} 张，含未显示的其他版本），此操作不可撤销。`
+        ? unloadedCount > 0
+          ? `将删除该版本组的全部图片（共 ${totalGroupSize} 张，含未加载页面的 ${unloadedCount} 张），此操作不可撤销。`
+          : hasMore
+            ? `将删除该版本组的全部图片（当前已加载 ${totalGroupSize} 张，含同组未加载版本），此操作不可撤销。`
+            : `将删除该版本组的全部图片（共 ${totalGroupSize} 张），此操作不可撤销。`
         : `将删除已选中的 ${selectedImages.length} 张图片，其他版本不会受影响。此操作不可撤销。`,
       confirmText: "确认删除",
     });
@@ -274,6 +293,11 @@ export default function RedesignStudio({
 
   function continueEditing(image: ImageRecord) {
     if (!image.imageUrl) return;
+    const currentModel = selectedImageModel || model;
+    if (isGeminiImageModel(currentModel)) {
+      const fallbackEdit = imageModels.find((item) => !isGeminiImageModel(item.id));
+      if (fallbackEdit) setSelectedImageModel(fallbackEdit.id);
+    }
     setImageToImageDraft(createImageContinuationDraft(image));
     setImageCreationMode("edit");
     setMobileComposerExpanded(true);
@@ -411,18 +435,29 @@ export default function RedesignStudio({
 
   function renderError() {
     if (imageTask.status !== "error" || !imageTask.error) return null;
+    const inProgress = imageTask.error.code === "IDEMPOTENCY_IN_PROGRESS";
     return (
       <section className="rd-error" role="alert">
         <div>
-          <b>{imageTask.error.kind === "credits" ? "积分不足" : imageTask.error.kind === "network" ? "网络连接中断" : "服务暂时没有完成生成"}</b>
+          <b>
+            {imageTask.error.kind === "credits"
+              ? "积分不足"
+              : imageTask.error.kind === "network"
+                ? "网络连接中断"
+                : inProgress
+                  ? "上一笔请求仍在生成中"
+                  : "服务暂时没有完成生成"}
+          </b>
           <p>
             {imageTask.error.kind === "credits"
               ? "查看余额后调整生成数量，描述和参数已保留。"
               : imageTask.error.kind === "network"
                 ? "请先检查网络，描述和参数已保留，可返回修改或手动重试。"
-                : "可以稍后重试或返回调整参数，不会自动再次提交。"}
+                : inProgress
+                  ? "原请求仍在后台处理，稍等几秒再点重试即可取回结果，不会重复扣费。"
+                  : "可以稍后重试或返回调整参数，不会自动再次提交。"}
           </p>
-          {imageTask.error.kind === "service" && imageTask.error.message && <p className="rd-err-msg">{imageTask.error.message}</p>}
+          {imageTask.error.kind === "service" && !inProgress && imageTask.error.message && <p className="rd-err-msg">{imageTask.error.message}</p>}
         </div>
         {imageTask.error.kind === "credits" ? (
           <button type="button" className="rd-bb is-visible" onClick={onWalletClick}>去钱包</button>
@@ -538,7 +573,13 @@ export default function RedesignStudio({
               type="button"
               className="rd-bb is-visible is-danger"
               disabled={!selectedGroupId || deleting}
-              title={selectedGroupId ? `共 ${selectedGroupSize} 张，含其他版本` : "勾选同一版本组的图片后可用"}
+              title={
+                selectedGroupId
+                  ? hasMore
+                    ? `当前已加载 ${selectedGroupSize} 张，点击确认整组总数`
+                    : `共 ${selectedGroupSize} 张`
+                  : "勾选同一版本组的图片后可用"
+              }
               onClick={() => void batchDelete("version-group")}
             >
               删除版本组
@@ -846,6 +887,12 @@ function RedesignComposer({
     );
   }
 
+  useEffect(() => {
+    if (mode === "edit" && selectedImageModel !== editActiveModel && editModelIds.includes(editActiveModel)) {
+      setSelectedImageModel(editActiveModel);
+    }
+  }, [mode, selectedImageModel, editActiveModel, editModelIds, setSelectedImageModel]);
+
   const modeLabel = CREATION_MODES.find(([id]) => id === mode)?.[1] ?? "文生图";
   const modeToken = (
     <div className="rd-popwrap">
@@ -853,7 +900,20 @@ function RedesignComposer({
       {pop === "mode" && (
         <div className="rd-pop" role="menu">
           <h6>创作模式</h6>
-          {CREATION_MODES.map(([id, label, hint]) => option(id, label, id === mode, () => setMode(id), hint))}
+          {CREATION_MODES.map(([id, label, hint]) =>
+            option(
+              id,
+              label,
+              id === mode,
+              () => {
+                if (id === "edit" && selectedImageModel !== editActiveModel && editModelIds.includes(editActiveModel)) {
+                  setSelectedImageModel(editActiveModel);
+                }
+                setMode(id);
+              },
+              hint,
+            ),
+          )}
         </div>
       )}
     </div>

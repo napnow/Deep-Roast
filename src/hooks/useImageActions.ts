@@ -8,14 +8,38 @@ import { useToast } from "@/components/Toast";
 import { useDeepRoastStore } from "@/lib/store";
 import { ApiError, apiJson, jsonBody } from "@/lib/client-api";
 import { createClientSessionLifecycle } from "@/lib/client-session-lifecycle";
-import { classifyImageTaskError } from "@/lib/image-task";
+import { isGeminiImageModel } from "@/lib/image-model-capabilities";
+import {
+  classifyImageTaskError,
+  shouldReuseIdempotencyKey,
+} from "@/lib/image-task";
 import type { ImageEditRequest } from "@/lib/image-edit-contract";
 
-/** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400 */
-function resolveRequestModel(): string {
+/** 发送前校验所选模型仍在管理员启用列表，防止管理员删除后发旧模型 → 400；图生图自动避开仅支持文生图的 Gemini 模型 */
+function resolveRequestModel(mode: "text" | "edit" = "text"): string {
   const { config, selectedImageModel } = useDeepRoastStore.getState();
   const enabled = config.enabledImageModels;
+  const compatible = (id: string) => mode !== "edit" || !isGeminiImageModel(id);
+
   if (enabled !== undefined) {
+    if (
+      selectedImageModel &&
+      enabled.includes(selectedImageModel) &&
+      compatible(selectedImageModel)
+    ) {
+      return selectedImageModel;
+    }
+    if (
+      config.imageModel &&
+      enabled.includes(config.imageModel) &&
+      compatible(config.imageModel)
+    ) {
+      return config.imageModel;
+    }
+    if (mode === "edit") {
+      const fallbackEdit = enabled.find((id) => !isGeminiImageModel(id));
+      if (fallbackEdit) return fallbackEdit;
+    }
     if (selectedImageModel && enabled.includes(selectedImageModel)) {
       return selectedImageModel;
     }
@@ -23,6 +47,11 @@ function resolveRequestModel(): string {
       return config.imageModel;
     }
     throw new ApiError("管理员暂未启用图片模型", 503, "MODEL_UNAVAILABLE");
+  }
+  if (mode === "edit" && selectedImageModel && isGeminiImageModel(selectedImageModel)) {
+    if (config.imageModel && !isGeminiImageModel(config.imageModel)) {
+      return config.imageModel;
+    }
   }
   return selectedImageModel || config.imageModel;
 }
@@ -220,8 +249,16 @@ export function useImageActions(loadCredits: () => Promise<void>) {
               } catch (error: unknown) {
                 if (!batchGeneration.isCurrent()) return;
                 const priority = (value: unknown) => value instanceof ApiError
-                  ? value.code === "CREDIT_REFUND_PENDING" ? 4 : value.code === "IMAGE_CONTENT_POLICY" ? 3 : value.code === "INSUFFICIENT_CREDITS" ? 2 : 1
-                  : 1;
+                  ? value.code === "CREDIT_REFUND_PENDING"
+                    ? 5
+                    : value.code === "IMAGE_CONTENT_POLICY"
+                      ? 4
+                      : value.code === "INSUFFICIENT_CREDITS"
+                        ? 3
+                        : value.code === "IDEMPOTENCY_IN_PROGRESS"
+                          ? 2
+                          : 1
+                  : 2;
                 if (!failure || priority(error) > priority(failure)) failure = error;
               }
             }
@@ -327,7 +364,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             ...request,
             prompt,
             size,
-            model: resolveRequestModel(),
+            model: resolveRequestModel("edit"),
           }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
@@ -432,7 +469,7 @@ export function useImageActions(loadCredits: () => Promise<void>) {
             prompt,
             size,
             count,
-            model: resolveRequestModel(),
+            model: resolveRequestModel("edit"),
           }, idempotencyHeaders(idempotencyKey)),
           signal: generation.signal,
         });
@@ -500,10 +537,12 @@ export function useImageActions(loadCredits: () => Promise<void>) {
     if (!requests.isActive(userSessionVersion)) return;
     const { request, error } = useDeepRoastStore.getState().imageTask;
     if (!request) return;
-    // Only reuse the previous key when the client never received a definitive
-    // HTTP response (network drop). Once the server persisted a failed status,
-    // reusing the same key would replay the cached error for 24 hours.
-    const retryKey = error?.kind === "network" ? request.idempotencyKey : undefined;
+    // Reuse the previous key when the client never received a definitive
+    // outcome (network drop or server still processing the same key). Once the
+    // server persisted a terminal failed status, mint a new key on retry.
+    const retryKey = shouldReuseIdempotencyKey(error)
+      ? request.idempotencyKey
+      : undefined;
     if (request.mode === "text") {
       await handleGenerateImageBatch(request.prompt, request.size, request.count, retryKey);
     } else if (request.editRequest) {

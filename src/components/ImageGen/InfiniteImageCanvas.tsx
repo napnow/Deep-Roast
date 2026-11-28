@@ -7,6 +7,7 @@ import type { CanvasLayout, CanvasNodeLayout } from "@/lib/canvas-layout";
 import { clearLocalCanvasDraft, loadLocalCanvasDraft, sameCanvasContent, saveLocalCanvasDraft } from "@/lib/canvas-draft";
 import type { ImageRecord } from "@/types";
 import { canvasEdges, dedupeCanvasEdges, findConnectedPlaceholderIds, findLegacyAutoAddedCanvasIds, mergeCanvasItems, placeCanvasAdditions, replacePlaceholderConnections } from "./canvas-items";
+import { isGeminiImageModel } from "@/lib/image-model-capabilities";
 import { getCanvasNodeSize } from "./canvas-geometry";
 import CanvasPromptPanel, { type CanvasPromptPanelSettings } from "./CanvasPromptPanel";
 import type { CanvasPromptReference } from "./canvas-prompt";
@@ -707,6 +708,15 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
         }];
       }
       const image = recordsMap.get(position.id) ?? (isEmptyCanvasNode(position) ? emptyImageRecord(position.id) : undefined);
+      const isEmptyNode = isEmptyCanvasNode(position);
+      const nonGeminiModels = imageModels.filter(id => !isGeminiImageModel(id));
+      const nodeImageModels = isEmptyNode || nonGeminiModels.length === 0 ? imageModels : nonGeminiModels;
+      const fallbackEditModel = !isEmptyNode && isGeminiImageModel(defaultImageModel)
+        ? (nodeImageModels[0] ?? defaultImageModel)
+        : defaultImageModel;
+      const initialNodeModel = !isEmptyNode && image?.model && isGeminiImageModel(image.model)
+        ? fallbackEditModel
+        : (image?.model || fallbackEditModel);
       return image ? [{
         id: position.id,
         type: "image",
@@ -714,7 +724,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
         dragHandle: ".infinite-image-node__handle",
         data: {
           image,
-          isEmpty: isEmptyCanvasNode(position),
+          isEmpty: isEmptyNode,
           onPreview: preview,
           onEdit: edit,
           onContinueEditing: continueEditing,
@@ -725,10 +735,10 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
           isPromptOpen: position.id === promptNodeId,
           promptCandidates,
           onGenerate: generateForNode,
-          imageModels,
-          defaultImageModel,
+          imageModels: nodeImageModels,
+          defaultImageModel: fallbackEditModel,
           promptSettings: {
-            model: image.model || defaultImageModel,
+            model: initialNodeModel,
             size: image.size || undefined,
           },
           generationTask: generationTasksRef.current.find(task => task.nodeId === position.id),
@@ -773,7 +783,7 @@ export default function InfiniteImageCanvas({ accountId, images, onSelect, onPre
     }
     const legacyDroppedIds = new Set(!autoAddImages
       ? findLegacyAutoAddedCanvasIds(
-          savedImageNodes.map(node => ({ id: node.id, x: node.x, y: node.y, placeholder: isEmptyCanvasNode(node) })),
+          savedImageNodes.map(node => ({ id: node.id, kind: node.kind, x: node.x, y: node.y, placeholder: isEmptyCanvasNode(node) })),
           linkedIds,
         )
       : []);

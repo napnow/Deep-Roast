@@ -1392,6 +1392,16 @@ export async function deleteImageRecords(userId: string, ids: string[]) {
   };
 }
 
+export async function countImageVersionGroup(userId: string, versionGroupId: string) {
+  if (!versionGroupId?.trim()) throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
+  const records = await db.select().from(imageGenerations).where(and(
+    eq(imageGenerations.userId, userId),
+    eq(imageGenerations.versionGroupId, versionGroupId),
+  ));
+  const selected = planImageDeletions(records as DeletableImageRow[], [], { mode: "version-group", userId, versionGroupId });
+  return { count: selected.length };
+}
+
 export async function deleteImageVersionGroup(userId: string, versionGroupId: string) {
   if (!versionGroupId?.trim()) throw new ApiError("版本组不能为空", 400, "INVALID_VERSION_GROUP");
   const records = await db.select().from(imageGenerations).where(and(

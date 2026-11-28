@@ -178,20 +178,23 @@
 
 /* 图生图 / 反推：展开面板统一去重与对齐 */
 .rd-composer.is-sheet{display:flex;flex-direction:column;max-height:min(76vh,760px);padding:13px 14px 13px 16px}
-.rd-sheet__head{display:flex;align-items:center;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--border)}
+.rd-composer.is-sheet .rd-composer__expandable{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.rd-sheet__head{flex:none;display:flex;align-items:center;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--border)}
 .rd-sheet__hint{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rd-sheet__body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior-x:none;margin:0 -4px;padding:0 4px}
+.rd-sheet__body{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior-x:none;margin:0 -4px;padding:0 4px}
 .rd-sheet__head .rd-pop{bottom:auto;top:calc(100% + 8px)}
 /* 在桌面与移动端统一收起面板内部重复的大标题，规范步骤号与粘性底栏 */
 .rd-sheet__body .img2img-workbench__heading,
 .rd-sheet__body .reverse-prompt-panel__heading{display:none !important}
 .rd-sheet__body .creation-step-card__heading,
 .rd-sheet__body .creation-step-card__summary{display:flex;align-items:center;gap:8px;min-width:0}
+.rd-sheet__body .creation-step-card__summary>span:last-child{min-width:0}
 .rd-sheet__body .creation-step-card__number{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--bg-elevated);border:1px solid var(--border);font-family:var(--rd-mono);font-size:10.5px;font-weight:600;color:var(--text-secondary)}
 .rd-sheet__body .creation-step-card__title,
-.rd-sheet__body .creation-settings__title{margin:0;font-size:13px;font-weight:650;color:var(--text-primary)}
+.rd-sheet__body .creation-settings__title{display:block;margin:0;font-size:13px;font-weight:650;color:var(--text-primary)}
+.rd-sheet__body .creation-step-card__description{display:block;margin:2px 0 0;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rd-sheet__body .creation-composer__input{font-size:14px !important;font-weight:400 !important;line-height:1.6 !important}
-.rd-sheet__body .img2img-action{position:sticky;bottom:0;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:12px 2px 2px;background:var(--bg-surface) !important;border-top:1px solid var(--border)}
+.rd-sheet__body .img2img-action{position:sticky;bottom:0;z-index:6;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 0 !important;padding:12px 2px 2px !important;background:var(--bg-surface) !important;border-top:1px solid var(--border)}
 .rd-sheet__body .img2img-action .ui-button--primary{flex:1 1 100%;width:100%;min-height:40px;border-radius:999px !important;background:var(--text-primary) !important;border-color:var(--text-primary) !important;color:var(--bg-surface) !important;font-size:13px;font-weight:650}
 .rd-sheet__body .img2img-action .ui-button--primary:disabled{opacity:1 !important;background:var(--bg-elevated) !important;border-color:var(--border) !important;color:var(--text-muted) !important}
 
@@ -228,8 +231,8 @@
   .rd-compact-expand__icon{transform:rotate(180deg)}
   .rd-go--compact{height:34px;padding:0 5px 0 13px;gap:7px;font-size:12.5px;margin-left:0}
   .rd-composer__expandable{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .26s var(--rd-ease),opacity .18s ease}
-  .rd-composer.is-sheet.is-expanded .rd-composer__expandable{flex:1;min-height:0}
-  .rd-composer.is-collapsed .rd-composer__expandable{grid-template-rows:0fr;opacity:0;pointer-events:none}
+  .rd-composer.is-sheet.is-expanded .rd-composer__expandable{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+  .rd-composer.is-collapsed .rd-composer__expandable{display:grid;grid-template-rows:0fr;opacity:0;pointer-events:none}
   .rd-composer__expandable-inner{min-height:0;overflow:hidden}
   .rd-composer.is-collapsed .rd-composer__expandable-inner{visibility:hidden}
   .rd-composer textarea{min-height:40px;max-height:132px;padding:2px 4px 0 2px;font-size:15px;line-height:1.56}

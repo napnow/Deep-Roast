@@ -148,6 +148,7 @@ export function sessionFixture(options: { pathname?: string } = {}) {
   const allowed = new Set([
     "lib/store.ts", "lib/client-api.ts", "lib/image-task.ts", "types/index.ts",
     "lib/client-session-lifecycle.ts", "lib/image-model-preferences.ts",
+    "lib/image-model-capabilities.ts",
     "lib/conversational-image-intent.ts", "components/AuthProvider.tsx",
     "hooks/useChatActions.ts", "hooks/useInitialData.ts",
     "hooks/useImageActions.ts", "lib/image-edit-feedback.ts",

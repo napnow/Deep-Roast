@@ -1,4 +1,4 @@
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { requestIdempotency } from "@/db/schema";
@@ -34,6 +34,20 @@ export async function beginRequest(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + PROCESSING_TIMEOUT_MS);
   const leaseToken = randomUUID();
+
+  // Expired terminal records (>24h) must not replay stale responses; delete any
+  // expired settled entry for this key before attempting a fresh claim.
+  await db
+    .delete(requestIdempotency)
+    .where(
+      and(
+        eq(requestIdempotency.userId, userId),
+        eq(requestIdempotency.scope, scope),
+        eq(requestIdempotency.key, key),
+        inArray(requestIdempotency.status, ["succeeded", "failed"]),
+        lte(requestIdempotency.expiresAt, now),
+      ),
+    );
 
   const [inserted] = await db
     .insert(requestIdempotency)
@@ -82,6 +96,7 @@ export async function beginRequest(
 
   if (
     (existing.status === "succeeded" || existing.status === "failed") &&
+    existing.expiresAt > now &&
     existing.responseStatus &&
     existing.responseBody
   ) {

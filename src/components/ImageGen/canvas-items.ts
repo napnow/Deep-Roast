@@ -145,16 +145,18 @@ export function isAutoAddedGridPosition(x: number, y: number) {
 
 /**
  * Ids of image nodes that were auto-added before the dedicated canvas existed.
- * Only unlinked, non-placeholder nodes sitting on the canonical lattice
- * qualify, and the dump has to dominate the image nodes so a hand-built layout
- * is never touched.
+ * Dedicated canvas saves stamp `kind: "image"` on every image node; only legacy
+ * pre-dedicated-canvas dumps (which lacked `kind`), unlinked and sitting on the
+ * canonical lattice, qualify.
  */
 export function findLegacyAutoAddedCanvasIds(
-  nodes: Array<{ id: string; x: number; y: number; placeholder?: boolean }>,
+  nodes: Array<{ id: string; kind?: "image"; x: number; y: number; placeholder?: boolean }>,
   linkedIds: Iterable<string>,
 ) {
   const linked = new Set(linkedIds);
-  const candidates = nodes.filter(node => !node.placeholder && !linked.has(node.id) && isAutoAddedGridPosition(node.x, node.y));
+  const candidates = nodes.filter(
+    node => !node.kind && !node.placeholder && !linked.has(node.id) && isAutoAddedGridPosition(node.x, node.y),
+  );
   if (candidates.length < 3 || candidates.length * 5 < nodes.length * 3) return [];
   return candidates.map(node => node.id);
 }

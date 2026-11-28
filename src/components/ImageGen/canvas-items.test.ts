@@ -50,6 +50,14 @@ test("drops a full legacy dump with no linked nodes", () => {
   assert.deepEqual(findLegacyAutoAddedCanvasIds(mergeCanvasItems([], ids), []), ids);
 });
 
+test("preserves dedicated-canvas image nodes (kind: image) even with 3+ unlinked default-grid items", () => {
+  const manualThree = mergeCanvasItems([], ["img-1", "img-2", "img-3"]).map(node => ({
+    ...node,
+    kind: "image" as const,
+  }));
+  assert.deepEqual(findLegacyAutoAddedCanvasIds(manualThree, []), []);
+});
+
 test("replaces a generated image into its placeholder position", () => {
   assert.deepEqual(replaceCanvasPlaceholder([{ id: "placeholder", x: 820, y: 240, placeholder: true }], "placeholder", "image"), [
     { id: "image", x: 820, y: 240 },

@@ -53,6 +53,16 @@ test("request idempotency replays settled work and fences concurrent or stale cl
       { kind: "replay", status: 502, body: { error: "upstream failed" } },
     );
 
+    await pool.query(
+      `UPDATE request_idempotency SET expires_at=now()-interval '1 second'
+       WHERE user_id=$1 AND scope='integration' AND key IN ('concurrent-key','failed-key')`,
+      [userId],
+    );
+    const afterSuccessExpiry = await beginRequest(userId, "integration", "concurrent-key");
+    assert.equal(afterSuccessExpiry.kind, "new");
+    const afterFailedExpiry = await beginRequest(userId, "integration", "failed-key");
+    assert.equal(afterFailedExpiry.kind, "new");
+
     const leased = await beginRequest(userId, "integration", "lease-key");
     assert.ok(leased.kind === "new");
     await assert.rejects(
